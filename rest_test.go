@@ -54,5 +54,8 @@ func TestMakeJavascriptRequest(t *testing.T) {
 	is.NoErr(err)
 	js, err := ioutil.ReadFile("./test/template_request.js")
 	is.NoErr(err)
-	is.Equal(requests[0], string(js))
+	for i, c := range requests[0] {
+		is.Equal(rune(js[i]), c)
+	}
+	// is.Equal(requests[0], string(js))
 }

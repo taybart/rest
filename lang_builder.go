@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	jsonSep = ",\n"
+	jsonSep = ","
 )
 
 // Holy grail
@@ -18,28 +18,40 @@ func SynthisizeClient() {
 
 // SynthisizeRequest : output request code
 func (r Rest) SynthisizeRequest(lang string) ([]string, error) {
-	name := fmt.Sprintf("./templates/%s", lang)
-	template, err := ioutil.ReadFile(name)
-	if err != nil {
-		return []string{}, fmt.Errorf("asdf %w", err)
-	}
-	requests := make([]string, len(r.requests))
-	for i, req := range r.requests {
-		builder := strings.ReplaceAll(string(template), "_METHOD", req.Method)
-		builder = strings.ReplaceAll(builder, "_URL", req.URL.String())
+	if template, ok := templates[lang]; ok {
 
-		headers := ""
-		for h, v := range req.Header {
-			headers += fmt.Sprintf(`"%s": "%s"%s`, h, v[0], jsonSep) // TODO file based seps
-		}
-		builder = strings.ReplaceAll(builder, "_HEADERS", headers)
-
-		body, err := ioutil.ReadAll(req.Body)
+		/* name := fmt.Sprintf("./templates/%s", lang)
+		template, err := ioutil.ReadFile(name)
 		if err != nil {
-			log.Error(err)
+			return []string{}, fmt.Errorf("asdf %w", err)
+		} */
+		requests := make([]string, len(r.requests))
+		for i, req := range r.requests {
+			builder := strings.Replace(string(template), "_METHOD", req.Method, 1)
+			builder = strings.Replace(builder, "_URL", req.URL.String(), 1)
+
+			headers := ""
+			for h, v := range req.Header {
+				headers += fmt.Sprintf(`'%s': '%s'%s`, h, v[0], jsonSep) // TODO file based seps
+			}
+			builder = strings.Replace(builder, "_HEADERS", headers, 1)
+
+			body, err := ioutil.ReadAll(req.Body)
+			if err != nil {
+				log.Error(err)
+			}
+			builder = strings.Replace(builder, "_BODY", string(body), 1)
+			requests[i] = builder
 		}
-		builder = strings.ReplaceAll(builder, "_BODY", string(body))
-		requests[i] = builder
+		return requests, nil
 	}
-	return requests, nil
+	return nil, fmt.Errorf("Unknown template")
+}
+
+var templates = map[string]string{
+	"javascript": `fetch('_URL', {
+  method: '_METHOD',
+  headers: { _HEADERS },
+  body: JSON.stringify(_BODY),
+}).then((res) => { if (res.status == 200) { /* woohoo! */ } })`,
 }

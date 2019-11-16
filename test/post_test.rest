@@ -2,5 +2,6 @@ http://localhost:8080
 Content-Type: application/json
 POST /post-test
 {
-  "data": "Yeah!"
+  "data": "Yeah!",
+  "other":  43
 }
