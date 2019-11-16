@@ -5,7 +5,7 @@ Build rest requests for testing. The format is similar to vim-rest-console:
 ```http
 http://localhost:8080
 Content-Type: application/json
-POST /post-ep
+POST /post-test
 {
   "data": "Yeah!"
 }
@@ -32,9 +32,9 @@ $ rest post.rest
 ```go
 import ("github.com/taybart/rest")
 func main {
-	r := rest.New()
-	err := r.Read("./post.rest")
-	if err != nil {
+  r := rest.New()
+  err := r.Read("./post.rest")
+  if err != nil {
     panic("HOLY SHIT!")
   }
   r.Exec() // Execute dem requests
@@ -45,25 +45,27 @@ func main {
 ### Create other language requests!
 
 ```go
-import ("github.com/taybart/rest")
+import (
+  "fmt"
+
+  "github.com/taybart/rest"
+)
 
 func main() {
-	r := rest.New()
-	err := r.Read("./post.rest")
-	if err != nil {
+  r := rest.New()
+  err := r.Read("./post.rest")
+  if err != nil {
+  fmt.Println(err)
     panic("HOLY SHIT!")
   }
-	requests, err := r.SynthisizeRequest("javascript")
-	if err != nil {
+  requests, err := r.SynthisizeRequest("javascript")
+  if err != nil {
+    fmt.Println(err)
     panic("HOLY SHIT!")
   }
-	js, err := ioutil.ReadFile("./test/template_request.js")
-	if err != nil {
-    panic("HOLY SHIT!")
-  }
-  fmt.Println(js) 
-  
+  fmt.Println(requests[0])
 }
+
 ```
 
 ### Output
@@ -71,13 +73,7 @@ func main() {
 ```javascript
 fetch('http://localhost:8080/post-test', {
   method: 'POST',
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: {  "data": "Yeah!"}
-}).then((res) => {
-  if (res.status == 200) {
-    // woohoo!
-  }
-})
+  headers: { 'Content-Type': 'application/json', },
+  body: JSON.stringify({  "data": "Yeah!"}),
+}).then((res) => { if (res.status == 200) { /* woohoo! */ } })
 ```
