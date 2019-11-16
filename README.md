@@ -14,7 +14,7 @@ POST /post-ep
 ## Command line execution
 
 ```shell
-$ go install github.com/taybart/rest
+$ go install github.com/taybart/rest/cmd/rest
 $ cat <<EOF > post.rest
 http://localhost:8080
 Content-Type: application/json

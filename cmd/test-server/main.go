@@ -39,6 +39,13 @@ func (s *server) routes() {
 				log.Info(body, err)
 			}
 			w.WriteHeader(http.StatusOK)
+
+			res := struct {
+				Status string `json:"status"`
+			}{
+				Status: "ok",
+			}
+			json.NewEncoder(w).Encode(res)
 		}))
 }
 

@@ -11,6 +11,8 @@ import (
 	"github.com/taybart/log"
 )
 
+// TODO isRestFile(), for command line
+
 const (
 	stateUrl = iota + 1
 	stateHeaders

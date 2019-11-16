@@ -3,6 +3,7 @@ package rest
 import (
 	"bufio"
 	"net/http"
+	"net/http/httputil"
 	"os"
 
 	"github.com/taybart/log"
@@ -54,10 +55,23 @@ func (r *Rest) ReadConcurrent(fn string) error {
 }
 
 // Exec : do all loaded requests
-func (r *Rest) Exec() {
+func (r *Rest) Exec() []string {
 	// TODO create error report
+	responses := []string{}
 	for i, req := range r.requests {
 		log.Infof("Sending request %d to %s\n", i, req.URL.String())
-		r.client.Do(req)
+		resp, err := r.client.Do(req)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+
+		dump, err := httputil.DumpResponse(resp, true)
+		if err != nil {
+			log.Fatal(err)
+		}
+		responses = append(responses, string(dump))
+
 	}
+	return responses
 }
