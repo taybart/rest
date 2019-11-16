@@ -11,23 +11,29 @@ POST /post-ep
 }
 ```
 
-## Programatic parsing
+## Command line execution
 
-rest file `post_test.rest`
-```http
+```shell
+$ go install github.com/taybart/rest
+$ cat <<EOF > post.rest
 http://localhost:8080
 Content-Type: application/json
 POST /post-test
 {
   "data": "Yeah!"
 }
+EOF
+$ rest post.rest
+{ "status": "ok" }
 ```
+
+## Programatic parsing
 
 ```go
 import ("github.com/taybart/rest")
 func main {
 	r := rest.New()
-	err := r.Read("./post_test.rest")
+	err := r.Read("./post.rest")
 	if err != nil {
     panic("HOLY SHIT!")
   }
@@ -36,14 +42,14 @@ func main {
 ```
 
 
-# Create other language requests!
+### Create other language requests!
 
 ```go
 import ("github.com/taybart/rest")
 
 func main() {
 	r := rest.New()
-	err := r.Read("./post_test.rest")
+	err := r.Read("./post.rest")
 	if err != nil {
     panic("HOLY SHIT!")
   }
