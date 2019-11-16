@@ -1,0 +1,12 @@
+http://localhost:8080
+GET /multi-test/get1
+
+---
+
+http://localhost:8080
+GET /multi-test/get2
+
+---
+
+http://localhost:8080
+GET /multi-test/get2

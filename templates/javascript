@@ -1,0 +1,11 @@
+fetch('_URL', {
+  method: '_METHOD',
+  headers: {
+    _HEADERS
+  },
+  body: _BODY
+}).then((res) => {
+  if (res.status == 200) {
+    // woohoo!
+  }
+})
