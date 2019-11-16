@@ -29,10 +29,11 @@ type request struct {
 }
 
 type lexer struct {
-	rxURL    *regexp.Regexp
-	rxHeader *regexp.Regexp
-	rxPath   *regexp.Regexp
-	rxMethod *regexp.Regexp
+	rxURL     *regexp.Regexp
+	rxHeader  *regexp.Regexp
+	rxPath    *regexp.Regexp
+	rxMethod  *regexp.Regexp
+	rxComment *regexp.Regexp
 
 	concurrent bool
 	bch        chan *http.Request
@@ -41,10 +42,11 @@ type lexer struct {
 
 func newLexer(concurrent bool) lexer {
 	return lexer{
-		rxURL:    regexp.MustCompile(`(https?)://[^\s/$.?#].[^\s]*`),
-		rxHeader: regexp.MustCompile(`[a-zA-Z-]*: .*`),
-		rxMethod: regexp.MustCompile(`OPTIONS|GET|POST|PUT|DELETE`),
-		rxPath:   regexp.MustCompile(`\/.*`),
+		rxURL:     regexp.MustCompile(`(https?)://[^\s/$.?#].[^\s]*`),
+		rxHeader:  regexp.MustCompile(`[a-zA-Z-]*: .*`),
+		rxMethod:  regexp.MustCompile(`OPTIONS|GET|POST|PUT|DELETE`),
+		rxPath:    regexp.MustCompile(`\/.*`),
+		rxComment: regexp.MustCompile(`$#.*`),
 
 		concurrent: concurrent,
 		bch:        make(chan *http.Request),
@@ -79,9 +81,10 @@ func (l *lexer) parse(scanner *bufio.Scanner) ([]*http.Request, error) {
 // parseBlocks : Parse blocks in the order in which they were given
 func (l *lexer) parseBlocks(blocks [][]string) (reqs []*http.Request, err error) {
 	log.Debug("Starting to parse blocks in order")
-	for _, block := range blocks {
+	for i, block := range blocks {
 		r, err := l.parseBlock(block)
 		if err != nil {
+			err = fmt.Errorf("Block %d %w", i, err)
 			log.Error(err)
 			continue // TODO maybe should super fail
 		}
@@ -114,6 +117,8 @@ func (l *lexer) parseBlock(block []string) (*http.Request, error) {
 	state := stateUrl
 	for _, line := range block {
 		switch {
+		case l.rxComment.MatchString(line):
+			continue
 		case l.rxURL.MatchString(line):
 			u := l.rxURL.FindString(line)
 			if isUrl(u) {
@@ -144,22 +149,25 @@ func (l *lexer) parseBlock(block []string) (*http.Request, error) {
 	}
 	log.Debug("Building request")
 	r, err := l.buildRequest(req)
-	if err != nil {
-		log.Error(err)
+	if err == nil {
+		if l.concurrent {
+			l.bch <- r
+		}
+		return r, nil
 	}
-	if l.concurrent {
-		l.bch <- r
-	}
-	return r, err
+	return nil, err
 }
 
 // buildRequest : generate http.Request from parsed input
 func (l lexer) buildRequest(input request) (req *http.Request, err error) {
 	url := fmt.Sprintf("%s%s", input.url, input.path)
-	if len(input.body) > 0 {
+	if !isUrl(url) {
+		err = fmt.Errorf("url invalid or missing")
+		return
 	}
 	req, err = http.NewRequest(input.method, url, strings.NewReader(input.body))
 	if err != nil {
+		err = fmt.Errorf("creating request %w", err)
 		return
 	}
 	for header, value := range input.headers {

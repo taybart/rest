@@ -5,12 +5,26 @@ import (
 	"testing"
 
 	"github.com/matryer/is"
+	"github.com/taybart/log"
 )
+
+func TestMain(m *testing.M) {
+	log.SetLevel(log.DEBUG)
+	m.Run()
+}
 
 func TestReadGet(t *testing.T) {
 	is := is.New(t)
 	r := New()
 	err := r.Read("./test/get_test.rest")
+	is.NoErr(err)
+	r.Exec()
+}
+
+func TestHasComment(t *testing.T) {
+	is := is.New(t)
+	r := New()
+	err := r.Read("./test/get_comment_test.rest")
 	is.NoErr(err)
 	r.Exec()
 }
