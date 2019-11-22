@@ -22,6 +22,11 @@ func New() *Rest {
 	}
 }
 
+// SetClient : change default execution client
+func (r *Rest) SetClient(c *http.Client) {
+	r.client = c
+}
+
 // Read : read ordered requests from file
 func (r *Rest) Read(fn string) error {
 	file, err := os.Open(fn)
@@ -34,8 +39,12 @@ func (r *Rest) Read(fn string) error {
 	lex := newLexer(
 		false, // concurrent
 	)
-	r.requests, err = lex.parse(scanner)
-	return err
+	reqs, err := lex.parse(scanner)
+	if err != nil {
+		return err
+	}
+	r.requests = append(r.requests, reqs...)
+	return nil
 }
 
 // ReadConcurrent : read unordered requests from file
@@ -50,8 +59,12 @@ func (r *Rest) ReadConcurrent(fn string) error {
 	lex := newLexer(
 		true, // concurrent
 	)
-	r.requests, err = lex.parse(scanner)
-	return err
+	reqs, err := lex.parse(scanner)
+	if err != nil {
+		return err
+	}
+	r.requests = append(r.requests, reqs...)
+	return nil
 }
 
 // Exec : do all loaded requests
@@ -59,7 +72,7 @@ func (r *Rest) Exec() []string {
 	// TODO create error report
 	responses := []string{}
 	for i, req := range r.requests {
-		log.Infof("Sending request %d to %s\n", i, req.URL.String())
+		log.Debugf("Sending request %d to %s\n", i, req.URL.String())
 		resp, err := r.client.Do(req)
 		if err != nil {
 			log.Error(err)
@@ -73,5 +86,6 @@ func (r *Rest) Exec() []string {
 		responses = append(responses, string(dump))
 
 	}
+	r.requests = []*http.Request{} // clear requests
 	return responses
 }
