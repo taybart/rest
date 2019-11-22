@@ -40,13 +40,18 @@ func (s *server) routes() {
 			}
 			log.Info(string(dump))
 
-			w.WriteHeader(http.StatusOK)
-
 			res := struct {
 				Status string `json:"status"`
 			}{
 				Status: "ok",
 			}
+			if r.URL.Path == "/fail" {
+				w.WriteHeader(http.StatusInternalServerError)
+				res.Status = "bad"
+			} else {
+				w.WriteHeader(http.StatusOK)
+			}
+
 			json.NewEncoder(w).Encode(res)
 		}))
 }

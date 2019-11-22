@@ -48,7 +48,8 @@ func TestReadGet(t *testing.T) {
 		}
 	})
 	r.SetClient(client)
-	r.Exec()
+	_, failed := r.Exec()
+	is.Equal(len(failed), 0)
 }
 
 func TestHasComment(t *testing.T) {
@@ -69,7 +70,8 @@ func TestHasComment(t *testing.T) {
 		}
 	})
 	r.SetClient(client)
-	r.Exec()
+	_, failed := r.Exec()
+	is.Equal(len(failed), 0)
 }
 
 func TestReadPost(t *testing.T) {
@@ -90,7 +92,8 @@ func TestReadPost(t *testing.T) {
 		}
 	})
 	r.SetClient(client)
-	r.Exec()
+	_, failed := r.Exec()
+	is.Equal(len(failed), 0)
 }
 
 func TestReadMulti(t *testing.T) {

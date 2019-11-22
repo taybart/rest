@@ -1,6 +1,4 @@
-github.com/gorilla/mux v1.7.3 h1:gnP5JzjVOuiZD07fKKToCAOjS0yOpj/qPETTXCCS6hw=
-github.com/gorilla/mux v1.7.3/go.mod h1:1lud6UwP+6orDFRuTfBEV8e9/aOM/c4fVVCaMa2zaAs=
 github.com/matryer/is v1.2.0 h1:92UTHpy8CDwaJ08GqLDzhhuixiBUUD1p3AU6PHddz4A=
 github.com/matryer/is v1.2.0/go.mod h1:2fLPjFQM9rhQ15aVEtbuwhJinnOqrmgXPNdZsdwlWXA=
-github.com/taybart/log v1.0.5 h1:M2pP0MEHCH2H3VZHyUslMXUwiSuv+5E/FgOF3DUfaRE=
-github.com/taybart/log v1.0.5/go.mod h1:bLpgJt6GrTPJNabumQPcFTaYJnGwj7mSMs/OQwTDAdE=
+github.com/taybart/log v1.0.6 h1:0C+0Sym9OuD2QCT0HtZu+MvmAjIOFY529Jrw+qEzl0w=
+github.com/taybart/log v1.0.6/go.mod h1:bLpgJt6GrTPJNabumQPcFTaYJnGwj7mSMs/OQwTDAdE=

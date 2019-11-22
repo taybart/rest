@@ -26,9 +26,20 @@ func init() {
 	flag.Var(&fns, "f", "Filenames of .rest file")
 }
 
+func help() {
+	if len(fns) == 0 {
+		fmt.Println("At least one file is required")
+	}
+	flag.PrintDefaults()
+}
+
 func main() {
 	flag.Parse()
 	log.SetLevel(log.INFO)
+	if len(fns) == 0 {
+		help()
+		os.Exit(1)
+	}
 	r := rest.New()
 	for _, f := range fns {
 		if fileExists(f) {
@@ -40,10 +51,15 @@ func main() {
 		}
 	}
 	log.Info("Excuting...")
-	responses := r.Exec()
-	for i, res := range responses {
-		log.Info("response", i)
+	success, failed := r.Exec()
+	for _, res := range success {
 		fmt.Println(res)
+	}
+	if len(failed) > 0 {
+		log.Error("Failed requests")
+		for _, res := range failed {
+			fmt.Println(res)
+		}
 	}
 	log.Info("Done")
 }

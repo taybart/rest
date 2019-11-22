@@ -2,6 +2,7 @@ package rest
 
 import (
 	"bufio"
+	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -68,24 +69,37 @@ func (r *Rest) ReadConcurrent(fn string) error {
 }
 
 // Exec : do all loaded requests
-func (r *Rest) Exec() []string {
+func (r *Rest) Exec() (successful, failed []string) {
 	// TODO create error report
-	responses := []string{}
 	for i, req := range r.requests {
 		log.Debugf("Sending request %d to %s\n", i, req.URL.String())
 		resp, err := r.client.Do(req)
 		if err != nil {
 			log.Error(err)
+			failed = append(failed, err.Error())
 			continue
 		}
 
 		dump, err := httputil.DumpResponse(resp, true)
 		if err != nil {
-			log.Fatal(err)
+			log.Error(err)
+			failed = append(failed, err.Error())
+			continue
 		}
-		responses = append(responses, string(dump))
+
+		color := log.Green
+		if resp.StatusCode >= 400 {
+			color = log.Red
+		}
+
+		successful = append(successful, fmt.Sprintf("%s%s%s\n%s",
+			color,
+			req.URL.String(),
+			log.Rtd,
+			dump,
+		))
 
 	}
 	r.requests = []*http.Request{} // clear requests
-	return responses
+	return
 }
