@@ -5,10 +5,15 @@ Build rest requests for testing. The format is similar to vim-rest-console:
 ```http
 http://localhost:8080
 Content-Type: application/json
-POST /post-test
+POST /
 {
+  "id": 11,
   "data": "Yeah!"
 }
+---
+# Get result
+http://localhost:8080
+GET /?id=11
 ```
 
 ## Command line execution
@@ -18,12 +23,12 @@ $ go install github.com/taybart/rest/cmd/rest
 $ cat <<EOF > post.rest
 http://localhost:8080
 Content-Type: application/json
-POST /post-test
+POST /
 {
   "data": "Yeah!"
 }
 EOF
-$ rest post.rest
+$ rest -f post.rest
 { "status": "ok" }
 ```
 

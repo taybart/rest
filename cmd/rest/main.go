@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -8,21 +9,43 @@ import (
 	"github.com/taybart/rest"
 )
 
+type filenames []string
+
+func (i *filenames) String() string {
+	return fmt.Sprintf("%v", *i)
+}
+
+func (i *filenames) Set(value string) error {
+	*i = append(*i, value)
+	return nil
+}
+
+var fns filenames
+
+func init() {
+	flag.Var(&fns, "f", "Filenames of .rest file")
+}
+
 func main() {
-	log.SetLevel(log.WARN)
-	for _, f := range os.Args[1:] {
+	flag.Parse()
+	log.SetLevel(log.INFO)
+	r := rest.New()
+	for _, f := range fns {
 		if fileExists(f) {
-			r := rest.New()
+			log.Info("Reading...", f)
 			err := r.Read(f)
 			if err != nil {
 				log.Error(err)
 			}
-			responses := r.Exec()
-			for _, res := range responses {
-				fmt.Println(res)
-			}
 		}
 	}
+	log.Info("Excuting...")
+	responses := r.Exec()
+	for i, res := range responses {
+		log.Info("response", i)
+		fmt.Println(res)
+	}
+	log.Info("Done")
 }
 
 func fileExists(fn string) bool {
