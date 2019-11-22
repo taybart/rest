@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"time"
 
 	"github.com/taybart/log"
@@ -31,13 +33,13 @@ func (s *server) routes() {
 	s.router.HandleFunc("/", log.Middleware(
 		func(w http.ResponseWriter, r *http.Request) {
 
-			if r.Header.Get("Content-Type") == "application/json" {
-				body := struct {
-					Data string `json:"data"`
-				}{}
-				err := json.NewDecoder(r.Body).Decode(&body)
-				log.Info(body, err)
+			dump, err := httputil.DumpRequest(r, true)
+			if err != nil {
+				http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
+				return
 			}
+			log.Info(string(dump))
+
 			w.WriteHeader(http.StatusOK)
 
 			res := struct {
