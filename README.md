@@ -60,12 +60,9 @@ func main() {
   }
   fmt.Println(requests[0])
 }
-
 ```
-
-### Output
-
 ```javascript
+// output
 fetch('http://localhost:8080/post-test', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', },
