@@ -29,12 +29,15 @@ type request struct {
 }
 
 type lexer struct {
-	rxURL     *regexp.Regexp
-	rxHeader  *regexp.Regexp
-	rxPath    *regexp.Regexp
-	rxMethod  *regexp.Regexp
-	rxComment *regexp.Regexp
+	rxURL           *regexp.Regexp
+	rxHeader        *regexp.Regexp
+	rxPath          *regexp.Regexp
+	rxMethod        *regexp.Regexp
+	rxComment       *regexp.Regexp
+	rxVarDefinition *regexp.Regexp
+	rxVar           *regexp.Regexp
 
+	variables  map[string]string
 	concurrent bool
 	bch        chan *http.Request
 	ech        chan error // unused
@@ -42,12 +45,15 @@ type lexer struct {
 
 func newLexer(concurrent bool) lexer {
 	return lexer{
-		rxURL:     regexp.MustCompile(`(https?)://[^\s/$.?#].[^\s]*`),
-		rxHeader:  regexp.MustCompile(`[a-zA-Z-]*: .*`),
-		rxMethod:  regexp.MustCompile(`OPTIONS|GET|POST|PUT|DELETE`),
-		rxPath:    regexp.MustCompile(`\/.*`),
-		rxComment: regexp.MustCompile(`$#.*`),
+		rxURL:           regexp.MustCompile(`(https?)://[^\s/$.?#].[^\s]*`),
+		rxHeader:        regexp.MustCompile(`[a-zA-Z-]+: .+`),
+		rxMethod:        regexp.MustCompile(`OPTIONS|GET|POST|PUT|DELETE`),
+		rxPath:          regexp.MustCompile(`\/.*`),
+		rxComment:       regexp.MustCompile(`^[[:space:]]*[#|\/\/]`),
+		rxVarDefinition: regexp.MustCompile(`set ([[:word:]\-]+) (.+)`),
+		rxVar:           regexp.MustCompile(`\$\{([[:word:]\-]+)\}`),
 
+		variables:  make(map[string]string),
 		concurrent: concurrent,
 		bch:        make(chan *http.Request),
 	}
@@ -55,7 +61,6 @@ func newLexer(concurrent bool) lexer {
 
 // parse : Parse a rest file and build golang http requests from it
 func (l *lexer) parse(scanner *bufio.Scanner) ([]*http.Request, error) {
-	// TODO build context blocks and run parse on each
 	log.Debug("Lex starting parse")
 	blocks := [][]string{}
 	block := []string{}
@@ -71,7 +76,6 @@ func (l *lexer) parse(scanner *bufio.Scanner) ([]*http.Request, error) {
 	blocks = append(blocks, block)
 
 	log.Debugf("Got %d blocks\n", len(blocks))
-
 	if l.concurrent {
 		return l.parseBlocksConcurrently(blocks)
 	}
@@ -91,6 +95,7 @@ func (l *lexer) parseBlocks(blocks [][]string) (reqs []*http.Request, err error)
 		reqs = append(reqs, r)
 	}
 	log.Debugf("Parsed %d blocks\n", len(reqs))
+	l.variables = make(map[string]string) // purge vars
 	return
 }
 
@@ -106,6 +111,7 @@ func (l *lexer) parseBlocksConcurrently(blocks [][]string) (reqs []*http.Request
 		reqs = append(reqs, r)
 	}
 	log.Debug("Done")
+	l.variables = make(map[string]string) // purge vars
 	return
 }
 
@@ -115,10 +121,20 @@ func (l *lexer) parseBlock(block []string) (*http.Request, error) {
 		headers: make(map[string]string),
 	}
 	state := stateUrl
-	for _, line := range block {
-		switch {
-		case l.rxComment.MatchString(line):
+	for _, ln := range block {
+		if l.rxComment.MatchString(ln) {
+			log.Debug("Get comment", ln)
 			continue
+		}
+		line, err := l.checkForVariables(ln)
+		if err != nil {
+			log.Fatal(err)
+		}
+		switch {
+		case l.rxVarDefinition.MatchString(line):
+			v := l.rxVarDefinition.FindStringSubmatch(line)
+			log.Debugf("Setting %s to %s\n", string(v[1]), string(v[2]))
+			l.variables[v[1]] = v[2]
 		case l.rxURL.MatchString(line):
 			u := l.rxURL.FindString(line)
 			if isUrl(u) {
@@ -156,6 +172,23 @@ func (l *lexer) parseBlock(block []string) (*http.Request, error) {
 		return r, nil
 	}
 	return nil, err
+}
+
+func (l lexer) checkForVariables(line string) (string, error) {
+	tmp := line
+	if l.rxVar.MatchString(line) {
+		matches := l.rxVar.FindAllStringSubmatch(line, -1)
+		for _, match := range matches {
+			if value, ok := l.variables[match[1]]; ok {
+				tmp = strings.ReplaceAll(tmp, match[0], value)
+			} else {
+				return "", fmt.Errorf("Saw variable %s%s%s and did not have a value for it",
+					log.Blue, match[1], log.Rtd)
+			}
+			log.Debug(line, "->", tmp)
+		}
+	}
+	return tmp, nil
 }
 
 // buildRequest : generate http.Request from parsed input

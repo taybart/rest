@@ -38,7 +38,9 @@ func (s *server) routes() {
 				http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
 				return
 			}
-			log.Info(string(dump))
+			fmt.Println(log.Yellow)
+			fmt.Println(string(dump))
+			fmt.Println(log.Rtd)
 
 			res := struct {
 				Status string `json:"status"`

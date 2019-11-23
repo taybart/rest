@@ -1,0 +1,21 @@
+# Use variables!
+set HOST localhost
+set PORT 8080
+set AUTH apikey1234
+
+https://httpbin.org
+Authorization: Bearer ${AUTH}
+GET /bearer
+
+---
+
+http://${HOST}:${PORT}
+Content-Type: application/json
+POST /
+{
+  # Comment all the things!
+  "ints": 123,
+  "strings": ""
+}
+
+
