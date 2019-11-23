@@ -1,6 +1,8 @@
 # rest
 
-Build rest requests for testing. The format is similar to vim-rest-console:
+Goes well with [vim-rest](https://github.com/taybart/rest-vim)
+
+Build rest requests for testing. The format is similar to [vim-rest-console](https://github.com/diepm/vim-rest-console):
 
 <img width="271" alt="image" src="https://user-images.githubusercontent.com/3513897/69470865-ca43a200-0d56-11ea-9ebb-b68ecd7ced57.png">
 
