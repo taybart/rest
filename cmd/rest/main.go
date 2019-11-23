@@ -35,7 +35,7 @@ func help() {
 
 func main() {
 	flag.Parse()
-	log.SetLevel(log.INFO)
+	log.SetLevel(log.WARN)
 	if len(fns) == 0 {
 		help()
 		os.Exit(1)
@@ -43,25 +43,23 @@ func main() {
 	r := rest.New()
 	for _, f := range fns {
 		if fileExists(f) {
-			log.Info("Reading...", f)
+			fmt.Println("Reading...", f)
 			err := r.Read(f)
 			if err != nil {
 				log.Error(err)
 			}
 		}
 	}
-	log.Info("Excuting...")
 	success, failed := r.Exec()
 	for _, res := range success {
 		fmt.Println(res)
 	}
 	if len(failed) > 0 {
-		log.Error("Failed requests")
+		fmt.Printf("%sFailed requests%s\n", log.Red, log.Rtd)
 		for _, res := range failed {
 			fmt.Println(res)
 		}
 	}
-	log.Info("Done")
 }
 
 func fileExists(fn string) bool {
