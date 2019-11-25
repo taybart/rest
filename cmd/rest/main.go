@@ -21,9 +21,15 @@ func (i *filenames) Set(value string) error {
 }
 
 var fns filenames
+var servelog bool
+var servedir bool
+var port string
 
 func init() {
 	flag.Var(&fns, "f", "Filenames of .rest file")
+	flag.StringVar(&port, "p", "8080", "Port to attach to, requires -s or -d")
+	flag.BoolVar(&servelog, "s", false, "Accept and log requests at localhost:8080")
+	flag.BoolVar(&servedir, "d", false, "Serve directory at localhost:8080")
 }
 
 func help() {
@@ -36,6 +42,10 @@ func help() {
 func main() {
 	flag.Parse()
 	log.SetLevel(log.WARN)
+	if servelog || servedir {
+		serve(servedir, port)
+		return
+	}
 	if len(fns) == 0 {
 		help()
 		os.Exit(1)
