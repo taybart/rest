@@ -39,14 +39,20 @@ Date: Tue, 26 Nov 2019 01:31:49 GMT
 ## Programatic parsing
 
 ```go
-import ("github.com/taybart/rest")
+import (
+  "fmt"
+  
+  "github.com/taybart/rest"
+)
+
 func main {
   r := rest.New()
   err := r.Read("./post.rest")
   if err != nil {
     panic("HOLY SHIT!")
   }
-  r.Exec() // Execute dem requests
+  success, failed := r.Exec() // Execute dem requests
+  fmt.Println(success, failed)
 }
 ```
 
