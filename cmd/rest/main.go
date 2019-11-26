@@ -21,15 +21,17 @@ func (i *filenames) Set(value string) error {
 }
 
 var fns filenames
+var stdin bool
+var port string
 var servelog bool
 var servedir bool
-var port string
 
 func init() {
 	flag.Var(&fns, "f", "Filenames of .rest file")
 	flag.StringVar(&port, "p", "8080", "Port to attach to, requires -s or -d")
 	flag.BoolVar(&servelog, "s", false, "Accept and log requests at localhost:8080")
 	flag.BoolVar(&servedir, "d", false, "Serve directory at localhost:8080")
+	flag.BoolVar(&stdin, "i", false, "Exec requests in stdin")
 }
 
 func help() {
@@ -46,30 +48,36 @@ func main() {
 		serve(servedir, port)
 		return
 	}
-	if len(fns) == 0 {
-		help()
-		os.Exit(1)
-	}
 	r := rest.New()
-	for _, f := range fns {
-		if fileExists(f) {
-			fmt.Println("Reading...", f)
-			err := r.Read(f)
-			if err != nil {
-				log.Error(err)
+	if stdin {
+		r.ReadIO(os.Stdin)
+		r.Exec()
+		os.Exit(0)
+	}
+
+	if len(fns) > 0 {
+		for _, f := range fns {
+			if fileExists(f) {
+				fmt.Println("Reading...", f)
+				err := r.Read(f)
+				if err != nil {
+					log.Error(err)
+				}
+			}
+		}
+		success, failed := r.Exec()
+		for _, res := range success {
+			fmt.Println(res)
+		}
+		if len(failed) > 0 {
+			fmt.Printf("%sFailed requests%s\n", log.Red, log.Rtd)
+			for _, res := range failed {
+				fmt.Println(res)
 			}
 		}
 	}
-	success, failed := r.Exec()
-	for _, res := range success {
-		fmt.Println(res)
-	}
-	if len(failed) > 0 {
-		fmt.Printf("%sFailed requests%s\n", log.Red, log.Rtd)
-		for _, res := range failed {
-			fmt.Println(res)
-		}
-	}
+	help()
+	os.Exit(1)
 }
 
 func fileExists(fn string) bool {

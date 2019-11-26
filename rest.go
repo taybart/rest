@@ -3,6 +3,7 @@ package rest
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -26,6 +27,20 @@ func New() *Rest {
 // SetClient : change default execution client
 func (r *Rest) SetClient(c *http.Client) {
 	r.client = c
+}
+
+// ReadBuffer : read ordered requests from file
+func (r *Rest) ReadIO(buf io.Reader) error {
+	scanner := bufio.NewScanner(buf)
+	lex := newLexer(
+		false, // concurrent
+	)
+	reqs, err := lex.parse(scanner)
+	if err != nil {
+		return err
+	}
+	r.requests = append(r.requests, reqs...)
+	return nil
 }
 
 // Read : read ordered requests from file

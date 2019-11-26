@@ -17,5 +17,3 @@ POST /
   "ints": 123,
   "strings": ""
 }
-
-
