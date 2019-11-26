@@ -89,3 +89,28 @@ fetch('http://localhost:8080/post-test', {
   body: JSON.stringify({  "data": "Yeah!"}),
 }).then((res) => { if (res.status == 200) { /* woohoo! */ } })
 ```
+
+## Server?
+
+I have had uses for having a server that just accepts requests...So I put it in here:
+
+```bash
+$ rest -s
+2267-11-25 18:38:02 [INFO] Running at localhost:8080
+```
+
+I have also (like many) have used `python -m http.server`. Mine is not as cool but it does stuff:
+
+```bash
+$ rest -d
+2019-11-25 18:40:01 [INFO] Serving $(pwd) at localhost:8080
+```
+
+## But ports!!! 
+
+Chill...
+
+```bash
+$ rest -s -p 1234
+2267-11-25 18:38:02 [INFO] Running at localhost:1234
+```
