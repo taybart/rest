@@ -51,7 +51,8 @@ func main() {
 	r := rest.New()
 	if stdin {
 		r.ReadIO(os.Stdin)
-		r.Exec()
+		s, f := r.Exec()
+		fmt.Println(s, f)
 		os.Exit(0)
 	}
 
