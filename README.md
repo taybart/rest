@@ -20,6 +20,20 @@ POST /
 EOF
 $ rest -f post.rest
 { "status": "ok" }
+
+# STDIN
+$ rest -i
+http://localhost:8080
+GET /
+# <C-D>
+[http://localhost:8080/
+HTTP/1.1 200 OK
+Content-Length: 16
+Content-Type: text/plain; charset=utf-8
+Date: Tue, 26 Nov 2019 01:31:49 GMT
+
+{"status":"ok"}
+] []
 ```
 
 ## Programatic parsing
