@@ -1,3 +1,4 @@
+
 # Use variables!
 set HOST localhost
 set PORT 8080
@@ -9,7 +10,7 @@ GET /
 
 ---
 
-# after 1 second call this
+# after 0.5 second call this
 delay 500ms
 http://${HOST}:${PORT}
 Content-Type: application/json
