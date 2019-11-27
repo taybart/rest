@@ -4,7 +4,9 @@ Goes well with [vim-rest](https://github.com/taybart/rest-vim)
 
 Build rest requests for testing. The format is similar to [vim-rest-console](https://github.com/diepm/vim-rest-console):
 
-<img width="271" alt="image" src="https://user-images.githubusercontent.com/3513897/69470865-ca43a200-0d56-11ea-9ebb-b68ecd7ced57.png">
+[Example file](https://github.com/taybart/rest/blob/master/example.rest)
+
+<img width="321" alt="image" src="https://user-images.githubusercontent.com/3513897/69688114-5bca5100-1082-11ea-8d83-32e0d8321280.png">
 
 ## Command line execution
 
