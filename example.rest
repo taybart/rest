@@ -1,18 +1,22 @@
-
-# Use variables!
-set HOST localhost
-set PORT 8080
-set AUTH apikey1234
-
-http://${HOST}:${PORT}
-Authorization: Bearer ${AUTH}
-GET /
+# Simple requests
+https://httpbin.org
+GET /get?test=true
 
 ---
+# Use variables!
+set HOST httpbin.org
+set AUTH apikey1234
 
-# after 0.5 second call this
+https://${HOST}
+Authorization: Bearer ${AUTH}
+GET /bearer
+
+---
+set PORT 8080
+
+# Strategic delays [call after X[ns|us|µs|ms|s|m|h]]
 delay 500ms
-http://${HOST}:${PORT}
+http://localhost:${PORT}
 Content-Type: application/json
 POST /
 {

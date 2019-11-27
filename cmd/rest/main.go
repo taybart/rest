@@ -25,6 +25,7 @@ var stdin bool
 var port string
 var servelog bool
 var servedir bool
+var nocolor bool
 
 func init() {
 	flag.Var(&fns, "f", "Filenames of .rest file")
@@ -32,6 +33,7 @@ func init() {
 	flag.BoolVar(&servelog, "s", false, "Accept and log requests at localhost:8080")
 	flag.BoolVar(&servedir, "d", false, "Serve directory at localhost:8080")
 	flag.BoolVar(&stdin, "i", false, "Exec requests in stdin")
+	flag.BoolVar(&nocolor, "nc", false, "Remove all color from output")
 }
 
 func help() {
@@ -49,6 +51,10 @@ func main() {
 		return
 	}
 	r := rest.New()
+	if nocolor {
+		r.NoColor()
+		log.UseColors(false)
+	}
 	if stdin {
 		r.ReadIO(os.Stdin)
 		s, f := r.Exec()

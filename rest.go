@@ -14,6 +14,7 @@ import (
 
 // Rest : client
 type Rest struct {
+	color    bool
 	client   *http.Client
 	requests []request
 }
@@ -21,8 +22,14 @@ type Rest struct {
 // New : create new client
 func New() *Rest {
 	return &Rest{
+		color:  true,
 		client: http.DefaultClient,
 	}
+}
+
+// NoColor : change default execution client
+func (r *Rest) NoColor() {
+	r.color = false
 }
 
 // SetClient : change default execution client
@@ -104,19 +111,26 @@ func (r *Rest) Exec() (successful, failed []string) {
 			continue
 		}
 
-		color := log.Green
-		if resp.StatusCode >= 400 {
-			color = log.Red
+		if r.color {
+			color := log.Green
+			if resp.StatusCode >= 400 {
+				color = log.Red
+			}
+
+			successful = append(successful, fmt.Sprintf("%s%s%s\n%s\n---\n",
+				color,
+				req.r.URL.String(),
+				log.Rtd,
+				dump,
+			))
+		} else {
+			successful = append(successful, fmt.Sprintf("%s\n%s\n---\n",
+				req.r.URL.String(),
+				dump,
+			))
 		}
-
-		successful = append(successful, fmt.Sprintf("%s%s%s\n%s",
-			color,
-			req.r.URL.String(),
-			log.Rtd,
-			dump,
-		))
-
 	}
+
 	r.requests = []request{} // clear requests
 	return
 }
