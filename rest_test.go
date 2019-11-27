@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/matryer/is"
 	// "github.com/taybart/log"
@@ -32,7 +33,7 @@ func TestMain(m *testing.M) {
 func TestReadGet(t *testing.T) {
 	is := is.New(t)
 	r := New()
-	err := r.Read("./test/get_test.rest")
+	err := r.Read("./test/get.rest")
 	is.NoErr(err)
 
 	client := NewTestClient(func(r *http.Request) *http.Response {
@@ -55,7 +56,7 @@ func TestReadGet(t *testing.T) {
 func TestHasComment(t *testing.T) {
 	is := is.New(t)
 	r := New()
-	err := r.Read("./test/get_test.rest")
+	err := r.Read("./test/get.rest")
 	is.NoErr(err)
 
 	client := NewTestClient(func(r *http.Request) *http.Response {
@@ -78,7 +79,7 @@ func TestHasComment(t *testing.T) {
 func TestVariables(t *testing.T) {
 	is := is.New(t)
 	r := New()
-	err := r.Read("./test/var_test.rest")
+	err := r.Read("./test/var.rest")
 	is.NoErr(err)
 	counter := 0
 	methods := []string{"GET", "POST"}
@@ -104,7 +105,7 @@ func TestVariables(t *testing.T) {
 func TestReadPost(t *testing.T) {
 	is := is.New(t)
 	r := New()
-	err := r.Read("./test/post_test.rest")
+	err := r.Read("./test/post.rest")
 	is.NoErr(err)
 	client := NewTestClient(func(r *http.Request) *http.Response {
 		// Test request parameters
@@ -126,7 +127,7 @@ func TestReadPost(t *testing.T) {
 func TestReadMulti(t *testing.T) {
 	is := is.New(t)
 	r := New()
-	err := r.ReadConcurrent("./test/multi_test.rest")
+	err := r.ReadConcurrent("./test/multi.rest")
 	is.NoErr(err)
 	counter := 0
 	// urls := []string{"http://localhost/", ""}
@@ -156,7 +157,7 @@ func TestReadMulti(t *testing.T) {
 func TestReadConcurrent(t *testing.T) {
 	is := is.New(t)
 	r := New()
-	err := r.ReadConcurrent("./test/multi_test.rest")
+	err := r.ReadConcurrent("./test/multi.rest")
 	is.NoErr(err)
 	counter := 0
 	client := NewTestClient(func(r *http.Request) *http.Response {
@@ -178,10 +179,34 @@ func TestReadConcurrent(t *testing.T) {
 	is.Equal(counter, 3)
 }
 
+func TestDelay(t *testing.T) {
+	is := is.New(t)
+	r := New()
+	start := time.Now()
+	err := r.ReadConcurrent("./test/delay.rest")
+	is.NoErr(err)
+	client := NewTestClient(func(r *http.Request) *http.Response {
+		// Test request parameters
+		is.Equal(r.URL.String(), "http://localhost:8080/")
+		is.Equal(r.Method, "GET")
+		is.True(time.Since(start) > time.Millisecond*999)
+		return &http.Response{
+			StatusCode: 200,
+			// Send response to be tested
+			Body: ioutil.NopCloser(bytes.NewBufferString(`OK`)),
+			// Must be set to non-nil value or it panics
+			Header: make(http.Header),
+		}
+	})
+	r.SetClient(client)
+	_, failed := r.Exec()
+	is.Equal(len(failed), 0)
+}
+
 func TestMakeJavascriptRequest(t *testing.T) {
 	is := is.New(t)
 	r := New()
-	err := r.Read("./test/post_test.rest")
+	err := r.Read("./test/post.rest")
 	is.NoErr(err)
 	requests, err := r.SynthisizeRequest("javascript")
 	is.NoErr(err)

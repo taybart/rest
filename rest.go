@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"time"
 
 	"github.com/taybart/log"
 )
@@ -14,7 +15,7 @@ import (
 // Rest : client
 type Rest struct {
 	client   *http.Client
-	requests []*http.Request
+	requests []request
 }
 
 // New : create new client
@@ -87,8 +88,9 @@ func (r *Rest) ReadConcurrent(fn string) error {
 func (r *Rest) Exec() (successful, failed []string) {
 	// TODO create error report
 	for i, req := range r.requests {
-		log.Debugf("Sending request %d to %s\n", i, req.URL.String())
-		resp, err := r.client.Do(req)
+		time.Sleep(req.delay)
+		log.Debugf("Sending request %d to %s\n", i, req.r.URL.String())
+		resp, err := r.client.Do(req.r)
 		if err != nil {
 			log.Error(err)
 			failed = append(failed, err.Error())
@@ -109,12 +111,12 @@ func (r *Rest) Exec() (successful, failed []string) {
 
 		successful = append(successful, fmt.Sprintf("%s%s%s\n%s",
 			color,
-			req.URL.String(),
+			req.r.URL.String(),
 			log.Rtd,
 			dump,
 		))
 
 	}
-	r.requests = []*http.Request{} // clear requests
+	r.requests = []request{} // clear requests
 	return
 }

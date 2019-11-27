@@ -27,16 +27,16 @@ func (r Rest) SynthisizeRequest(lang string) ([]string, error) {
 		} */
 		requests := make([]string, len(r.requests))
 		for i, req := range r.requests {
-			builder := strings.Replace(string(template), "_METHOD", req.Method, 1)
-			builder = strings.Replace(builder, "_URL", req.URL.String(), 1)
+			builder := strings.Replace(string(template), "_METHOD", req.r.Method, 1)
+			builder = strings.Replace(builder, "_URL", req.r.URL.String(), 1)
 
 			headers := ""
-			for h, v := range req.Header {
+			for h, v := range req.r.Header {
 				headers += fmt.Sprintf(`'%s': '%s'%s`, h, v[0], jsonSep) // TODO file based seps
 			}
 			builder = strings.Replace(builder, "_HEADERS", headers, 1)
 
-			body, err := ioutil.ReadAll(req.Body)
+			body, err := ioutil.ReadAll(req.r.Body)
 			if err != nil {
 				log.Error(err)
 			}

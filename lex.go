@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/taybart/log"
 )
@@ -20,12 +21,18 @@ const (
 	stateBody
 )
 
-type request struct {
+type metaRequest struct {
 	url     string
 	headers map[string]string
 	method  string
 	path    string
 	body    string
+	delay   time.Duration
+}
+
+type request struct {
+	r     *http.Request
+	delay time.Duration
 }
 
 type lexer struct {
@@ -36,31 +43,33 @@ type lexer struct {
 	rxComment       *regexp.Regexp
 	rxVarDefinition *regexp.Regexp
 	rxVar           *regexp.Regexp
+	rxDelay         *regexp.Regexp
 
 	variables  map[string]string
 	concurrent bool
-	bch        chan *http.Request
+	bch        chan request
 	ech        chan error // unused
 }
 
 func newLexer(concurrent bool) lexer {
 	return lexer{
-		rxURL:           regexp.MustCompile(`(https?)://[^\s/$.?#].[^\s]*`),
+		rxURL:           regexp.MustCompile(`^(https?)://[^\s/$.?#].[^\s]*`),
 		rxHeader:        regexp.MustCompile(`[a-zA-Z-]+: .+`),
-		rxMethod:        regexp.MustCompile(`OPTIONS|GET|POST|PUT|DELETE`),
+		rxMethod:        regexp.MustCompile(`^(OPTIONS|GET|POST|PUT|DELETE)`),
 		rxPath:          regexp.MustCompile(`\/.*`),
 		rxComment:       regexp.MustCompile(`^[[:space:]]*[#|\/\/]`),
-		rxVarDefinition: regexp.MustCompile(`set ([[:word:]\-]+) (.+)`),
+		rxVarDefinition: regexp.MustCompile(`^set ([[:word:]\-]+) (.+)`),
 		rxVar:           regexp.MustCompile(`\$\{([[:word:]\-]+)\}`),
+		rxDelay:         regexp.MustCompile(`^delay ([[:alnum:]]+)$`),
 
 		variables:  make(map[string]string),
 		concurrent: concurrent,
-		bch:        make(chan *http.Request),
+		bch:        make(chan request),
 	}
 }
 
 // parse : Parse a rest file and build golang http requests from it
-func (l *lexer) parse(scanner *bufio.Scanner) ([]*http.Request, error) {
+func (l *lexer) parse(scanner *bufio.Scanner) ([]request, error) {
 	log.Debug("Lex starting parse")
 	blocks := [][]string{}
 	block := []string{}
@@ -83,7 +92,7 @@ func (l *lexer) parse(scanner *bufio.Scanner) ([]*http.Request, error) {
 }
 
 // parseBlocks : Parse blocks in the order in which they were given
-func (l *lexer) parseBlocks(blocks [][]string) (reqs []*http.Request, err error) {
+func (l *lexer) parseBlocks(blocks [][]string) (reqs []request, err error) {
 	log.Debug("Starting to parse blocks in order")
 	for i, block := range blocks {
 		r, err := l.parseBlock(block)
@@ -100,7 +109,7 @@ func (l *lexer) parseBlocks(blocks [][]string) (reqs []*http.Request, err error)
 }
 
 // parseBlocksConcurrently : Parse all blocks but don't care about order
-func (l *lexer) parseBlocksConcurrently(blocks [][]string) (reqs []*http.Request, err error) {
+func (l *lexer) parseBlocksConcurrently(blocks [][]string) (reqs []request, err error) {
 	log.Debug("Starting to parse blocks concurrently")
 	for _, block := range blocks {
 		go l.parseBlock(block)
@@ -116,8 +125,8 @@ func (l *lexer) parseBlocksConcurrently(blocks [][]string) (reqs []*http.Request
 }
 
 // parseBlock : Get all parts of request from request block
-func (l *lexer) parseBlock(block []string) (*http.Request, error) {
-	req := request{
+func (l *lexer) parseBlock(block []string) (request, error) {
+	req := metaRequest{
 		headers: make(map[string]string),
 	}
 	state := stateUrl
@@ -131,6 +140,12 @@ func (l *lexer) parseBlock(block []string) (*http.Request, error) {
 			log.Fatal(err)
 		}
 		switch {
+		case l.rxDelay.MatchString(line):
+			m := l.rxDelay.FindStringSubmatch(line)
+			req.delay, err = time.ParseDuration(m[1])
+			if err != nil {
+				log.Errorf("Cannot parse delay [%s]\n", line)
+			}
 		case l.rxVarDefinition.MatchString(line):
 			v := l.rxVarDefinition.FindStringSubmatch(line)
 			log.Debugf("Setting %s to %s\n", string(v[1]), string(v[2]))
@@ -171,7 +186,7 @@ func (l *lexer) parseBlock(block []string) (*http.Request, error) {
 		}
 		return r, nil
 	}
-	return nil, err
+	return request{}, err
 }
 
 func (l lexer) checkForVariables(line string) (string, error) {
@@ -192,19 +207,24 @@ func (l lexer) checkForVariables(line string) (string, error) {
 }
 
 // buildRequest : generate http.Request from parsed input
-func (l lexer) buildRequest(input request) (req *http.Request, err error) {
+func (l lexer) buildRequest(input metaRequest) (req request, err error) {
 	url := fmt.Sprintf("%s%s", input.url, input.path)
 	if !isUrl(url) {
 		err = fmt.Errorf("url invalid or missing")
 		return
 	}
-	req, err = http.NewRequest(input.method, url, strings.NewReader(input.body))
+	r, err := http.NewRequest(input.method, url, strings.NewReader(input.body))
 	if err != nil {
 		err = fmt.Errorf("creating request %w", err)
 		return
 	}
 	for header, value := range input.headers {
-		req.Header.Set(header, value)
+		r.Header.Set(header, value)
+	}
+	req.r = r
+	req.delay = 0
+	if input.delay > 0 {
+		req.delay = input.delay
 	}
 	return
 }

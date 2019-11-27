@@ -66,6 +66,8 @@ func main() {
 				}
 			}
 		}
+
+		fmt.Println("Done")
 		success, failed := r.Exec()
 		for _, res := range success {
 			fmt.Println(res)
@@ -76,9 +78,10 @@ func main() {
 				fmt.Println(res)
 			}
 		}
+	} else {
+		help()
+		os.Exit(1)
 	}
-	help()
-	os.Exit(1)
 }
 
 func fileExists(fn string) bool {

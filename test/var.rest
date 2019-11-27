@@ -3,9 +3,9 @@ set HOST localhost
 set PORT 8080
 set AUTH apikey1234
 
-https://httpbin.org
+http://${HOST}:${PORT}
 Authorization: Bearer ${AUTH}
-GET /bearer
+GET /
 
 ---
 
