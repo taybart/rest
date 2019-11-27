@@ -60,7 +60,7 @@ func newLexer(concurrent bool) lexer {
 		rxComment:       regexp.MustCompile(`^[[:space:]]*[#|\/\/]`),
 		rxVarDefinition: regexp.MustCompile(`^set ([[:word:]\-]+) (.+)`),
 		rxVar:           regexp.MustCompile(`\$\{([[:word:]\-]+)\}`),
-		rxDelay:         regexp.MustCompile(`^delay ([[:alnum:]]+)$`),
+		rxDelay:         regexp.MustCompile(`^delay (\d+(ns|us|µs|ms|s|m|h))$`),
 
 		variables:  make(map[string]string),
 		concurrent: concurrent,
