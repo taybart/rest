@@ -6,7 +6,7 @@ Build rest requests for testing. The format is similar to [vim-rest-console](htt
 
 [Example file](https://github.com/taybart/rest/blob/master/example.rest)
 
-<img width="321" alt="image" src="https://user-images.githubusercontent.com/3513897/69688114-5bca5100-1082-11ea-8d83-32e0d8321280.png">
+<img width="337" alt="image" src="https://user-images.githubusercontent.com/3513897/69688272-cda29a80-1082-11ea-92e5-d1139fb47fde.png">
 
 ## Command line execution
 
