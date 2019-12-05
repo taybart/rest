@@ -137,6 +137,10 @@ func (r *Rest) Exec() (successful, failed []string) {
 
 // ExecIndex : do specific block in requests
 func (r *Rest) ExecIndex(i int) (result string, err error) {
+	if i > len(r.requests) {
+		err = fmt.Errorf("Block %d does not exist", i)
+		return
+	}
 	req := r.requests[i]
 	time.Sleep(req.delay)
 	log.Debugf("Sending request %d to %s\n", i, req.r.URL.String())
