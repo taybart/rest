@@ -1,0 +1,11 @@
+http://localhost:8080
+GET /user?id=123
+
+expect 404
+
+---
+
+http://localhost:8080
+GET /user?id=1234
+
+expect 200 { "id": "1234", "name": "taybart" }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,18 +20,25 @@ const (
 	stateBody
 )
 
+type expectation struct {
+	code int
+	body string
+}
+
 type metaRequest struct {
-	url     string
-	headers map[string]string
-	method  string
-	path    string
-	body    string
-	delay   time.Duration
+	url         string
+	headers     map[string]string
+	method      string
+	path        string
+	body        string
+	delay       time.Duration
+	expectation expectation
 }
 
 type request struct {
-	r     *http.Request
-	delay time.Duration
+	r           *http.Request
+	delay       time.Duration
+	expectation expectation
 }
 
 type lexer struct {
@@ -42,6 +50,7 @@ type lexer struct {
 	rxVarDefinition *regexp.Regexp
 	rxVar           *regexp.Regexp
 	rxDelay         *regexp.Regexp
+	rxExpect        *regexp.Regexp
 
 	variables  map[string]string
 	concurrent bool
@@ -59,6 +68,7 @@ func newLexer(concurrent bool) lexer {
 		rxVarDefinition: regexp.MustCompile(`^set ([[:word:]\-]+) (.+)`),
 		rxVar:           regexp.MustCompile(`\$\{([[:word:]\-]+)\}`),
 		rxDelay:         regexp.MustCompile(`^delay (\d+(ns|us|µs|ms|s|m|h))$`),
+		rxExpect:        regexp.MustCompile(`^expect (\d+) (.*)`),
 
 		variables:  make(map[string]string),
 		concurrent: concurrent,
@@ -128,7 +138,7 @@ func (l *lexer) parseBlock(block []string) (request, error) {
 		headers: make(map[string]string),
 	}
 	state := stateUrl
-	for _, ln := range block {
+	for i, ln := range block {
 		if l.rxComment.MatchString(ln) {
 			log.Debug("Get comment", ln)
 			continue
@@ -138,11 +148,26 @@ func (l *lexer) parseBlock(block []string) (request, error) {
 			log.Fatal(err)
 		}
 		switch {
+		case l.rxExpect.MatchString(line):
+			m := l.rxExpect.FindStringSubmatch(line)
+			if len(m) == 1 {
+				log.Errorf("Malformed expectation in block %d [%s]\n", i, line)
+				continue
+			}
+			req.expectation.code, err = strconv.Atoi(m[1])
+			if err != nil {
+				log.Errorf("Cannot parse expected code in block %d [%s]\n", i, line)
+				continue
+			}
+			if len(m) == 3 {
+				req.expectation.body = m[2]
+			}
 		case l.rxDelay.MatchString(line):
 			m := l.rxDelay.FindStringSubmatch(line)
 			req.delay, err = time.ParseDuration(m[1])
 			if err != nil {
-				log.Errorf("Cannot parse delay [%s]\n", line)
+				log.Errorf("Cannot parse delay in block %d [%s]\n", i, line)
+				continue
 			}
 		case l.rxVarDefinition.MatchString(line):
 			v := l.rxVarDefinition.FindStringSubmatch(line)
@@ -229,6 +254,7 @@ func (l lexer) buildRequest(input metaRequest) (req request, err error) {
 	if input.delay > 0 {
 		req.delay = input.delay
 	}
+	req.expectation = input.expectation
 
 	err = l.validateRequest(req)
 	if err != nil {

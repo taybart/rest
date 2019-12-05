@@ -2,8 +2,10 @@ package rest
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -104,6 +106,13 @@ func (r *Rest) Exec() (successful, failed []string) {
 			continue
 		}
 
+		err = r.CheckExpectation(req, resp)
+		if err != nil {
+			log.Error(err)
+			failed = append(failed, err.Error())
+			continue
+		}
+
 		dump, err := httputil.DumpResponse(resp, true)
 		if err != nil {
 			log.Error(err)
@@ -148,6 +157,10 @@ func (r *Rest) ExecIndex(i int) (result string, err error) {
 	if err != nil {
 		return
 	}
+	err = r.CheckExpectation(req, resp)
+	if err != nil {
+		return
+	}
 
 	dump, err := httputil.DumpResponse(resp, true)
 	if err != nil {
@@ -172,6 +185,29 @@ func (r *Rest) ExecIndex(i int) (result string, err error) {
 		)
 	}
 	return
+}
+
+func (r *Rest) CheckExpectation(req request, res *http.Response) error {
+	exp := req.expectation
+	if exp.code == 0 {
+		return nil
+	}
+
+	if exp.code != res.StatusCode {
+		return fmt.Errorf("Incorrect status code returned %d != %d", exp.code, res.StatusCode)
+	}
+
+	if len(exp.body) > 0 {
+		defer res.Body.Close()
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return fmt.Errorf("Issue reading body %w", err)
+		}
+		if !bytes.Equal([]byte(exp.body), body) {
+			return fmt.Errorf("Body does not match expectation\nExpected:\n%s\nGot:\n%s\n", exp.body, string(body))
+		}
+	}
+	return nil
 }
 
 // IsRestFile : checks if file can be parsed

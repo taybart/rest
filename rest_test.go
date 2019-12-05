@@ -229,6 +229,41 @@ func TestExecIndex(t *testing.T) {
 	r.SetClient(client)
 	_, err = r.ExecIndex(1)
 	is.NoErr(err)
+	_, err = r.ExecIndex(5)
+	is.Equal(err.Error(), "Block 5 does not exist")
+}
+
+func TestExpect(t *testing.T) {
+	is := is.New(t)
+	r := New()
+	err := r.Read("./test/expect.rest")
+	is.NoErr(err)
+	client := NewTestClient(func(r *http.Request) *http.Response {
+		is.Equal(r.Method, "GET")
+		url := r.URL.String()
+		if url == "http://localhost:8080/user?id=123" {
+			is.Equal(url, "http://localhost:8080/user?id=123")
+			return &http.Response{
+				StatusCode: 404,
+				// Send response to be tested
+				Body: ioutil.NopCloser(bytes.NewBufferString(`{ "error": "Unknown ID" }`)),
+				// Must be set to non-nil value or it panics
+				Header: make(http.Header),
+			}
+		}
+		is.Equal(url, "http://localhost:8080/user?id=1234")
+		return &http.Response{
+			StatusCode: 200,
+			// Send response to be tested
+			Body: ioutil.NopCloser(bytes.NewBufferString(`{ "id": "1234", "name": "taybart" }`)),
+			// Must be set to non-nil value or it panics
+			Header: make(http.Header),
+		}
+	})
+	r.SetClient(client)
+	_, failed := r.Exec()
+	is.True(len(failed) == 0)
+	// is.NoErr(err)
 }
 
 /*** Create Clients ***/
