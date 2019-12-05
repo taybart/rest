@@ -213,7 +213,7 @@ func TestInvalidFile(t *testing.T) {
 func TestExecIndex(t *testing.T) {
 	is := is.New(t)
 	r := New()
-	err := r.ReadConcurrent("./test/index.rest")
+	err := r.Read("./test/index.rest")
 	is.NoErr(err)
 	client := NewTestClient(func(r *http.Request) *http.Response {
 		is.Equal(r.URL.String(), "http://localhost:8080/should/exec")

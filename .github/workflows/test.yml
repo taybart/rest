@@ -19,4 +19,5 @@ jobs:
         go mod download
     - name: Test
       run: |
+        set -x
         go test -count=1 -v . | awk -f test/colortest.awk
