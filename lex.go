@@ -12,8 +12,6 @@ import (
 	"github.com/taybart/log"
 )
 
-// TODO isRestFile(), for command line
-
 const (
 	stateUrl = iota + 1
 	stateHeaders
@@ -95,10 +93,10 @@ func (l *lexer) parse(scanner *bufio.Scanner) ([]request, error) {
 func (l *lexer) parseBlocks(blocks [][]string) (reqs []request, err error) {
 	log.Debug("Starting to parse blocks in order")
 	for i, block := range blocks {
-		r, err := l.parseBlock(block)
-		if err != nil {
-			err = fmt.Errorf("Block %d %w", i, err)
-			log.Error(err)
+		r, e := l.parseBlock(block)
+		if e != nil {
+			err = fmt.Errorf("block %d: %w", i, e)
+			// log.Error(e)
 			continue // TODO maybe should super fail
 		}
 		reqs = append(reqs, r)
@@ -180,13 +178,14 @@ func (l *lexer) parseBlock(block []string) (request, error) {
 	}
 	log.Debug("Building request")
 	r, err := l.buildRequest(req)
-	if err == nil {
-		if l.concurrent {
-			l.bch <- r
-		}
-		return r, nil
+	if err != nil {
+		return request{}, err
 	}
-	return request{}, err
+
+	if l.concurrent {
+		l.bch <- r
+	}
+	return r, nil
 }
 
 func (l lexer) checkForVariables(line string) (string, error) {
@@ -213,6 +212,10 @@ func (l lexer) buildRequest(input metaRequest) (req request, err error) {
 		err = fmt.Errorf("url invalid or missing")
 		return
 	}
+	if input.method == "" {
+		err = fmt.Errorf("missing method")
+		return
+	}
 	r, err := http.NewRequest(input.method, url, strings.NewReader(input.body))
 	if err != nil {
 		err = fmt.Errorf("creating request %w", err)
@@ -226,7 +229,24 @@ func (l lexer) buildRequest(input metaRequest) (req request, err error) {
 	if input.delay > 0 {
 		req.delay = input.delay
 	}
+
+	err = l.validateRequest(req)
+	if err != nil {
+		err = fmt.Errorf("Invalid request %w", err)
+		return
+	}
 	return
+}
+
+// validateRequest : checks if request is complete
+func (l lexer) validateRequest(req request) error {
+	if req.r.URL.String() == "" {
+		return fmt.Errorf("No URL found in request")
+	}
+	if req.r.Method == "" {
+		return fmt.Errorf("No method found in request")
+	}
+	return nil
 }
 
 // isUrl tests a string to determine if it is a well-structured url or not.

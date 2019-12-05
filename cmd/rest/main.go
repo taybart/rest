@@ -26,6 +26,8 @@ var port string
 var servelog bool
 var servedir bool
 var nocolor bool
+var outputType string
+var index int
 
 func init() {
 	flag.Var(&fns, "f", "Filenames of .rest file")
@@ -34,6 +36,8 @@ func init() {
 	flag.BoolVar(&servedir, "d", false, "Serve directory at localhost:8080")
 	flag.BoolVar(&stdin, "i", false, "Exec requests in stdin")
 	flag.BoolVar(&nocolor, "nc", false, "Remove all color from output")
+	flag.StringVar(&outputType, "o", "curl", "Output type")
+	flag.IntVar(&index, "b", -1, "Only execute specific index block starting at 0, works with single file only")
 }
 
 func help() {
@@ -55,18 +59,26 @@ func main() {
 		r.NoColor()
 		log.UseColors(false)
 	}
-	if stdin {
+	switch {
+	case stdin:
 		r.ReadIO(os.Stdin)
 		s, f := r.Exec()
 		fmt.Println(s, f)
 		os.Exit(0)
-	}
-
-	if len(fns) > 0 {
+	case len(fns) > 0:
+		// only use block number when 1 file specified
+		if index >= 0 && len(fns) > 1 {
+			index = -1
+		}
 		for _, f := range fns {
 			if fileExists(f) {
+				valid, err := r.IsRestFile(f)
+				if !valid {
+					log.Error(err)
+					continue
+				}
 				fmt.Println("Reading...", f)
-				err := r.Read(f)
+				err = r.Read(f)
 				if err != nil {
 					log.Error(err)
 				}
@@ -74,6 +86,15 @@ func main() {
 		}
 
 		fmt.Println("Done")
+		if index >= 0 {
+			res, err := r.ExecIndex(index)
+			if err != nil {
+				fmt.Println(err)
+			}
+			fmt.Println(res)
+			return
+		}
+
 		success, failed := r.Exec()
 		for _, res := range success {
 			fmt.Println(res)
@@ -88,7 +109,7 @@ func main() {
 				fmt.Println(res)
 			}
 		}
-	} else {
+	default:
 		help()
 		os.Exit(1)
 	}

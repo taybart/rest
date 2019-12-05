@@ -203,6 +203,36 @@ func TestDelay(t *testing.T) {
 	is.Equal(len(failed), 0)
 }
 
+func TestInvalidFile(t *testing.T) {
+	is := is.New(t)
+	r := New()
+	valid, _ := r.IsRestFile("./test/invalid.rest")
+	is.True(!valid)
+}
+
+func TestExecIndex(t *testing.T) {
+	is := is.New(t)
+	r := New()
+	err := r.ReadConcurrent("./test/index.rest")
+	is.NoErr(err)
+	client := NewTestClient(func(r *http.Request) *http.Response {
+		is.Equal(r.URL.String(), "http://localhost:8080/should/exec")
+		is.Equal(r.Method, "GET")
+		return &http.Response{
+			StatusCode: 200,
+			// Send response to be tested
+			Body: ioutil.NopCloser(bytes.NewBufferString(`OK`)),
+			// Must be set to non-nil value or it panics
+			Header: make(http.Header),
+		}
+	})
+	r.SetClient(client)
+	_, err = r.ExecIndex(1)
+	is.NoErr(err)
+}
+
+/*** Create Clients ***/
+
 func TestMakeJavascriptRequest(t *testing.T) {
 	is := is.New(t)
 	r := New()

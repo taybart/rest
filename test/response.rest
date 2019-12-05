@@ -1,0 +1,10 @@
+http://localhost
+GET /
+
+===
+Status 200
+
+Body
+{
+"status": "ok"
+}

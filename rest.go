@@ -134,3 +134,57 @@ func (r *Rest) Exec() (successful, failed []string) {
 	r.requests = []request{} // clear requests
 	return
 }
+
+// ExecIndex : do specific block in requests
+func (r *Rest) ExecIndex(i int) (result string, err error) {
+	req := r.requests[i]
+	time.Sleep(req.delay)
+	log.Debugf("Sending request %d to %s\n", i, req.r.URL.String())
+	resp, err := r.client.Do(req.r)
+	if err != nil {
+		return
+	}
+
+	dump, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		return
+	}
+
+	if r.color {
+		color := log.Green
+		if resp.StatusCode >= 400 {
+			color = log.Red
+		}
+		result = fmt.Sprintf("%s%s%s\n%s\n---\n",
+			color,
+			req.r.URL.String(),
+			log.Rtd,
+			dump,
+		)
+	} else {
+		result = fmt.Sprintf("%s\n%s\n---\n",
+			req.r.URL.String(),
+			dump,
+		)
+	}
+	return
+}
+
+// IsRestFile : checks if file can be parsed
+func (r *Rest) IsRestFile(fn string) (bool, error) {
+	file, err := os.Open(fn)
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	lex := newLexer(
+		false, // concurrent
+	)
+	_, err = lex.parse(scanner)
+	if err != nil {
+		return false, fmt.Errorf("Invalid format or malformed file: %w", err)
+	}
+	return true, nil
+}
