@@ -108,7 +108,7 @@ $ rest -d
 2019-11-25 18:40:01 [INFO] Serving $(pwd) at localhost:8080
 ```
 
-## But ports!!! 
+**But ports!!!** 
 
 Chill...
 
