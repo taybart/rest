@@ -81,6 +81,7 @@ GET /user?id=${ID}
 expect 200 { "id": ${ID}, "name": "taybart" }
 
 ```
+<img width="559" alt="image" src="https://user-images.githubusercontent.com/3513897/70297149-160c3780-17aa-11ea-91be-f70f52b407ee.png">
 
 ### Create other language requests!
 
