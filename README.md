@@ -57,7 +57,30 @@ func main {
   fmt.Println(success, failed)
 }
 ```
+### System tests!
 
+```http
+set HOST real.url.net
+set ID 122
+
+https://${HOST}
+Content-Type: application/json
+POST /user
+{ "id": "123", "name": "taybart" }
+
+expect 200
+
+---
+
+delay 3s
+
+https://${HOST}
+Content-Type: application/json
+GET /user?id=123
+
+expect 200 { "id": "123", "name": "taybart" }
+
+```
 
 ### Create other language requests!
 
