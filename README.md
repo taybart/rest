@@ -61,7 +61,7 @@ func main {
 
 ```http
 set HOST real.url.net
-set ID 122
+set ID 123
 
 https://${HOST}
 Content-Type: application/json
@@ -76,7 +76,7 @@ delay 3s
 
 https://${HOST}
 Content-Type: application/json
-GET /user?id=123
+GET /user?id=${ID}
 
 expect 200 { "id": ${ID}, "name": "taybart" }
 
