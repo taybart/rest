@@ -66,7 +66,7 @@ set ID 122
 https://${HOST}
 Content-Type: application/json
 POST /user
-{ "id": "123", "name": "taybart" }
+{ "id": ${ID}, "name": "taybart" }
 
 expect 200
 
@@ -78,7 +78,7 @@ https://${HOST}
 Content-Type: application/json
 GET /user?id=123
 
-expect 200 { "id": "123", "name": "taybart" }
+expect 200 { "id": ${ID}, "name": "taybart" }
 
 ```
 
