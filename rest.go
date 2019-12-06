@@ -146,7 +146,7 @@ func (r *Rest) Exec() (successful, failed []string) {
 
 // ExecIndex : do specific block in requests
 func (r *Rest) ExecIndex(i int) (result string, err error) {
-	if i > len(r.requests) {
+	if i > len(r.requests)-1 {
 		err = fmt.Errorf("Block %d does not exist", i)
 		return
 	}
@@ -193,20 +193,22 @@ func (r *Rest) CheckExpectation(req request, res *http.Response) error {
 		return nil
 	}
 
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("Issue reading body %w", err)
+	}
+
 	if exp.code != res.StatusCode {
-		return fmt.Errorf("Incorrect status code returned %d != %d", exp.code, res.StatusCode)
+		return fmt.Errorf("Incorrect status code returned %d != %d\nbody: %s", exp.code, res.StatusCode, string(body))
 	}
 
 	if len(exp.body) > 0 {
-		defer res.Body.Close()
-		body, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			return fmt.Errorf("Issue reading body %w", err)
-		}
 		if !bytes.Equal([]byte(exp.body), body) {
 			return fmt.Errorf("Body does not match expectation\nExpected:\n%s\nGot:\n%s\n", exp.body, string(body))
 		}
 	}
+
 	return nil
 }
 
