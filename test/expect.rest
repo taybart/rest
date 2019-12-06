@@ -9,9 +9,3 @@ http://localhost:8080
 GET /user?id=1234
 
 expect 200 { "id": "1234", "name": "taybart" }
-
----
-
-https://httpbin.org
-GET /status/404
-expect 200
