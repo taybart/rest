@@ -108,7 +108,7 @@ func (r *Rest) Exec() (successful, failed []string) {
 
 		err = r.CheckExpectation(req, resp)
 		if err != nil {
-			log.Error(err)
+			log.Fatal(err)
 			failed = append(failed, err.Error())
 			continue
 		}
