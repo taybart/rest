@@ -193,11 +193,12 @@ func (r *Rest) CheckExpectation(req request, res *http.Response) error {
 		return nil
 	}
 
-	defer res.Body.Close()
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return fmt.Errorf("Issue reading body %w", err)
 	}
+	res.Body.Close()
+	res.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 
 	if exp.code != res.StatusCode {
 		return fmt.Errorf("Incorrect status code returned %d != %d\nbody: %s", exp.code, res.StatusCode, string(body))
