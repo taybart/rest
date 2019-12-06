@@ -62,8 +62,21 @@ func main() {
 	switch {
 	case stdin:
 		r.ReadIO(os.Stdin)
-		s, f := r.Exec()
-		fmt.Println(s, f)
+		success, failed := r.Exec()
+		// fmt.Println(s, f)
+		for _, res := range success {
+			fmt.Println(res)
+		}
+		if len(failed) > 0 {
+			if nocolor {
+				fmt.Println("Failed requests")
+			} else {
+				fmt.Printf("%sFailed requests%s\n", log.Red, log.Rtd)
+			}
+			for _, res := range failed {
+				fmt.Println(res)
+			}
+		}
 		os.Exit(0)
 	case len(fns) > 0:
 		// only use block number when 1 file specified
