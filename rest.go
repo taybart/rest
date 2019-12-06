@@ -108,14 +108,13 @@ func (r *Rest) Exec() (successful, failed []string) {
 
 		err = r.CheckExpectation(req, resp)
 		if err != nil {
-			log.Fatal(err)
 			failed = append(failed, err.Error())
 			continue
 		}
 
 		dump, err := httputil.DumpResponse(resp, true)
 		if err != nil {
-			log.Error(err)
+			// log.Error(err)
 			failed = append(failed, err.Error())
 			continue
 		}
