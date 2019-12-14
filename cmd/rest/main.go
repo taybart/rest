@@ -97,7 +97,9 @@ func main() {
 					log.Error(err)
 					continue
 				}
-				fmt.Println("Reading...", f)
+				if outputType == "" {
+					fmt.Println("Reading...", f)
+				}
 				err = r.Read(f)
 				if err != nil {
 					log.Error(err)
@@ -105,7 +107,9 @@ func main() {
 			}
 		}
 
-		fmt.Println("Done")
+		if outputType == "" {
+			fmt.Println("Done")
+		}
 		if index >= 0 {
 			res, err := r.ExecIndex(index)
 			if err != nil {

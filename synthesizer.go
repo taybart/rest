@@ -60,9 +60,9 @@ func getTemplate(name string) (t *template.Template, exists bool) {
 			`fetch('{{.URL}}', {
   method: '{{.Method}}',
   headers: {
-{{range $name, $value := .Headers}}    {{$name}}: {{range $internal := $value}}{{$internal}}{{end}},
+{{range $name, $value := .Headers}}    '{{$name}}': '{{range $internal := $value}}{{$internal}}{{end}}',
 {{end}}
-}
+},
 	body: JSON.stringify({{.Body}}),
 }).then((res) => { if (res.status == 200) { /* woohoo! */ } })`
 	default:
