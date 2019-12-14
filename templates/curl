@@ -1,1 +1,0 @@
-curl -X _METHOD -H _HEADER _URL

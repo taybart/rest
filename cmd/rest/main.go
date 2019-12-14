@@ -26,6 +26,7 @@ var port string
 var servelog bool
 var servedir bool
 var nocolor bool
+var verbose bool
 var outputType string
 var index int
 
@@ -36,6 +37,7 @@ func init() {
 	flag.BoolVar(&servedir, "d", false, "Serve directory at localhost:8080")
 	flag.BoolVar(&stdin, "i", false, "Exec requests in stdin")
 	flag.BoolVar(&nocolor, "nc", false, "Remove all color from output")
+	flag.BoolVar(&verbose, "v", false, "Verbose output")
 	flag.StringVar(&outputType, "o", "curl", "Output type")
 	flag.IntVar(&index, "b", -1, "Only execute specific index block starting at 0, works with single file only")
 }
@@ -49,7 +51,12 @@ func help() {
 
 func main() {
 	flag.Parse()
+	log.SetPlain()
+	// log.SetTimeOnly()
 	log.SetLevel(log.WARN)
+	if verbose {
+		log.SetLevel(log.DEBUG)
+	}
 	if servelog || servedir {
 		serve(servedir, port)
 		return
@@ -105,6 +112,10 @@ func main() {
 				fmt.Println(err)
 			}
 			fmt.Println(res)
+			return
+		}
+		if outputType != "" {
+			r.SynthisizeRequest(outputType)
 			return
 		}
 
