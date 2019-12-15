@@ -7,6 +7,7 @@ import (
 	"text/template"
 
 	"github.com/taybart/log"
+	"github.com/taybart/rest/templates"
 )
 
 // Holy grail
@@ -49,38 +50,11 @@ func getTemplate(name string) (t *template.Template, exists bool) {
 	var templ string
 	switch name {
 	case "go":
-		templ =
-			`req, err := http.NewRequest("{{.Method}}", "{{.URL}}", strings.NewReader(` + "`" + `{{.Body}}` + "`" + `))
-{{range $name, $value := .Headers}}req.Header.Set("{{$name}}", "{{range $internal := $value}}{{$internal}}{{end}}")
-{{end}}
-res, err := http.DefaultClient.Do(req)
-if err != nil {
-  fmt.Println(err)
-}
-defer res.Body.Close()
-body, err := ioutil.ReadAll(res.Body)
-if err != nil {
-	fmt.Println(err)
-}
-fmt.Println(string(body))
-			`
+		templ = templates.Go.String
 	case "curl":
-		templ =
-			`curl -X {{.Method}} {{.URL}} \
-{{range $name, $value := .Headers}} -H {{$name}} {{range $internal := $value}}{{$internal}}{{end}} \
-{{end}}
--d '{{.Body}}'
-			`
+		templ = templates.Curl.String
 	case "javascript", "js":
-		templ =
-			`fetch('{{.URL}}', {
-  method: '{{.Method}}',
-  headers: {
-{{range $name, $value := .Headers}}    '{{$name}}': '{{range $internal := $value}}{{$internal}}{{end}}',
-{{end}}
-},
-	body: JSON.stringify({{.Body}}),
-}).then((res) => { if (res.status == 200) { /* woohoo! */ } })`
+		templ = templates.Javascript.String
 	default:
 		exists = false
 		return
