@@ -52,7 +52,6 @@ func help() {
 func main() {
 	flag.Parse()
 	log.SetPlain()
-	// log.SetTimeOnly()
 	log.SetLevel(log.WARN)
 	if verbose {
 		log.SetLevel(log.DEBUG)
@@ -70,7 +69,6 @@ func main() {
 	case stdin:
 		r.ReadIO(os.Stdin)
 		success, failed := r.Exec()
-		// fmt.Println(s, f)
 		for _, res := range success {
 			fmt.Println(res)
 		}
