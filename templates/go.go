@@ -1,5 +1,6 @@
 package templates
 
+// Go : template
 var Go = RequestTemplate{
 	String: `req, err := http.NewRequest("{{.Method}}", "{{.URL}}", strings.NewReader(` + "`" + `{{.Body}}` + "`" + `))
 {{range $name, $value := .Headers}}req.Header.Set("{{$name}}", "{{range $internal := $value}}{{$internal}}{{end}}")

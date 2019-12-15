@@ -1,5 +1,6 @@
 package templates
 
+// Javascript : template
 var Javascript = RequestTemplate{
 	String: `fetch('{{.URL}}', {
   method: '{{.Method}}',

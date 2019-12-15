@@ -10,7 +10,7 @@ import (
 	"github.com/taybart/rest/templates"
 )
 
-// Holy grail
+// SynthisizeClient : Holy grail
 func SynthisizeClient() {
 }
 

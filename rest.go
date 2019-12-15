@@ -39,7 +39,7 @@ func (r *Rest) SetClient(c *http.Client) {
 	r.client = c
 }
 
-// ReadBuffer : read ordered requests from file
+// ReadIO : read ordered requests from io reader
 func (r *Rest) ReadIO(buf io.Reader) error {
 	scanner := bufio.NewScanner(buf)
 	lex := newLexer(
@@ -186,6 +186,7 @@ func (r *Rest) ExecIndex(i int) (result string, err error) {
 	return
 }
 
+// CheckExpectation : ensure request did what is was supposed to
 func (r *Rest) CheckExpectation(req request, res *http.Response) error {
 	exp := req.expectation
 	if exp.code == 0 {

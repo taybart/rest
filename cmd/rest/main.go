@@ -65,80 +65,86 @@ func main() {
 		r.NoColor()
 		log.UseColors(false)
 	}
-	switch {
-	case stdin:
-		r.ReadIO(os.Stdin)
-		success, failed := r.Exec()
-		for _, res := range success {
-			fmt.Println(res)
-		}
-		if len(failed) > 0 {
-			if nocolor {
-				fmt.Println("Failed requests")
-			} else {
-				fmt.Printf("%sFailed requests%s\n", log.Red, log.Rtd)
-			}
-			for _, res := range failed {
-				fmt.Println(res)
-			}
-		}
-		os.Exit(0)
-	case len(fns) > 0:
-		// only use block number when 1 file specified
-		if index >= 0 && len(fns) > 1 {
-			index = -1
-		}
-		for _, f := range fns {
-			if fileExists(f) {
-				valid, err := r.IsRestFile(f)
-				if !valid {
-					log.Error(err)
-					continue
-				}
-				if outputType == "" {
-					fmt.Println("Reading...", f)
-				}
-				err = r.Read(f)
-				if err != nil {
-					log.Error(err)
-				}
-			}
-		}
 
-		if outputType == "" {
-			fmt.Println("Done")
-		}
-		if index >= 0 {
-			res, err := r.ExecIndex(index)
-			if err != nil {
-				fmt.Println(err)
-			}
-			fmt.Println(res)
-			return
-		}
+	// only use block number when 1 file specified
+	if index >= 0 && len(fns) > 1 {
+		index = -1
+	}
+	if stdin {
+		readStdin(r)
+	}
+	if len(fns) > 0 {
+		readFiles(r)
 		if outputType != "" {
 			r.SynthisizeRequest(outputType)
-			return
+			os.Exit(0)
 		}
+		exec(r)
+		os.Exit(0)
+	}
+	help()
+	os.Exit(1)
+}
 
-		success, failed := r.Exec()
-		for _, res := range success {
+func readFiles(r *rest.Rest) {
+	for _, f := range fns {
+		if fileExists(f) {
+			valid, err := r.IsRestFile(f)
+			if !valid {
+				log.Error(err)
+				continue
+			}
+			err = r.Read(f)
+			if err != nil {
+				log.Error(err)
+			}
+		}
+	}
+}
+
+func exec(r *rest.Rest) {
+	if index >= 0 {
+		res, err := r.ExecIndex(index)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println(res)
+		os.Exit(0)
+	}
+
+	success, failed := r.Exec()
+	for _, res := range success {
+		fmt.Println(res)
+	}
+	if len(failed) > 0 {
+		if nocolor {
+			fmt.Println("Failed requests")
+		} else {
+			fmt.Printf("%sFailed requests%s\n", log.Red, log.Rtd)
+		}
+		for _, res := range failed {
 			fmt.Println(res)
 		}
-		if len(failed) > 0 {
-			if nocolor {
-				fmt.Println("Failed requests")
-			} else {
-				fmt.Printf("%sFailed requests%s\n", log.Red, log.Rtd)
-			}
-			for _, res := range failed {
-				fmt.Println(res)
-			}
-		}
-	default:
-		help()
-		os.Exit(1)
 	}
+}
+
+func readStdin(r *rest.Rest) {
+	r.ReadIO(os.Stdin)
+	success, failed := r.Exec()
+	for _, res := range success {
+		fmt.Println(res)
+	}
+	if len(failed) > 0 {
+		if nocolor {
+			fmt.Println("Failed requests")
+		} else {
+			fmt.Printf("%sFailed requests%s\n", log.Red, log.Rtd)
+		}
+		for _, res := range failed {
+			fmt.Println(res)
+		}
+	}
+	os.Exit(0)
 }
 
 func fileExists(fn string) bool {
