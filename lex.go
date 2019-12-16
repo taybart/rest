@@ -278,5 +278,5 @@ func (l lexer) validateRequest(req request) error {
 // isUrl tests a string to determine if it is a well-structured url or not.
 func isUrl(toTest string) bool {
 	_, err := url.ParseRequestURI(toTest)
-	return err != nil
+	return err == nil
 }

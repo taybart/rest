@@ -38,7 +38,7 @@ func init() {
 	flag.BoolVar(&stdin, "i", false, "Exec requests in stdin")
 	flag.BoolVar(&nocolor, "nc", false, "Remove all color from output")
 	flag.BoolVar(&verbose, "v", false, "Verbose output")
-	flag.StringVar(&outputType, "o", "curl", "Output type")
+	flag.StringVar(&outputType, "o", "", "Output type [go, js/javascript, curl]")
 	flag.IntVar(&index, "b", -1, "Only execute specific index block starting at 0, works with single file only")
 }
 
@@ -76,7 +76,13 @@ func main() {
 	if len(fns) > 0 {
 		readFiles(r)
 		if outputType != "" {
-			r.SynthisizeRequest(outputType)
+			requests, err := r.SynthisizeRequests(outputType)
+			for _, req := range requests {
+				fmt.Println(req)
+			}
+			if err != nil {
+				os.Exit(1)
+			}
 			os.Exit(0)
 		}
 		exec(r)
@@ -96,7 +102,7 @@ func readFiles(r *rest.Rest) {
 			}
 			err = r.Read(f)
 			if err != nil {
-				log.Error(err)
+				log.Error("Read error", err)
 			}
 		}
 	}

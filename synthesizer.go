@@ -1,9 +1,9 @@
 package rest
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"text/template"
 
 	"github.com/taybart/log"
@@ -14,11 +14,11 @@ import (
 func SynthisizeClient() {
 }
 
-// SynthisizeRequest : output request code
-func (r Rest) SynthisizeRequest(lang string) ([]string, error) {
+// SynthisizeRequests : output request code
+func (r Rest) SynthisizeRequests(lang string) ([]string, error) {
 	if templ, ok := getTemplate(lang); templ != nil && ok {
 		requests := make([]string, len(r.requests))
-		for _, req := range r.requests {
+		for i, req := range r.requests {
 			body, err := ioutil.ReadAll(req.r.Body)
 			if err != nil {
 				log.Error(err)
@@ -35,10 +35,12 @@ func (r Rest) SynthisizeRequest(lang string) ([]string, error) {
 				Body:    string(body),
 			}
 
-			err = templ.Execute(os.Stdout, templReq)
+			var buf bytes.Buffer
+			err = templ.Execute(&buf, templReq)
 			if err != nil {
 				log.Error(err)
 			}
+			requests[i] = buf.String()
 		}
 		return requests, nil
 	}
