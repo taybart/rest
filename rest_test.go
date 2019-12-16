@@ -269,7 +269,7 @@ func TestExpect(t *testing.T) {
 /*** Create Clients ***/
 
 // TODO Fix the equal test
-/* func TestMakeJavascriptRequest(t *testing.T) {
+func TestMakeJavascriptRequest(t *testing.T) {
 	is := is.New(t)
 	r := New()
 	err := r.Read("./test/post.rest")
@@ -281,4 +281,4 @@ func TestExpect(t *testing.T) {
 	for i, c := range requests[0] {
 		is.Equal(rune(js[i]), c)
 	}
-} */
+}
