@@ -77,7 +77,8 @@ func main() {
 		readFiles(r)
 		if outputType != "" {
 			requests, err := r.SynthisizeRequests(outputType)
-			for _, req := range requests {
+			for i, req := range requests {
+				fmt.Printf("\n~~~~~~~ %d ~~~~~~~\n\n", i)
 				fmt.Println(req)
 			}
 			if err != nil {

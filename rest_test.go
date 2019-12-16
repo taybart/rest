@@ -242,7 +242,6 @@ func TestExpect(t *testing.T) {
 		is.Equal(r.Method, "GET")
 		url := r.URL.String()
 		if url == "http://localhost:8080/user?id=123" {
-			is.Equal(url, "http://localhost:8080/user?id=123")
 			return &http.Response{
 				StatusCode: 404,
 				// Send response to be tested
@@ -262,7 +261,7 @@ func TestExpect(t *testing.T) {
 	})
 	r.SetClient(client)
 	_, failed := r.Exec()
-	is.True(len(failed) == 0)
+	is.Equal(len(failed), 0)
 	// is.NoErr(err)
 }
 
