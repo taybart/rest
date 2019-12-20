@@ -1,6 +1,6 @@
 # rest
 
-Goes well with [vim-rest](https://github.com/taybart/rest-vim)
+Goes well with [rest.vim](https://github.com/taybart/rest.vim)
 
 Build rest requests for testing. The format is similar to [vim-rest-console](https://github.com/diepm/vim-rest-console):
 
