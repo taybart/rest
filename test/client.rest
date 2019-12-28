@@ -1,0 +1,14 @@
+set URL http://localhost:8080
+label GetThing
+${URL}
+GET /
+
+---
+
+delay 5s
+label PostThing
+${URL}
+POST /user
+{
+  "user": "taybart"
+}

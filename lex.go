@@ -26,6 +26,7 @@ type expectation struct {
 }
 
 type metaRequest struct {
+	label       string
 	url         string
 	headers     map[string]string
 	method      string
@@ -36,6 +37,7 @@ type metaRequest struct {
 }
 
 type request struct {
+	label       string
 	r           *http.Request
 	delay       time.Duration
 	expectation expectation
@@ -51,6 +53,7 @@ type lexer struct {
 	rxVar           *regexp.Regexp
 	rxDelay         *regexp.Regexp
 	rxExpect        *regexp.Regexp
+	rxLabel         *regexp.Regexp
 
 	variables  map[string]string
 	concurrent bool
@@ -69,6 +72,7 @@ func newLexer(concurrent bool) lexer {
 		rxVar:           regexp.MustCompile(`\$\{([[:word:]\-]+)\}`),
 		rxDelay:         regexp.MustCompile(`^delay (\d+(ns|us|µs|ms|s|m|h))$`),
 		rxExpect:        regexp.MustCompile(`^expect (\d+) ?(.*)`),
+		rxLabel:         regexp.MustCompile(`^label (.*)`),
 
 		variables:  make(map[string]string),
 		concurrent: concurrent,
@@ -197,6 +201,10 @@ func (l *lexer) parseBlock(block []string) (request, error) {
 			req.headers[key] = value
 			log.Debugf("Set header %s to %s\n", key, value)
 
+		case l.rxLabel.MatchString(line):
+			m := l.rxLabel.FindStringSubmatch(line)
+			req.label = m[1]
+
 		case state == stateBody:
 			req.body += line
 		}
@@ -255,6 +263,7 @@ func (l lexer) buildRequest(input metaRequest) (req request, err error) {
 		req.delay = input.delay
 	}
 	req.expectation = input.expectation
+	req.label = input.label
 
 	err = l.validateRequest(req)
 	if err != nil {

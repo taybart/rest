@@ -1,4 +1,5 @@
 # Simple requests
+label GetHttpBin
 https://httpbin.org
 GET /get?test=true
 

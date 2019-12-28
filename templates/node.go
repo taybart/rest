@@ -1,8 +1,8 @@
 package templates
 
-// Javascript : template
-var Javascript = RequestTemplate{
-	ClientStr: `
+// Node : template
+var Node = RequestTemplate{
+	ClientStr: `const fetch = require('node-fetch')
 	class Client {
 	{{- .Code -}}
 	}

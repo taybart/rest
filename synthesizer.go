@@ -11,12 +11,42 @@ import (
 )
 
 // SynthisizeClient : Holy grail
-func SynthisizeClient() {
+func (r Rest) SynthisizeClient(lang string) (string, error) {
+	code, err := r.SynthisizeRequests(lang)
+	if err != nil {
+		return "", err
+	}
+	templ := templates.Get(lang)
+	var client string
+	for i, c := range code {
+		templReq := struct {
+			Label  string
+			Code   string
+			Client bool
+		}{
+			Label:  r.requests[i].label,
+			Code:   c,
+			Client: true,
+		}
+		var buf bytes.Buffer
+		err = templ.Function.Execute(&buf, templReq)
+		if err != nil {
+			log.Error(err)
+		}
+		client = fmt.Sprintf("%s\n%s\n", client, buf.String())
+	}
+	var buf bytes.Buffer
+	err = templ.Client.Execute(&buf, struct{ Code string }{Code: client})
+	if err != nil {
+		log.Error(err)
+	}
+	client = buf.String()
+	return client, nil
 }
 
 // SynthisizeRequests : output request code
 func (r Rest) SynthisizeRequests(lang string) ([]string, error) {
-	if templ, ok := getTemplate(lang); templ != nil && ok {
+	if t := templates.Get(lang); t != nil {
 		requests := make([]string, len(r.requests))
 		for i, req := range r.requests {
 			body, err := ioutil.ReadAll(req.r.Body)
@@ -36,7 +66,7 @@ func (r Rest) SynthisizeRequests(lang string) ([]string, error) {
 			}
 
 			var buf bytes.Buffer
-			err = templ.Execute(&buf, templReq)
+			err = t.Request.Execute(&buf, templReq)
 			if err != nil {
 				log.Error(err)
 			}
@@ -47,20 +77,6 @@ func (r Rest) SynthisizeRequests(lang string) ([]string, error) {
 	return nil, fmt.Errorf("Unknown template")
 }
 
-func getTemplate(name string) (t *template.Template, exists bool) {
-	exists = true
-	var templ string
-	switch name {
-	case "go":
-		templ = templates.Go.String
-	case "curl":
-		templ = templates.Curl.String
-	case "javascript", "js":
-		templ = templates.Javascript.String
-	default:
-		exists = false
-		return
-	}
-	t = template.Must(template.New(name).Parse(templ))
-	return
+func buildTemplate(lang, templ string) *template.Template {
+	return template.Must(template.New(lang).Parse(templ))
 }

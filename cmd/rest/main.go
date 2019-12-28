@@ -27,7 +27,8 @@ var servelog bool
 var servedir bool
 var nocolor bool
 var verbose bool
-var outputType string
+var outputLang string
+var makeClient bool
 var index int
 
 func init() {
@@ -38,7 +39,8 @@ func init() {
 	flag.BoolVar(&stdin, "i", false, "Exec requests in stdin")
 	flag.BoolVar(&nocolor, "nc", false, "Remove all color from output")
 	flag.BoolVar(&verbose, "v", false, "Verbose output")
-	flag.StringVar(&outputType, "o", "", "Output type [go, js/javascript, curl]")
+	flag.StringVar(&outputLang, "o", "", "Output type [go, js/javascript, curl]")
+	flag.BoolVar(&makeClient, "c", false, "Make client instead of just requests")
 	flag.IntVar(&index, "b", -1, "Only execute specific index block starting at 0, works with single file only")
 }
 
@@ -75,8 +77,16 @@ func main() {
 	}
 	if len(fns) > 0 {
 		readFiles(r)
-		if outputType != "" {
-			requests, err := r.SynthisizeRequests(outputType)
+		if outputLang != "" {
+			if makeClient {
+				client, err := r.SynthisizeClient(outputLang)
+				if err != nil {
+					os.Exit(1)
+				}
+				fmt.Println(client)
+				os.Exit(0)
+			}
+			requests, err := r.SynthisizeRequests(outputLang)
 			for i, req := range requests {
 				fmt.Printf("\n~~~~~~~ %d ~~~~~~~\n\n", i)
 				fmt.Println(req)
