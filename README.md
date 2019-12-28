@@ -152,10 +152,10 @@ func (c Client) GetThing() {
     fmt.Println(err)
   }
   defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-      fmt.Println(err)
-    }
+  body, err := ioutil.ReadAll(res.Body)
+  if err != nil {
+    fmt.Println(err)
+  }
   fmt.Println(string(body))
 }
 
