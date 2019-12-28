@@ -48,9 +48,7 @@ func TestSynthesizeClient(t *testing.T) {
 	for _, tt := range table {
 		tt := tt
 		t.Run(tt.lang, func(t *testing.T) {
-			client, err := r.SynthisizeClient(tt.lang)
-			fmt.Println(client)
-			fmt.Println(err)
+			_, err := r.SynthisizeClient(tt.lang)
 			is.NoErr(err)
 		})
 	}
