@@ -42,8 +42,8 @@ func TestSynthesizeClient(t *testing.T) {
 		ft   string
 	}{
 		{"javascript", "js"},
-		// {"go", "go"},
-		// {"curl", "curl"},
+		{"go", "go"},
+		{"curl", "curl"},
 	}
 	for _, tt := range table {
 		tt := tt

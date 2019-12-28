@@ -44,13 +44,13 @@ Date: Fri, 06 Dec 2019 18:55:01 GMT
 ```go
 import (
   "fmt"
-  
+
   "github.com/taybart/rest"
 )
 
 func main {
   r := rest.New()
-  err := r.Read("./post.rest")
+  err := r.Read("./test/post.rest")
   if err != nil {
     panic("HOLY SHIT!")
   }
@@ -104,7 +104,7 @@ import (
 
 func main() {
   r := rest.New()
-  err := r.Read("./post.rest")
+  err := r.Read("./test/post.rest")
   if err != nil {
   fmt.Println(err)
     panic("HOLY SHIT!")
@@ -126,6 +126,57 @@ fetch('http://localhost:8080/post-test', {
 }).then((res) => { if (res.status == 200) { /* woohoo! */ } })
 ```
 
+### Create full clients
+
+
+```bash
+$ rest -f ./test/client.rest -c -o go > client.go
+```
+```go
+// client.go
+package main
+import (
+  "fmt"
+  "io/ioutil"
+  "net/http"
+  "strings"
+)
+// Client : my client
+type Client struct { }
+
+func (c Client) GetThing() {
+  req, err := http.NewRequest("GET", "http://localhost:8080/", nil)
+
+  res, err := http.DefaultClient.Do(req)
+  if err != nil {
+    fmt.Println(err)
+  }
+  defer res.Body.Close()
+    body, err := ioutil.ReadAll(res.Body)
+    if err != nil {
+      fmt.Println(err)
+    }
+  fmt.Println(string(body))
+}
+
+
+func (c Client) PostThing() {
+  req, err := http.NewRequest("POST", "http://localhost:8080/user", strings.NewReader(`{  "user": "taybart"}`))
+
+  res, err := http.DefaultClient.Do(req)
+  if err != nil {
+    fmt.Println(err)
+  }
+  defer res.Body.Close()
+  body, err := ioutil.ReadAll(res.Body)
+  if err != nil {
+    fmt.Println(err)
+  }
+  fmt.Println(string(body))
+}
+
+```
+
 ## Server?
 
 I have had uses for having a server that just accepts requests...So I put it in here:
@@ -142,7 +193,7 @@ $ rest -d
 2019-11-25 18:40:01 [INFO] Serving $(pwd) at localhost:8080
 ```
 
-**But ports!!!** 
+**But ports!!!**
 
 Chill...
 
