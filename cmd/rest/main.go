@@ -30,12 +30,14 @@ var verbose bool
 var outputLang string
 var makeClient bool
 var index int
+var local bool
 
 func init() {
 	flag.Var(&fns, "f", "Filenames of .rest file")
 	flag.StringVar(&port, "p", "8080", "Port to attach to, requires -s or -d")
-	flag.BoolVar(&servelog, "s", false, "Accept and log requests at localhost:8080")
-	flag.BoolVar(&servedir, "d", false, "Serve directory at localhost:8080")
+	flag.BoolVar(&servelog, "s", false, "Accept and log requests at :8080 or -p")
+	flag.BoolVar(&servedir, "d", false, "Serve directory at :8080 or -p")
+	flag.BoolVar(&local, "l", false, "Bind only to localhost")
 	flag.BoolVar(&stdin, "i", false, "Exec requests in stdin")
 	flag.BoolVar(&nocolor, "nc", false, "Remove all color from output")
 	flag.BoolVar(&verbose, "v", false, "Verbose output")
@@ -59,7 +61,7 @@ func main() {
 		log.SetLevel(log.DEBUG)
 	}
 	if servelog || servedir {
-		serve(servedir, port)
+		serve(servedir, local, port)
 		return
 	}
 	r := rest.New()
