@@ -59,11 +59,10 @@ func (s *server) routes(dir bool) {
 
 func serve(dir, local bool, port string) {
 	log.SetLevel(log.DEBUG)
-	var location string
+	location := fmt.Sprintf(":%s", port)
 	if local {
-		location = "localhost"
+		location = fmt.Sprintf("localhost:%s", port)
 	}
-	location = fmt.Sprintf("%s:%s", location, port)
 	srv := newServer(dir, location)
 	if dir {
 		d, err := os.Getwd()
