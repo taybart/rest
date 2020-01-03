@@ -8,7 +8,6 @@ import (
 	"github.com/matryer/is"
 )
 
-// TODO Fix the equal test
 func TestSynthesizeRequests(t *testing.T) {
 	is := is.New(t)
 	r := New()
