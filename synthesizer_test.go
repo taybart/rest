@@ -8,7 +8,6 @@ import (
 	"github.com/matryer/is"
 )
 
-// TODO Fix the equal test
 func TestSynthesizeRequests(t *testing.T) {
 	is := is.New(t)
 	r := New()
@@ -42,8 +41,8 @@ func TestSynthesizeClient(t *testing.T) {
 		ft   string
 	}{
 		{"javascript", "js"},
-		// {"go", "go"},
-		// {"curl", "curl"},
+		{"go", "go"},
+		{"curl", "curl"},
 	}
 	for _, tt := range table {
 		tt := tt
