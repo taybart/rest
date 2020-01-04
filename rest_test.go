@@ -48,31 +48,8 @@ func TestReadGet(t *testing.T) {
 		}
 	})
 	r.SetClient(client)
-	_, failed := r.Exec()
-	is.Equal(len(failed), 0)
-}
-
-func TestHasComment(t *testing.T) {
-	is := is.New(t)
-	r := New()
-	err := r.Read("./test/get.rest")
+	_, err = r.Exec()
 	is.NoErr(err)
-
-	client := NewTestClient(func(r *http.Request) *http.Response {
-		// Test request parameters
-		is.Equal(r.URL.String(), "http://localhost:8080/get-test")
-		is.Equal(r.Method, "GET")
-		return &http.Response{
-			StatusCode: 200,
-			// Send response to be tested
-			Body: ioutil.NopCloser(bytes.NewBufferString(`OK`)),
-			// Must be set to non-nil value or it panics
-			Header: make(http.Header),
-		}
-	})
-	r.SetClient(client)
-	_, failed := r.Exec()
-	is.Equal(len(failed), 0)
 }
 
 func TestVariables(t *testing.T) {
@@ -96,31 +73,9 @@ func TestVariables(t *testing.T) {
 		}
 	})
 	r.SetClient(client)
-	_, failed := r.Exec()
-	is.Equal(len(failed), 0)
-	is.Equal(counter, 2)
-}
-
-func TestReadPost(t *testing.T) {
-	is := is.New(t)
-	r := New()
-	err := r.Read("./test/post.rest")
+	_, err = r.Exec()
 	is.NoErr(err)
-	client := NewTestClient(func(r *http.Request) *http.Response {
-		// Test request parameters
-		is.Equal(r.URL.String(), "http://localhost:8080/post-test")
-		is.Equal(r.Method, "POST")
-		return &http.Response{
-			StatusCode: 200,
-			// Send response to be tested
-			Body: ioutil.NopCloser(bytes.NewBufferString(`OK`)),
-			// Must be set to non-nil value or it panics
-			Header: make(http.Header),
-		}
-	})
-	r.SetClient(client)
-	_, failed := r.Exec()
-	is.Equal(len(failed), 0)
+	is.Equal(counter, 2)
 }
 
 func TestReadMulti(t *testing.T) {
@@ -148,8 +103,8 @@ func TestReadMulti(t *testing.T) {
 		}
 	})
 	r.SetClient(client)
-	_, failed := r.Exec()
-	is.Equal(len(failed), 0)
+	_, err = r.Exec()
+	is.NoErr(err)
 	is.Equal(counter, 3)
 }
 
@@ -173,8 +128,8 @@ func TestReadConcurrent(t *testing.T) {
 		}
 	})
 	r.SetClient(client)
-	_, failed := r.Exec()
-	is.Equal(len(failed), 0)
+	_, err = r.Exec()
+	is.NoErr(err)
 	is.Equal(counter, 3)
 }
 
@@ -198,15 +153,8 @@ func TestDelay(t *testing.T) {
 		}
 	})
 	r.SetClient(client)
-	_, failed := r.Exec()
-	is.Equal(len(failed), 0)
-}
-
-func TestInvalidFile(t *testing.T) {
-	is := is.New(t)
-	r := New()
-	valid, _ := r.IsRestFile("./test/invalid.rest")
-	is.True(!valid)
+	_, err = r.Exec()
+	is.NoErr(err)
 }
 
 func TestExecIndex(t *testing.T) {
@@ -259,7 +207,6 @@ func TestExpect(t *testing.T) {
 		}
 	})
 	r.SetClient(client)
-	_, failed := r.Exec()
-	is.Equal(len(failed), 0)
-	// is.NoErr(err)
+	_, err = r.Exec()
+	is.NoErr(err)
 }

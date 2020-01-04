@@ -94,29 +94,38 @@ func (r *Rest) ReadConcurrent(fn string) error {
 }
 
 // Exec : do all loaded requests
-func (r *Rest) Exec() (successful, failed []string) {
+func (r *Rest) Exec() (successful []string, err error) {
 	// TODO create error report
 	for i, req := range r.requests {
+		if req.skip {
+			continue
+		}
 		time.Sleep(req.delay)
 		log.Debugf("Sending request %d to %s\n", i, req.r.URL.String())
-		resp, err := r.client.Do(req.r)
+		var resp *http.Response
+		resp, err = r.client.Do(req.r)
 		if err != nil {
 			log.Error(err)
-			failed = append(failed, err.Error())
-			continue
+			return
+			// failed = append(failed, err.Error())
+			// continue
 		}
 
 		err = r.CheckExpectation(req, resp)
 		if err != nil {
-			failed = append(failed, err.Error())
-			continue
+			// failed = append(failed, err.Error())
+			// continue
+			return
 		}
 
-		dump, err := httputil.DumpResponse(resp, true)
+		var dump []byte
+		dump, err = httputil.DumpResponse(resp, true)
 		if err != nil {
+			err = fmt.Errorf("%s\n%w", dump, err)
+			return
 			// log.Error(err)
-			failed = append(failed, err.Error())
-			continue
+			// failed = append(failed, err.Error())
+			// continue
 		}
 
 		if r.color {

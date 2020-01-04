@@ -131,37 +131,40 @@ func exec(r *rest.Rest) {
 		os.Exit(0)
 	}
 
-	success, failed := r.Exec()
+	success, err := r.Exec()
 	for _, res := range success {
 		fmt.Println(res)
 	}
-	if len(failed) > 0 {
+	// if len(failed) > 0 {
+	if err != nil {
 		if nocolor {
 			fmt.Println("Failed requests")
 		} else {
 			fmt.Printf("%sFailed requests%s\n", log.Red, log.Rtd)
 		}
-		for _, res := range failed {
-			fmt.Println(res)
-		}
+		fmt.Println(err)
+		/* for _, res := range failed {
+		} */
 	}
 }
 
 func readStdin(r *rest.Rest) {
 	r.ReadIO(os.Stdin)
-	success, failed := r.Exec()
+	success, err := r.Exec()
 	for _, res := range success {
 		fmt.Println(res)
 	}
-	if len(failed) > 0 {
+	// if len(failed) > 0 {
+	if err != nil {
 		if nocolor {
 			fmt.Println("Failed requests")
 		} else {
 			fmt.Printf("%sFailed requests%s\n", log.Red, log.Rtd)
 		}
-		for _, res := range failed {
-			fmt.Println(res)
-		}
+		fmt.Println(err)
+		// for _, res := range failed {
+		// fmt.Println(res)
+		// }
 	}
 	os.Exit(0)
 }

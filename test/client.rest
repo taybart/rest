@@ -1,14 +1,21 @@
-set URL http://localhost:8080
-label GetThing
-${URL}
+# comment
+label GetExample
+https://example.com
 GET /
 
 ---
 
+set URL http://localhost:8080
+
+skip
+
 delay 5s
+
 label PostThing
 ${URL}
 POST /user
+Content-Type: application/json
 {
-  "user": "taybart"
+  "user": "taybart",
+  "11": 12,
 }

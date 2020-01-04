@@ -27,6 +27,7 @@ type expectation struct {
 
 type metaRequest struct {
 	label       string
+	skip        bool
 	url         string
 	headers     map[string]string
 	method      string
@@ -38,6 +39,7 @@ type metaRequest struct {
 
 type request struct {
 	label       string
+	skip        bool
 	r           *http.Request
 	delay       time.Duration
 	expectation expectation
@@ -54,6 +56,7 @@ type lexer struct {
 	rxDelay         *regexp.Regexp
 	rxExpect        *regexp.Regexp
 	rxLabel         *regexp.Regexp
+	rxSkip          *regexp.Regexp
 
 	variables  map[string]string
 	concurrent bool
@@ -73,6 +76,7 @@ func newLexer(concurrent bool) lexer {
 		rxDelay:         regexp.MustCompile(`^delay (\d+(ns|us|µs|ms|s|m|h))$`),
 		rxExpect:        regexp.MustCompile(`^expect (\d+) ?(.*)`),
 		rxLabel:         regexp.MustCompile(`^label (.*)`),
+		rxSkip:          regexp.MustCompile(`^skip`),
 
 		variables:  make(map[string]string),
 		concurrent: concurrent,
@@ -93,6 +97,7 @@ func (l *lexer) parse(scanner *bufio.Scanner) ([]request, error) {
 			continue
 		}
 		block = append(block, line)
+
 	}
 	blocks = append(blocks, block)
 
@@ -152,6 +157,8 @@ func (l *lexer) parseBlock(block []string) (request, error) {
 			log.Fatal(err)
 		}
 		switch {
+		case l.rxSkip.MatchString(line):
+			req.skip = true
 		case l.rxExpect.MatchString(line):
 			m := l.rxExpect.FindStringSubmatch(line)
 			if len(m) == 1 {
@@ -257,13 +264,17 @@ func (l lexer) buildRequest(input metaRequest) (req request, err error) {
 	for header, value := range input.headers {
 		r.Header.Set(header, value)
 	}
-	req.r = r
-	req.delay = 0
+
+	req = request{
+		label:       input.label,
+		skip:        input.skip,
+		delay:       0,
+		r:           r,
+		expectation: input.expectation,
+	}
 	if input.delay > 0 {
 		req.delay = input.delay
 	}
-	req.expectation = input.expectation
-	req.label = input.label
 
 	err = l.validateRequest(req)
 	if err != nil {
