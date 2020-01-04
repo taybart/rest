@@ -25,10 +25,6 @@ func NewTestClient(fn RoundTripFunc) *http.Client {
 	}
 }
 
-func TestMain(m *testing.M) {
-	m.Run()
-}
-
 func TestReadGet(t *testing.T) {
 	is := is.New(t)
 	r := New()
