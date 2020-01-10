@@ -105,7 +105,6 @@ func (r *Rest) Exec() (successful []string, err error) {
 		var resp *http.Response
 		resp, err = r.client.Do(req.r)
 		if err != nil {
-			log.Error(err)
 			return
 			// failed = append(failed, err.Error())
 			// continue

@@ -66,7 +66,7 @@ type lexer struct {
 
 func newLexer(concurrent bool) lexer {
 	return lexer{
-		rxURL:           regexp.MustCompile(`^(https?)://[^\s/$.?#].[^\s]*`),
+		rxURL:           regexp.MustCompile(`^(https?)://[^\s/$.?#]*[^\s]*$`),
 		rxHeader:        regexp.MustCompile(`[a-zA-Z-]+: .+`),
 		rxMethod:        regexp.MustCompile(`^(OPTIONS|GET|POST|PUT|DELETE)`),
 		rxPath:          regexp.MustCompile(`\/.*`),
@@ -247,39 +247,41 @@ func (l lexer) checkForVariables(line string) (string, error) {
 
 // buildRequest : generate http.Request from parsed input
 func (l lexer) buildRequest(input metaRequest) (req request, err error) {
+	var r *http.Request
 	url := fmt.Sprintf("%s%s", input.url, input.path)
-	if !isUrl(url) {
-		err = fmt.Errorf("url invalid or missing")
-		return
-	}
-	if input.method == "" {
-		err = fmt.Errorf("missing method")
-		return
-	}
-	r, err := http.NewRequest(input.method, url, strings.NewReader(input.body))
-	if err != nil {
-		err = fmt.Errorf("creating request %w", err)
-		return
-	}
-	for header, value := range input.headers {
-		r.Header.Set(header, value)
-	}
+	if !input.skip { // don't validate if skipped
+		if !isUrl(url) {
+			err = fmt.Errorf("url invalid or missing")
+			return
+		}
+		if input.method == "" {
+			err = fmt.Errorf("missing method")
+			return
+		}
+		r, err = http.NewRequest(input.method, url, strings.NewReader(input.body))
+		if err != nil {
+			err = fmt.Errorf("creating request %w", err)
+			return
+		}
+		for header, value := range input.headers {
+			r.Header.Set(header, value)
+		}
 
+	}
 	req = request{
 		label:       input.label,
 		skip:        input.skip,
-		delay:       0,
-		r:           r,
+		delay:       input.delay,
 		expectation: input.expectation,
-	}
-	if input.delay > 0 {
-		req.delay = input.delay
+		r:           r,
 	}
 
-	err = l.validateRequest(req)
-	if err != nil {
-		err = fmt.Errorf("Invalid request %w", err)
-		return
+	if !req.skip {
+		err = l.validateRequest(req)
+		if err != nil {
+			err = fmt.Errorf("Invalid request %w", err)
+			return
+		}
 	}
 	return
 }
@@ -296,7 +298,24 @@ func (l lexer) validateRequest(req request) error {
 }
 
 // isUrl tests a string to determine if it is a well-structured url or not.
-func isUrl(toTest string) bool {
-	_, err := url.ParseRequestURI(toTest)
-	return err == nil
+func isUrl(s string) bool {
+	if s == "" {
+		return false
+	}
+	// checks needed as of Go 1.6 because of change:
+	// https://github.com/golang/go/commit/617c93ce740c3c3cc28cdd1a0d712be183d0b328#diff-6c2d018290e298803c0c9419d8739885L195
+	// emulate browser and strip the '#' suffix prior to validation. see issue-#237
+	if i := strings.Index(s, "#"); i > -1 {
+		s = s[:i]
+	}
+
+	if len(s) == 0 {
+		return false
+	}
+
+	url, err := url.ParseRequestURI(s)
+	if err != nil || url.Scheme == "" || url.Host == "" {
+		return false
+	}
+	return true
 }
