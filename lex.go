@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -33,6 +32,8 @@ type metaRequest struct {
 	method      string
 	path        string
 	body        string
+	filename    string
+	filelabel   string
 	delay       time.Duration
 	expectation expectation
 }
@@ -46,37 +47,38 @@ type request struct {
 }
 
 type lexer struct {
+	rxLabel         *regexp.Regexp
+	rxSkip          *regexp.Regexp
+	rxDelay         *regexp.Regexp
+	rxVarDefinition *regexp.Regexp
 	rxURL           *regexp.Regexp
 	rxHeader        *regexp.Regexp
 	rxPath          *regexp.Regexp
 	rxMethod        *regexp.Regexp
-	rxComment       *regexp.Regexp
-	rxVarDefinition *regexp.Regexp
+	rxFile          *regexp.Regexp
 	rxVar           *regexp.Regexp
-	rxDelay         *regexp.Regexp
 	rxExpect        *regexp.Regexp
-	rxLabel         *regexp.Regexp
-	rxSkip          *regexp.Regexp
+	rxComment       *regexp.Regexp
 
 	variables  map[string]string
 	concurrent bool
 	bch        chan request
-	ech        chan error // unused
 }
 
 func newLexer(concurrent bool) lexer {
 	return lexer{
+		rxLabel:         regexp.MustCompile(`^label (.*)`),
+		rxSkip:          regexp.MustCompile(`^skip\s*$`),
+		rxDelay:         regexp.MustCompile(`^delay (\d+(ns|us|µs|ms|s|m|h))$`),
+		rxVarDefinition: regexp.MustCompile(`^set ([[:word:]\-]+) (.+)`),
 		rxURL:           regexp.MustCompile(`^(https?)://[^\s/$.?#]*[^\s]*$`),
 		rxHeader:        regexp.MustCompile(`[a-zA-Z-]+: .+`),
 		rxMethod:        regexp.MustCompile(`^(OPTIONS|GET|POST|PUT|DELETE)`),
 		rxPath:          regexp.MustCompile(`\/.*`),
-		rxComment:       regexp.MustCompile(`^[[:space:]]*[#|\/\/]`),
-		rxVarDefinition: regexp.MustCompile(`^set ([[:word:]\-]+) (.+)`),
+		rxFile:          regexp.MustCompile(`^file://([/a-zA-Z0-9\-_\.]+) ([a-zA-Z0-9]+)$`),
 		rxVar:           regexp.MustCompile(`\$\{([[:word:]\-]+)\}`),
-		rxDelay:         regexp.MustCompile(`^delay (\d+(ns|us|µs|ms|s|m|h))$`),
 		rxExpect:        regexp.MustCompile(`^expect (\d+) ?(.*)`),
-		rxLabel:         regexp.MustCompile(`^label (.*)`),
-		rxSkip:          regexp.MustCompile(`^skip`),
+		rxComment:       regexp.MustCompile(`^[[:space:]]*[#|\/\/]`),
 
 		variables:  make(map[string]string),
 		concurrent: concurrent,
@@ -208,6 +210,16 @@ func (l *lexer) parseBlock(block []string) (request, error) {
 			req.headers[key] = value
 			log.Debugf("Set header %s to %s\n", key, value)
 
+		case l.rxFile.MatchString(line):
+			// fn := l.rxFile.FindString(line)
+			matches := l.rxFile.FindStringSubmatch(line)
+			if isValidFile(matches[1]) {
+				req.filename = matches[1]
+				req.filelabel = matches[2]
+				log.Debug("Got File", req.filename, req.filelabel)
+				fmt.Println("Got File", req.filename, req.filelabel)
+			}
+			state = stateHeaders
 		case l.rxLabel.MatchString(line):
 			m := l.rxLabel.FindStringSubmatch(line)
 			req.label = m[1]
@@ -217,7 +229,7 @@ func (l *lexer) parseBlock(block []string) (request, error) {
 		}
 	}
 	log.Debug("Building request")
-	r, err := l.buildRequest(req)
+	r, err := buildRequest(req)
 	if err != nil {
 		return request{}, err
 	}
@@ -243,79 +255,4 @@ func (l lexer) checkForVariables(line string) (string, error) {
 		}
 	}
 	return tmp, nil
-}
-
-// buildRequest : generate http.Request from parsed input
-func (l lexer) buildRequest(input metaRequest) (req request, err error) {
-	var r *http.Request
-	url := fmt.Sprintf("%s%s", input.url, input.path)
-	if !input.skip { // don't validate if skipped
-		if !isUrl(url) {
-			err = fmt.Errorf("url invalid or missing")
-			return
-		}
-		if input.method == "" {
-			err = fmt.Errorf("missing method")
-			return
-		}
-		r, err = http.NewRequest(input.method, url, strings.NewReader(input.body))
-		if err != nil {
-			err = fmt.Errorf("creating request %w", err)
-			return
-		}
-		for header, value := range input.headers {
-			r.Header.Set(header, value)
-		}
-
-	}
-	req = request{
-		label:       input.label,
-		skip:        input.skip,
-		delay:       input.delay,
-		expectation: input.expectation,
-		r:           r,
-	}
-
-	if !req.skip {
-		err = l.validateRequest(req)
-		if err != nil {
-			err = fmt.Errorf("Invalid request %w", err)
-			return
-		}
-	}
-	return
-}
-
-// validateRequest : checks if request is complete
-func (l lexer) validateRequest(req request) error {
-	if req.r.URL.String() == "" {
-		return fmt.Errorf("No URL found in request")
-	}
-	if req.r.Method == "" {
-		return fmt.Errorf("No method found in request")
-	}
-	return nil
-}
-
-// isUrl tests a string to determine if it is a well-structured url or not.
-func isUrl(s string) bool {
-	if s == "" {
-		return false
-	}
-	// checks needed as of Go 1.6 because of change:
-	// https://github.com/golang/go/commit/617c93ce740c3c3cc28cdd1a0d712be183d0b328#diff-6c2d018290e298803c0c9419d8739885L195
-	// emulate browser and strip the '#' suffix prior to validation. see issue-#237
-	if i := strings.Index(s, "#"); i > -1 {
-		s = s[:i]
-	}
-
-	if len(s) == 0 {
-		return false
-	}
-
-	url, err := url.ParseRequestURI(s)
-	if err != nil || url.Scheme == "" || url.Host == "" {
-		return false
-	}
-	return true
 }
