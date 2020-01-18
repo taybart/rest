@@ -16,6 +16,10 @@ import (
 
 // buildRequest : generate http.Request from parsed input
 func buildRequest(input metaRequest) (req request, err error) {
+	if err = isValidMetaRequest(input); err != nil {
+		return
+	}
+
 	var r *http.Request
 	url := fmt.Sprintf("%s%s", input.url, input.path)
 	if !input.skip { // don't validate if skipped
@@ -63,10 +67,6 @@ func buildRequest(input metaRequest) (req request, err error) {
 }
 
 func buildBody(input metaRequest) (body io.Reader, err error) {
-	if input.body != "" && input.headers["Content-Type"] == "application/json" {
-		body = strings.NewReader(input.body)
-		return
-	}
 	if input.filename != "" {
 		file, err := os.Open(input.filename)
 		if err != nil {
@@ -100,10 +100,34 @@ func buildBody(input metaRequest) (body io.Reader, err error) {
 		}
 		body = &b
 	}
+
+	// Assume json
+	// if input.body != "" && input.headers["Content-Type"] == "application/json" {
+	if input.body != "" {
+		body = strings.NewReader(input.body)
+		return
+	}
 	return
 }
 
-// validateRequest : checks if request is complete
+// isValidMetaRequest : checks if request is complete
+func isValidMetaRequest(req metaRequest) error {
+	if req.url == "" {
+		return fmt.Errorf("No URL found in request")
+	}
+	if req.method == "" {
+		return fmt.Errorf("No method found in request")
+	}
+	if req.filename != "" && req.headers["Content-Type"] == "" {
+		return fmt.Errorf("Content-Type not set for request with file")
+	}
+	if req.filename != "" && req.filelabel == "" {
+		return fmt.Errorf("file %s not labeled in request (ex file://path label)", req.filename)
+	}
+	return nil
+}
+
+// isValidRequest : checks if request is complete
 func isValidRequest(req request) error {
 	if req.r.URL.String() == "" {
 		return fmt.Errorf("No URL found in request")

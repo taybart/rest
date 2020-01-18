@@ -75,7 +75,7 @@ func newLexer(concurrent bool) lexer {
 		rxHeader:        regexp.MustCompile(`[a-zA-Z-]+: .+`),
 		rxMethod:        regexp.MustCompile(`^(OPTIONS|GET|POST|PUT|DELETE)`),
 		rxPath:          regexp.MustCompile(`\/.*`),
-		rxFile:          regexp.MustCompile(`^file://([/a-zA-Z0-9\-_\.]+) ([a-zA-Z0-9]+)$`),
+		rxFile:          regexp.MustCompile(`^file://([/a-zA-Z0-9\-_\.]+)[\s+]?([a-zA-Z0-9]+)?$`),
 		rxVar:           regexp.MustCompile(`\$\{([[:word:]\-]+)\}`),
 		rxExpect:        regexp.MustCompile(`^expect (\d+) ?(.*)`),
 		rxComment:       regexp.MustCompile(`^[[:space:]]*[#|\/\/]`),
@@ -217,7 +217,6 @@ func (l *lexer) parseBlock(block []string) (request, error) {
 				req.filename = matches[1]
 				req.filelabel = matches[2]
 				log.Debug("Got File", req.filename, req.filelabel)
-				fmt.Println("Got File", req.filename, req.filelabel)
 			}
 			state = stateHeaders
 		case l.rxLabel.MatchString(line):

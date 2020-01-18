@@ -26,3 +26,10 @@ POST /
   "strings": ""
 }
 
+---
+
+# Upload documents
+http://localhost:${PORT}
+Content-Type: multipart/form-data
+POST /users
+file://test/file_test.csv csv
