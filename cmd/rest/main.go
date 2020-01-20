@@ -81,14 +81,14 @@ func main() {
 		readFiles(r)
 		if outputLang != "" {
 			if makeClient {
-				client, err := r.SynthisizeClient(outputLang)
+				client, err := r.SynthesizeClient(outputLang)
 				if err != nil {
 					os.Exit(1)
 				}
 				fmt.Println(client)
 				os.Exit(0)
 			}
-			requests, err := r.SynthisizeRequests(outputLang)
+			requests, err := r.SynthesizeRequests(outputLang)
 			for i, req := range requests {
 				fmt.Printf("\n~~~~~~~ %d ~~~~~~~\n\n", i)
 				fmt.Println(req)

@@ -109,7 +109,7 @@ func main() {
   fmt.Println(err)
     panic("HOLY SHIT!")
   }
-  requests, err := r.SynthisizeRequest("javascript")
+  requests, err := r.SynthesizeRequest("javascript")
   if err != nil {
     fmt.Println(err)
     panic("HOLY SHIT!")

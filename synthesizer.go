@@ -11,8 +11,8 @@ import (
 )
 
 // SynthisizeClient : Holy grail
-func (r Rest) SynthisizeClient(lang string) (string, error) {
-	code, err := r.SynthisizeRequests(lang)
+func (r Rest) SynthesizeClient(lang string) (string, error) {
+	code, err := r.SynthesizeRequests(lang)
 	if err != nil {
 		return "", err
 	}
@@ -45,7 +45,7 @@ func (r Rest) SynthisizeClient(lang string) (string, error) {
 }
 
 // SynthisizeRequests : output request code
-func (r Rest) SynthisizeRequests(lang string) ([]string, error) {
+func (r Rest) SynthesizeRequests(lang string) ([]string, error) {
 	if t := templates.Get(lang); t != nil {
 		requests := make([]string, len(r.requests))
 		for i, req := range r.requests {
