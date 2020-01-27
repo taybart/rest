@@ -32,7 +32,7 @@ type metaRequest struct {
 	method      string
 	path        string
 	body        string
-	filename    string
+	filepath    string
 	filelabel   string
 	delay       time.Duration
 	expectation expectation
@@ -214,9 +214,9 @@ func (l *lexer) parseBlock(block []string) (request, error) {
 			// fn := l.rxFile.FindString(line)
 			matches := l.rxFile.FindStringSubmatch(line)
 			if isValidFile(matches[1]) {
-				req.filename = matches[1]
+				req.filepath = matches[1]
 				req.filelabel = matches[2]
-				log.Debug("Got File", req.filename, req.filelabel)
+				log.Debug("Got File", req.filepath, req.filelabel)
 			}
 			state = stateHeaders
 		case l.rxLabel.MatchString(line):

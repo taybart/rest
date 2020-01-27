@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -32,10 +32,9 @@ func buildRequest(input metaRequest) (req request, err error) {
 			return
 		}
 
-		var body io.Reader
-		body, err = buildBody(input)
-		if err != nil {
-			err = fmt.Errorf("creating body %w", err)
+		body, bodyHeaders, bodyerr := buildBody(input)
+		if bodyerr != nil {
+			err = fmt.Errorf("creating body %w", bodyerr)
 			return
 		}
 		r, err = http.NewRequest(input.method, url, body)
@@ -46,6 +45,9 @@ func buildRequest(input metaRequest) (req request, err error) {
 		for header, value := range input.headers {
 			r.Header.Set(header, value)
 		}
+		for header, value := range bodyHeaders {
+			r.Header.Set(header, value)
+		}
 
 	}
 	req = request{
@@ -53,7 +55,8 @@ func buildRequest(input metaRequest) (req request, err error) {
 		skip:        input.skip,
 		delay:       input.delay,
 		expectation: input.expectation,
-		r:           r,
+
+		r: r,
 	}
 
 	if !req.skip {
@@ -66,43 +69,38 @@ func buildRequest(input metaRequest) (req request, err error) {
 	return
 }
 
-func buildBody(input metaRequest) (body io.Reader, err error) {
-	if input.filename != "" {
-		file, err := os.Open(input.filename)
-		if err != nil {
-			return nil, err
-		}
-		fileContents, err := ioutil.ReadAll(file)
-		if err != nil {
-			return nil, err
-		}
-		fi, err := file.Stat()
-		if err != nil {
-			return nil, err
-		}
-		file.Close()
+func buildFileBody(input metaRequest) (body *bytes.Buffer, headers map[string]string, err error) {
+	file, err := os.Open(input.filepath)
+	if err != nil {
+		return
+	}
+	defer file.Close()
 
-		var b bytes.Buffer
-		writer := multipart.NewWriter(&b)
-		part, err := writer.CreateFormFile(input.filelabel, fi.Name())
-		if err != nil {
-			return nil, err
-		}
-		part.Write(fileContents)
+	body = &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile(input.filelabel, filepath.Base(input.filepath))
+	if err != nil {
+		return
+	}
+	_, err = io.Copy(part, file)
 
-		// TODO Add fields somehow
-		/* for key, val := range params {
-			_ = writer.WriteField(key, val)
-		} */
-		err = writer.Close()
-		if err != nil {
-			return nil, err
-		}
-		body = &b
+	/* for key, val := range params {
+		_ = writer.WriteField(key, val)
+	} */
+	err = writer.Close()
+	if err != nil {
+		return
 	}
 
-	// Assume json
-	// if input.body != "" && input.headers["Content-Type"] == "application/json" {
+	return body, map[string]string{"Content-Type": writer.FormDataContentType()}, err
+}
+
+func buildBody(input metaRequest) (body io.Reader, headers map[string]string, err error) {
+	if input.filepath != "" {
+		return buildFileBody(input)
+	}
+
+	// unknown body
 	if input.body != "" {
 		body = strings.NewReader(input.body)
 		return
@@ -118,11 +116,11 @@ func isValidMetaRequest(req metaRequest) error {
 	if req.method == "" {
 		return fmt.Errorf("No method found in request")
 	}
-	if req.filename != "" && req.headers["Content-Type"] == "" {
+	if req.filepath != "" && req.headers["Content-Type"] == "" {
 		return fmt.Errorf("Content-Type not set for request with file")
 	}
-	if req.filename != "" && req.filelabel == "" {
-		return fmt.Errorf("file %s not labeled in request (ex file://path label)", req.filename)
+	if req.filepath != "" && req.filelabel == "" {
+		return fmt.Errorf("file %s not labeled in request (ex file://path label)", req.filepath)
 	}
 	return nil
 }
