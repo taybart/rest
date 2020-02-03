@@ -32,9 +32,10 @@ func buildRequest(input metaRequest) (req request, err error) {
 			return
 		}
 
-		body, bodyHeaders, bodyerr := buildBody(input)
-		if bodyerr != nil {
-			err = fmt.Errorf("creating body %w", bodyerr)
+		var body io.Reader
+		body, err = buildBody(&input)
+		if err != nil {
+			err = fmt.Errorf("creating body %w", err)
 			return
 		}
 		r, err = http.NewRequest(input.method, url, body)
@@ -45,10 +46,6 @@ func buildRequest(input metaRequest) (req request, err error) {
 		for header, value := range input.headers {
 			r.Header.Set(header, value)
 		}
-		for header, value := range bodyHeaders {
-			r.Header.Set(header, value)
-		}
-
 	}
 	req = request{
 		label:       input.label,
@@ -69,7 +66,7 @@ func buildRequest(input metaRequest) (req request, err error) {
 	return
 }
 
-func buildFileBody(input metaRequest) (body *bytes.Buffer, headers map[string]string, err error) {
+func buildFileBody(input *metaRequest) (body *bytes.Buffer, err error) {
 	file, err := os.Open(input.filepath)
 	if err != nil {
 		return
@@ -91,11 +88,11 @@ func buildFileBody(input metaRequest) (body *bytes.Buffer, headers map[string]st
 	if err != nil {
 		return
 	}
-
-	return body, map[string]string{"Content-Type": writer.FormDataContentType()}, err
+	input.headers["Content-Type"] = writer.FormDataContentType()
+	return body, err
 }
 
-func buildBody(input metaRequest) (body io.Reader, headers map[string]string, err error) {
+func buildBody(input *metaRequest) (body io.Reader, err error) {
 	if input.filepath != "" {
 		return buildFileBody(input)
 	}
