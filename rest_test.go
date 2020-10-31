@@ -206,3 +206,39 @@ func TestExpect(t *testing.T) {
 	_, err = r.Exec()
 	is.NoErr(err)
 }
+
+func TestRuntimeVariables(t *testing.T) {
+	is := is.New(t)
+	r := New()
+	err := r.Read("./test/runtime.rest")
+	is.NoErr(err)
+	client := NewTestClient(func(r *http.Request) *http.Response {
+		switch r.URL.Path {
+		case "/login":
+			// Test request parameters
+			return &http.Response{
+				StatusCode: 200,
+				// Send response to be tested
+				Body: ioutil.NopCloser(bytes.NewBufferString(`{"auth_token": "test"}`)),
+				// Must be set to non-nil value or it panics
+				Header: make(http.Header),
+			}
+		case "/account":
+			if r.Header.Get("Authorization") != "Bearer test" {
+				t.Fatal("auth_token was not present during second call")
+			}
+			return &http.Response{
+				StatusCode: 200,
+				// Must be set to non-nil value or it panics
+				Header: make(http.Header),
+			}
+		default:
+			t.Fatal("Unknown url called")
+			return nil
+		}
+	})
+
+	r.SetClient(client)
+	_, err = r.Exec()
+	is.NoErr(err)
+}

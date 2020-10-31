@@ -7,15 +7,21 @@ GET /
 
 set URL http://localhost:8080
 
-skip
-
 delay 5s
 
 label PostThing
 ${URL}
-POST /user
 Content-Type: application/json
+POST /user
 {
   "user": "taybart",
   "11": 12,
 }
+
+---
+
+skip
+
+label SkippedThing
+${URL}
+GET /user

@@ -1,0 +1,15 @@
+
+http://localhost:8080
+POST /login
+{
+  "username": "test",
+  "password": "password"
+}
+
+take auth_token as AUTH_TOKEN
+
+---
+
+http://localhost:8080
+Authorization: Bearer ${AUTH_TOKEN}
+GET /account

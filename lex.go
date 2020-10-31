@@ -3,7 +3,6 @@ package rest
 import (
 	"bufio"
 	"fmt"
-	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,81 +18,75 @@ const (
 	stateBody
 )
 
+var (
+	rxLabel         = regexp.MustCompile(`^label (.*)`)
+	rxSkip          = regexp.MustCompile(`^skip\s*$`)
+	rxDelay         = regexp.MustCompile(`^delay (\d+(ns|us|µs|ms|s|m|h))$`)
+	rxVarDefinition = regexp.MustCompile(`^set ([[:word:]\-]+) (.+)`)
+	rxURL           = regexp.MustCompile(`^(https?)://[^\s/$.?#]*[^\s]*$`)
+	rxHeader        = regexp.MustCompile(`[a-zA-Z-]+: .+`)
+	rxMethod        = regexp.MustCompile(`^(OPTIONS|GET|POST|PUT|DELETE)`)
+	rxPath          = regexp.MustCompile(`\/.*`)
+	rxFile          = regexp.MustCompile(`^file://([/a-zA-Z0-9\-_\.]+)[\s+]?([a-zA-Z0-9]+)?$`)
+	rxVar           = regexp.MustCompile(`\$\{([[:word:]\-]+)\}`)
+	rxExpect        = regexp.MustCompile(`^expect (\d+) ?(.*)`)
+	rxComment       = regexp.MustCompile(`^[[:space:]]*[#|\/\/]`)
+	rxRuntimeVar    = regexp.MustCompile(`^take ([[:word:]]+) as ([[:word:]\-]+)`)
+)
+
+type restVar struct {
+	name    string
+	value   string
+	runtime bool
+}
+
 type expectation struct {
 	code int
 	body string
 }
-
 type metaRequest struct {
-	label       string
-	skip        bool
-	url         string
-	headers     map[string]string
-	method      string
-	path        string
-	body        string
-	filepath    string
-	filelabel   string
-	delay       time.Duration
-	expectation expectation
+	label           string
+	skip            bool
+	url             string
+	headers         map[string]string
+	method          string
+	path            string
+	body            string
+	filepath        string
+	filelabel       string
+	delay           time.Duration
+	expectation     expectation
+	reinterpret     bool
+	reinterpretVars []restVar
+	block           []string
 }
-
-type request struct {
-	label       string
-	skip        bool
-	r           *http.Request
-	delay       time.Duration
-	expectation expectation
+type requestBatch struct {
+	requests []metaRequest
+	rtVars   map[string]restVar
 }
 
 type lexer struct {
-	rxLabel         *regexp.Regexp
-	rxSkip          *regexp.Regexp
-	rxDelay         *regexp.Regexp
-	rxVarDefinition *regexp.Regexp
-	rxURL           *regexp.Regexp
-	rxHeader        *regexp.Regexp
-	rxPath          *regexp.Regexp
-	rxMethod        *regexp.Regexp
-	rxFile          *regexp.Regexp
-	rxVar           *regexp.Regexp
-	rxExpect        *regexp.Regexp
-	rxComment       *regexp.Regexp
-
-	variables  map[string]string
+	variables  map[string]restVar
 	concurrent bool
-	bch        chan request
+	bch        chan metaRequest
 }
 
 func newLexer(concurrent bool) lexer {
 	return lexer{
-		rxLabel:         regexp.MustCompile(`^label (.*)`),
-		rxSkip:          regexp.MustCompile(`^skip\s*$`),
-		rxDelay:         regexp.MustCompile(`^delay (\d+(ns|us|µs|ms|s|m|h))$`),
-		rxVarDefinition: regexp.MustCompile(`^set ([[:word:]\-]+) (.+)`),
-		rxURL:           regexp.MustCompile(`^(https?)://[^\s/$.?#]*[^\s]*$`),
-		rxHeader:        regexp.MustCompile(`[a-zA-Z-]+: .+`),
-		rxMethod:        regexp.MustCompile(`^(OPTIONS|GET|POST|PUT|DELETE)`),
-		rxPath:          regexp.MustCompile(`\/.*`),
-		rxFile:          regexp.MustCompile(`^file://([/a-zA-Z0-9\-_\.]+)[\s+]?([a-zA-Z0-9]+)?$`),
-		rxVar:           regexp.MustCompile(`\$\{([[:word:]\-]+)\}`),
-		rxExpect:        regexp.MustCompile(`^expect (\d+) ?(.*)`),
-		rxComment:       regexp.MustCompile(`^[[:space:]]*[#|\/\/]`),
-
-		variables:  make(map[string]string),
+		variables:  make(map[string]restVar),
 		concurrent: concurrent,
-		bch:        make(chan request),
+		bch:        make(chan metaRequest),
 	}
 }
 
 // parse : Parse a rest file and build golang http requests from it
-func (l *lexer) parse(scanner *bufio.Scanner) ([]request, error) {
-	log.Debug("Lex starting parse")
+func (l *lexer) parse(scanner *bufio.Scanner) (requests requestBatch, err error) {
+	log.Debug("\nLex starting parse...")
 	blocks := [][]string{}
 	block := []string{}
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line == "---" {
+		if line == "---" { // next block
 			blocks = append(blocks, block)
 			block = []string{}
 			continue
@@ -104,65 +97,119 @@ func (l *lexer) parse(scanner *bufio.Scanner) ([]request, error) {
 	blocks = append(blocks, block)
 
 	log.Debugf("Got %d blocks\n", len(blocks))
-	if l.concurrent {
-		return l.parseBlocksConcurrently(blocks)
+	p, err := l.firstPass(blocks)
+	if err != nil {
+		return
 	}
-	return l.parseBlocks(blocks)
+	rtVars := make(map[string]restVar)
+	for k, v := range l.variables {
+		if v.runtime {
+			log.Debugf("var: %s is runtime\n", k)
+			rtVars[k] = v
+		}
+	}
+
+	var rs []metaRequest
+	if l.concurrent {
+		rs, err = l.parseConcurrent(p)
+	} else {
+		rs, err = l.parseSerial(p)
+	}
+	if err != nil {
+		return
+	}
+	return requestBatch{
+		requests: rs,
+		rtVars:   rtVars,
+	}, nil
+}
+
+func (l *lexer) firstPass(blocks [][]string) (meta []metaRequest, err error) {
+	for i, b := range blocks {
+		for _, ln := range b {
+			switch {
+			case rxSkip.MatchString(ln):
+				continue
+			case rxRuntimeVar.MatchString(ln):
+				if l.concurrent {
+					err = fmt.Errorf("found runtime variable but rest is set to run concurrently")
+					return
+				}
+				v := rxRuntimeVar.FindStringSubmatch(ln)
+				log.Debugf("Found runtime variable %s with return value of %s\n", v[2], v[1])
+				l.variables[v[2]] = restVar{
+					name:    v[2],
+					value:   v[1],
+					runtime: true,
+				}
+			}
+		}
+		log.Debug("First pass on block", i)
+		meta = append(meta, metaRequest{
+			block: b,
+		})
+	}
+	return
 }
 
 // parseBlocks : Parse blocks in the order in which they were given
-func (l *lexer) parseBlocks(blocks [][]string) (reqs []request, err error) {
+func (l *lexer) parseSerial(input []metaRequest) (reqs []metaRequest, err error) {
 	log.Debug("Starting to parse blocks in order")
-	for i, block := range blocks {
-		r, e := l.parseBlock(block)
+	for i, r := range input {
+		lexed, e := l.parseBlock(r.block)
 		if e != nil {
 			err = fmt.Errorf("block %d: %w", i, e)
 			// log.Error(e)
 			continue // TODO maybe should super fail
 		}
-		reqs = append(reqs, r)
+		reqs = append(reqs, lexed)
 	}
 	log.Debugf("Parsed %d blocks\n", len(reqs))
-	l.variables = make(map[string]string) // purge vars
+	l.purgeVars()
 	return
 }
 
 // parseBlocksConcurrently : Parse all blocks but don't care about order
-func (l *lexer) parseBlocksConcurrently(blocks [][]string) (reqs []request, err error) {
+func (l *lexer) parseConcurrent(input []metaRequest) (reqs []metaRequest, err error) {
 	log.Debug("Starting to parse blocks concurrently")
-	for _, block := range blocks {
-		go l.parseBlock(block)
+	for _, r := range input {
+		go l.parseBlock(r.block)
 	}
 
-	for i := 0; i < len(blocks); i++ {
+	for i := 0; i < len(input); i++ {
 		r := <-l.bch
 		reqs = append(reqs, r)
 	}
 	log.Debug("Done")
-	l.variables = make(map[string]string) // purge vars
+	l.purgeVars()
 	return
 }
 
 // parseBlock : Get all parts of request from request block
-func (l *lexer) parseBlock(block []string) (request, error) {
+func (l *lexer) parseBlock(block []string) (metaRequest, error) {
 	req := metaRequest{
 		headers: make(map[string]string),
 	}
 	state := stateUrl
 	for i, ln := range block {
-		if l.rxComment.MatchString(ln) {
+		if rxComment.MatchString(ln) {
 			log.Debug("Get comment", ln)
 			continue
 		}
-		line, err := l.checkForVariables(ln)
+		line, runtime, err := l.checkForUndeclaredVariables(ln)
 		if err != nil {
 			log.Fatal(err)
 		}
+		if runtime {
+			req.block = block
+			req.reinterpret = true
+			continue
+		}
 		switch {
-		case l.rxSkip.MatchString(line):
+		case rxSkip.MatchString(line):
 			req.skip = true
-		case l.rxExpect.MatchString(line):
-			m := l.rxExpect.FindStringSubmatch(line)
+		case rxExpect.MatchString(line):
+			m := rxExpect.FindStringSubmatch(line)
 			if len(m) == 1 {
 				log.Errorf("Malformed expectation in block %d [%s]\n", i, line)
 				continue
@@ -175,52 +222,55 @@ func (l *lexer) parseBlock(block []string) (request, error) {
 			if len(m) == 3 {
 				req.expectation.body = m[2]
 			}
-		case l.rxDelay.MatchString(line):
-			m := l.rxDelay.FindStringSubmatch(line)
+		case rxDelay.MatchString(line):
+			m := rxDelay.FindStringSubmatch(line)
 			req.delay, err = time.ParseDuration(m[1])
 			if err != nil {
 				log.Errorf("Cannot parse delay in block %d [%s]\n", i, line)
 				continue
 			}
-		case l.rxVarDefinition.MatchString(line):
-			v := l.rxVarDefinition.FindStringSubmatch(line)
+		case rxVarDefinition.MatchString(line):
+			v := rxVarDefinition.FindStringSubmatch(line)
 			log.Debugf("Setting %s to %s\n", string(v[1]), string(v[2]))
-			l.variables[v[1]] = v[2]
-		case l.rxURL.MatchString(line):
-			u := l.rxURL.FindString(line)
+			l.variables[v[1]] = restVar{
+				name:  v[1],
+				value: v[2],
+			}
+		case rxURL.MatchString(line):
+			u := rxURL.FindString(line)
 			if isUrl(u) {
 				req.url = u
 				log.Debug("Got URL", u)
 			}
 			state = stateHeaders
 
-		case l.rxMethod.MatchString(line):
-			m := l.rxMethod.FindString(line)
+		case rxMethod.MatchString(line):
+			m := rxMethod.FindString(line)
 			req.method = m
-			p := l.rxPath.FindString(line)
+			p := rxPath.FindString(line)
 			req.path = p
 			log.Debug("Got method", m)
 			log.Debug("Got path", p)
 			state = stateBody
 
-		case l.rxHeader.MatchString(line) && state == stateHeaders:
+		case rxHeader.MatchString(line) && state == stateHeaders:
 			sp := strings.Split(line, ":")
 			key := strings.TrimSpace(sp[0])
 			value := strings.TrimSpace(sp[1])
 			req.headers[key] = value
 			log.Debugf("Set header %s to %s\n", key, value)
 
-		case l.rxFile.MatchString(line):
-			// fn := l.rxFile.FindString(line)
-			matches := l.rxFile.FindStringSubmatch(line)
+		case rxFile.MatchString(line):
+			// fn := rxFile.FindString(line)
+			matches := rxFile.FindStringSubmatch(line)
 			if isValidFile(matches[1]) {
 				req.filepath = matches[1]
 				req.filelabel = matches[2]
 				log.Debug("Got File", req.filepath, req.filelabel)
 			}
 			state = stateHeaders
-		case l.rxLabel.MatchString(line):
-			m := l.rxLabel.FindStringSubmatch(line)
+		case rxLabel.MatchString(line):
+			m := rxLabel.FindStringSubmatch(line)
 			req.label = m[1]
 
 		case state == stateBody:
@@ -228,30 +278,37 @@ func (l *lexer) parseBlock(block []string) (request, error) {
 		}
 	}
 	log.Debug("Building request")
-	r, err := buildRequest(req)
-	if err != nil {
-		return request{}, err
-	}
 
 	if l.concurrent {
-		l.bch <- r
+		l.bch <- req
 	}
-	return r, nil
+	return req, nil
 }
 
-func (l lexer) checkForVariables(line string) (string, error) {
+func (l lexer) checkForUndeclaredVariables(line string) (string, bool, error) {
 	tmp := line
-	if l.rxVar.MatchString(line) {
-		matches := l.rxVar.FindAllStringSubmatch(line, -1)
+	reinterpret := false
+	if rxVar.MatchString(line) {
+		matches := rxVar.FindAllStringSubmatch(line, -1)
 		for _, match := range matches {
-			if value, ok := l.variables[match[1]]; ok {
-				tmp = strings.ReplaceAll(tmp, match[0], value)
-			} else {
-				return "", fmt.Errorf("Saw variable %s%s%s and did not have a value for it",
-					log.Blue, match[1], log.Rtd)
+			if l.variables[match[1]].runtime {
+				tmp = l.variables[match[1]].value
+				reinterpret = true
+				log.Debug(line, "-> NEED RUNTIME VALUE")
+				continue
 			}
+			if v, ok := l.variables[match[1]]; ok {
+				tmp = strings.ReplaceAll(tmp, match[0], v.value)
+				return tmp, false, nil
+			}
+			return "", false, fmt.Errorf("Saw variable %s%s%s and did not have a value for it",
+				log.Blue, match[1], log.Rtd)
 			log.Debug(line, "->", tmp)
 		}
 	}
-	return tmp, nil
+	return tmp, reinterpret, nil
+}
+
+func (l *lexer) purgeVars() {
+	l.variables = make(map[string]restVar)
 }
