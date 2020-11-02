@@ -1,6 +1,6 @@
 module github.com/taybart/rest
 
-go 1.14
+go 1.15
 
 require (
 	github.com/matryer/is v1.2.0
