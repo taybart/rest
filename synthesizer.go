@@ -47,11 +47,18 @@ func (r Rest) SynthesizeClient(lang string) (string, error) {
 // SynthisizeRequests : output request code
 func (r Rest) SynthesizeRequests(lang string) ([]string, error) {
 	if t := templates.Get(lang); t != nil {
-		requests := make([]string, len(r.requests))
-		for i, req := range r.requests {
-			body, err := ioutil.ReadAll(req.r.Body)
-			if err != nil {
-				log.Error(err)
+		requests := []string{}
+		for _, req := range r.requests {
+			if req.skip {
+				continue
+			}
+			var body []byte
+			if req.r.Body != nil {
+				var err error
+				body, err = ioutil.ReadAll(req.r.Body)
+				if err != nil {
+					log.Error(err)
+				}
 			}
 			templReq := struct {
 				URL     string
@@ -66,11 +73,11 @@ func (r Rest) SynthesizeRequests(lang string) ([]string, error) {
 			}
 
 			var buf bytes.Buffer
-			err = t.Request.Execute(&buf, templReq)
+			err := t.Request.Execute(&buf, templReq)
 			if err != nil {
 				log.Error(err)
 			}
-			requests[i] = buf.String()
+			requests = append(requests, buf.String())
 		}
 		return requests, nil
 	}

@@ -35,6 +35,7 @@ func TestLexFiles(t *testing.T) {
 		{name: "delay", fn: "./test/delay.rest", res: true},
 		{name: "expect", fn: "./test/expect.rest", res: true},
 		{name: "skip", fn: "./test/skip.rest", res: true},
+		{name: "runtime", fn: "./test/runtime.rest", res: true},
 		{name: "invalid", fn: "./test/invalid.rest", res: false}, // TODO add individual failures
 	}
 	for _, tt := range files {

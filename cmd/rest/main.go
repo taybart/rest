@@ -55,15 +55,18 @@ func help() {
 
 func main() {
 	flag.Parse()
+
 	log.SetPlain()
 	log.SetLevel(log.WARN)
 	if verbose {
 		log.SetLevel(log.DEBUG)
 	}
+
 	if servelog || servedir {
 		serve(servedir, local, port)
 		return
 	}
+
 	r := rest.New()
 	if nocolor {
 		r.NoColor()
@@ -107,6 +110,7 @@ func main() {
 
 func readFiles(r *rest.Rest) {
 	for _, f := range fns {
+		log.Debug("Reading file %s...", f)
 		if fileExists(f) {
 			valid, err := r.IsRestFile(f)
 			if !valid {
@@ -116,12 +120,15 @@ func readFiles(r *rest.Rest) {
 			err = r.Read(f)
 			if err != nil {
 				log.Error("Read error", err)
+				continue
 			}
+			log.Debug("done\n")
 		}
 	}
 }
 
 func exec(r *rest.Rest) {
+	log.Debug("\nExecuting all requests\n")
 	if index >= 0 {
 		res, err := r.ExecIndex(index)
 		if err != nil {

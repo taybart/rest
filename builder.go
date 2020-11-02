@@ -10,12 +10,34 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/taybart/log"
 )
+
+type request struct {
+	label       string
+	skip        bool
+	r           *http.Request
+	delay       time.Duration
+	expectation expectation
+	outputs     map[string]string
+}
 
 // type builder struct{}
 
 // buildRequest : generate http.Request from parsed input
-func buildRequest(input metaRequest) (req request, err error) {
+func buildRequest(input metaRequest, variables map[string]restVar) (req request, err error) {
+	if input.reinterpret {
+		log.Debug("Re-interpreting request", variables)
+		l := newLexer(false)
+		l.variables = variables
+		input, err = l.parseBlock(input.block)
+		if err != nil {
+			return
+		}
+	}
+
 	if err = isValidMetaRequest(input); err != nil {
 		return
 	}
