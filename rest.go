@@ -90,6 +90,7 @@ func (r *Rest) read(scanner *bufio.Scanner, concurrent bool) error {
 // Exec : do all loaded requests
 func (r Rest) Exec() (successful []string, err error) {
 	for i, l := range r.lexed.requests {
+		log.Debug("Building request block", i)
 		var req request
 		req, err = buildRequest(l, r.lexed.rtVars)
 		if err != nil {
@@ -109,6 +110,7 @@ func (r Rest) Exec() (successful []string, err error) {
 			// continue
 		}
 
+		log.Debug("Checking expectation")
 		err = r.CheckExpectation(req, resp)
 		if err != nil {
 			// failed = append(failed, err.Error())
@@ -116,6 +118,7 @@ func (r Rest) Exec() (successful []string, err error) {
 			return
 		}
 
+		log.Debug("Take output into runtime bars")
 		err = r.takeVariables(resp, &r.lexed.rtVars)
 		if err != nil {
 			return
@@ -251,17 +254,21 @@ func (r Rest) IsRestFile(fn string) (bool, error) {
 }
 
 func (rest Rest) takeVariables(res *http.Response, rtVars *map[string]restVar) (err error) {
-	defer res.Body.Close()
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return
 	}
+	res.Body.Close()
 	if len(body) == 0 {
 		return
 	}
-	var j map[string]string
+
+	res.Body = ioutil.NopCloser(bytes.NewBuffer(body)) // put body back
+
+	var j map[string]interface{}
 	err = json.Unmarshal(body, &j)
 	if err != nil {
+		err = fmt.Errorf("could not take variables from request %w", err)
 		return
 	}
 	for k, v := range *rtVars {
@@ -269,7 +276,7 @@ func (rest Rest) takeVariables(res *http.Response, rtVars *map[string]restVar) (
 			if v.value == jk {
 				(*rtVars)[k] = restVar{
 					name:  k,
-					value: jv,
+					value: jv.(string),
 				}
 			}
 		}

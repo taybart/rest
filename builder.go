@@ -28,10 +28,6 @@ type request struct {
 
 // buildRequest : generate http.Request from parsed input
 func buildRequest(input metaRequest, variables map[string]restVar) (req request, err error) {
-	if err = isValidMetaRequest(input); err != nil {
-		return
-	}
-
 	if input.reinterpret {
 		log.Debug("Re-interpreting request", variables)
 		l := newLexer(false)
@@ -40,6 +36,10 @@ func buildRequest(input metaRequest, variables map[string]restVar) (req request,
 		if err != nil {
 			return
 		}
+	}
+
+	if err = isValidMetaRequest(input); err != nil {
+		return
 	}
 
 	var r *http.Request

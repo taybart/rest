@@ -2,6 +2,7 @@ package rest
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -212,9 +213,22 @@ func TestRuntimeVariables(t *testing.T) {
 	r := New()
 	err := r.Read("./test/runtime.rest")
 	is.NoErr(err)
+
+	loginCalled := false
+	accountCalled := false
 	client := NewTestClient(func(r *http.Request) *http.Response {
 		switch r.URL.Path {
 		case "/login":
+			t.Log("login")
+			var j map[string]string
+			err = json.NewDecoder(r.Body).Decode(&j)
+			is.NoErr(err)
+
+			is.Equal(j["username"], "test")
+			is.Equal(j["password"], "password")
+
+			loginCalled = true
+
 			// Test request parameters
 			return &http.Response{
 				StatusCode: 200,
@@ -224,9 +238,11 @@ func TestRuntimeVariables(t *testing.T) {
 				Header: make(http.Header),
 			}
 		case "/account":
+			t.Log("account")
 			if r.Header.Get("Authorization") != "Bearer test" {
 				t.Fatal("auth_token was not present during second call")
 			}
+			accountCalled = true
 			return &http.Response{
 				StatusCode: 200,
 				// Must be set to non-nil value or it panics
@@ -241,4 +257,7 @@ func TestRuntimeVariables(t *testing.T) {
 	r.SetClient(client)
 	_, err = r.Exec()
 	is.NoErr(err)
+
+	is.True(loginCalled)
+	is.True(accountCalled)
 }

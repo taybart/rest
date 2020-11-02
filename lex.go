@@ -101,13 +101,6 @@ func (l *lexer) parse(scanner *bufio.Scanner) (requests requestBatch, err error)
 	if err != nil {
 		return
 	}
-	rtVars := make(map[string]restVar)
-	for k, v := range l.variables {
-		if v.runtime {
-			log.Debugf("var: %s is runtime\n", k)
-			rtVars[k] = v
-		}
-	}
 
 	var rs []metaRequest
 	if l.concurrent {
@@ -118,6 +111,14 @@ func (l *lexer) parse(scanner *bufio.Scanner) (requests requestBatch, err error)
 	if err != nil {
 		return
 	}
+	rtVars := make(map[string]restVar)
+	for k, v := range l.variables {
+		if v.runtime {
+			log.Debugf("var: %s is runtime\n", k)
+		}
+		rtVars[k] = v
+	}
+	l.purgeVars()
 	return requestBatch{
 		requests: rs,
 		rtVars:   rtVars,
@@ -165,7 +166,6 @@ func (l *lexer) parseSerial(input []metaRequest) (reqs []metaRequest, err error)
 		reqs = append(reqs, lexed)
 	}
 	log.Debugf("Parsed %d blocks\n", len(reqs))
-	l.purgeVars()
 	return
 }
 
@@ -181,7 +181,6 @@ func (l *lexer) parseConcurrent(input []metaRequest) (reqs []metaRequest, err er
 		reqs = append(reqs, r)
 	}
 	log.Debug("Done")
-	l.purgeVars()
 	return
 }
 
@@ -208,6 +207,8 @@ func (l *lexer) parseBlock(block []string) (metaRequest, error) {
 		switch {
 		case rxSkip.MatchString(line):
 			req.skip = true
+		case rxRuntimeVar.MatchString(ln):
+			continue
 		case rxExpect.MatchString(line):
 			m := rxExpect.FindStringSubmatch(line)
 			if len(m) == 1 {
@@ -301,9 +302,9 @@ func (l lexer) checkForUndeclaredVariables(line string) (string, bool, error) {
 				tmp = strings.ReplaceAll(tmp, match[0], v.value)
 				return tmp, false, nil
 			}
+			log.Debug(line, "->", tmp)
 			return "", false, fmt.Errorf("Saw variable %s%s%s and did not have a value for it",
 				log.Blue, match[1], log.Rtd)
-			log.Debug(line, "->", tmp)
 		}
 	}
 	return tmp, reinterpret, nil
