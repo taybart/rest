@@ -3,11 +3,35 @@ package lexer
 import (
 	"bufio"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/taybart/log"
+)
+
+const (
+	stateUrl = iota + 1
+	stateHeaders
+	stateMethodPath
+	stateBody
+)
+
+var (
+	rxLabel         = regexp.MustCompile(`^label (.*)`)
+	rxSkip          = regexp.MustCompile(`^skip\s*$`)
+	rxDelay         = regexp.MustCompile(`^delay (\d+(ns|us|µs|ms|s|m|h))$`)
+	rxVarDefinition = regexp.MustCompile(`^set ([[:word:]\-]+) (.+)`)
+	rxURL           = regexp.MustCompile(`^(https?)://[^\s/$.?#]*[^\s]*$`)
+	rxHeader        = regexp.MustCompile(`[a-zA-Z-]+: .+`)
+	rxMethod        = regexp.MustCompile(`^(OPTIONS|GET|POST|PUT|DELETE)`)
+	rxPath          = regexp.MustCompile(`\/.*`)
+	rxFile          = regexp.MustCompile(`^file://([/a-zA-Z0-9\-_\.]+)[\s+]?([a-zA-Z0-9]+)?$`)
+	rxVar           = regexp.MustCompile(`\$\{([[:word:]\-]+)\}`)
+	rxExpect        = regexp.MustCompile(`^expect (\d+) ?(.*)`)
+	rxComment       = regexp.MustCompile(`^[[:space:]]*[#|\/\/]`)
+	rxRuntimeVar    = regexp.MustCompile(`^take ([[:word:]]+) as ([[:word:]\-]+)`)
 )
 
 // firstPass : look at blocks to get initial state
@@ -102,10 +126,9 @@ func (l *Lexer) parseBlock(block []string) (MetaRequest, error) {
 			}
 		case rxURL.MatchString(line):
 			u := rxURL.FindString(line)
-			log.Debug("Got URL", u)
 			if isUrl(u) {
 				req.URL = u
-				// log.Debug("Got URL", u)
+				log.Debug("Got URL", u)
 			}
 			state = stateHeaders
 
@@ -126,7 +149,6 @@ func (l *Lexer) parseBlock(block []string) (MetaRequest, error) {
 			log.Debugf("Set header %s to %s\n", key, value)
 
 		case rxFile.MatchString(line):
-			// fn := rxFile.FindString(line)
 			matches := rxFile.FindStringSubmatch(line)
 			if isValidFile(matches[1]) {
 				req.Filepath = matches[1]
