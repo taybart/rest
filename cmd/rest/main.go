@@ -91,7 +91,7 @@ func main() {
 				fmt.Println(client)
 				os.Exit(0)
 			}
-			requests, err := r.SynthesizeRequests(outputLang)
+			requests, _, err := r.SynthesizeRequests(outputLang)
 			for i, req := range requests {
 				fmt.Printf("\n~~~~~~~ %d ~~~~~~~\n\n", i)
 				fmt.Println(req)

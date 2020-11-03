@@ -1,3 +1,3 @@
-package rest
+package lexer
 
 // Tots testing this stuff

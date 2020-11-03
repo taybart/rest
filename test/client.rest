@@ -10,12 +10,15 @@ set URL http://localhost:8080
 delay 5s
 
 label PostThing
+
 ${URL}
+
 Content-Type: application/json
 POST /user
+
 {
   "user": "taybart",
-  "11": 12,
+  "11": 12
 }
 
 ---

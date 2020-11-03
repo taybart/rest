@@ -13,24 +13,23 @@ import (
 	"time"
 
 	"github.com/taybart/log"
+	"github.com/taybart/rest/lexer"
 )
 
 // Rest : client
 type Rest struct {
-	color    bool
-	client   *http.Client
-	lexed    requestBatch
-	requests []request
+	color  bool
+	client *http.Client
+	vars   map[string]string
+	lexed  []lexer.MetaRequest
 }
 
 // New : create new client
 func New() *Rest {
 	return &Rest{
 		color:  true,
+		vars:   make(map[string]string),
 		client: http.DefaultClient,
-		lexed: requestBatch{
-			rtVars: make(map[string]restVar),
-		},
 	}
 }
 
@@ -75,107 +74,62 @@ func (r *Rest) ReadConcurrent(fn string) error {
 }
 
 func (r *Rest) read(scanner *bufio.Scanner, concurrent bool) error {
-	lex := newLexer(concurrent)
-	reqs, err := lex.parse(scanner)
+	lex := lexer.New(concurrent)
+	reqs, vars, err := lex.Parse(scanner)
 	if err != nil {
 		return err
 	}
-	r.lexed.requests = append(r.lexed.requests, reqs.requests...)
-	for k, v := range reqs.rtVars {
-		r.lexed.rtVars[k] = v
+
+	r.lexed = append(r.lexed, reqs...)
+	for k, v := range vars {
+		r.vars[k] = v
 	}
 	return nil
 }
 
 // Exec : do all loaded requests
-func (r Rest) Exec() (successful []string, err error) {
-	for i, l := range r.lexed.requests {
-		log.Debug("Building request block", i)
-		var req request
-		req, err = buildRequest(l, r.lexed.rtVars)
+func (r Rest) Exec() ([]string, error) {
+	successful := []string{}
+	for i := range r.lexed {
+		res, err := r.ExecIndex(i)
 		if err != nil {
-			return
+			return successful, err
 		}
-		if req.skip {
-			continue
-		}
-
-		time.Sleep(req.delay)
-		log.Debugf("Sending request %d to %s\n", i, req.r.URL.String())
-		var resp *http.Response
-		resp, err = r.client.Do(req.r)
-		if err != nil {
-			return
-			// failed = append(failed, err.Error())
-			// continue
-		}
-
-		log.Debug("Checking expectation")
-		err = r.CheckExpectation(req, resp)
-		if err != nil {
-			// failed = append(failed, err.Error())
-			// continue
-			return
-		}
-
-		log.Debug("Take output into runtime bars")
-		err = r.takeVariables(resp, &r.lexed.rtVars)
-		if err != nil {
-			return
-		}
-
-		var dump []byte
-		dump, err = httputil.DumpResponse(resp, true)
-		if err != nil {
-			err = fmt.Errorf("%s\n%w", dump, err)
-			return
-			// log.Error(err)
-			// failed = append(failed, err.Error())
-			// continue
-		}
-
-		if r.color {
-			color := log.Green
-			if resp.StatusCode >= 400 {
-				color = log.Red
-			}
-
-			successful = append(successful, fmt.Sprintf("%s%s%s\n%s\n---\n",
-				color,
-				req.r.URL.String(),
-				log.Rtd,
-				dump,
-			))
-		} else {
-			successful = append(successful, fmt.Sprintf("%s\n%s\n---\n",
-				req.r.URL.String(),
-				dump,
-			))
-		}
+		successful = append(successful, res)
 	}
-
-	r.requests = []request{} // clear requests
-	return
+	return successful, nil
 }
 
 // ExecIndex : do specific block in requests
 func (r Rest) ExecIndex(i int) (result string, err error) {
-	if i > len(r.requests)-1 {
+	if i > len(r.lexed)-1 {
 		err = fmt.Errorf("Block %d does not exist", i)
 		return
 	}
 
-	req, err := buildRequest(r.lexed.requests[i], map[string]restVar{})
+	log.Debug("Building request block", i)
+	req, err := lexer.BuildRequest(r.lexed[i], r.vars)
 	if err != nil {
 		return
 	}
-	time.Sleep(req.delay)
-	log.Debugf("Sending request %d to %s\n", i, req.r.URL.String())
-	resp, err := r.client.Do(req.r)
+	if req.Skip {
+		return
+	}
+	time.Sleep(req.Delay)
+	log.Debugf("Sending request %d to %s\n", i, req.R.URL.String())
+	resp, err := r.client.Do(req.R)
 	if err != nil {
 		return
 	}
-	err = r.CheckExpectation(req, resp)
+
+	log.Debug("Checking expectation")
+	err = r.checkExpectation(req, resp)
+	if err != nil {
+		return
+	}
+
+	log.Debug("Take output into runtime vars")
+	err = r.takeVariables(resp)
 	if err != nil {
 		return
 	}
@@ -192,23 +146,23 @@ func (r Rest) ExecIndex(i int) (result string, err error) {
 		}
 		result = fmt.Sprintf("%s%s%s\n%s\n---\n",
 			color,
-			req.r.URL.String(),
+			req.R.URL.String(),
 			log.Rtd,
 			dump,
 		)
 	} else {
 		result = fmt.Sprintf("%s\n%s\n---\n",
-			req.r.URL.String(),
+			req.R.URL.String(),
 			dump,
 		)
 	}
 	return
 }
 
-// CheckExpectation : ensure request did what is was supposed to
-func (r Rest) CheckExpectation(req request, res *http.Response) error {
-	exp := req.expectation
-	if exp.code == 0 {
+// checkExpectation : ensure request did what is was supposed to
+func (r Rest) checkExpectation(req lexer.Request, res *http.Response) error {
+	exp := req.Expectation
+	if exp.Code == 0 {
 		return nil
 	}
 
@@ -219,17 +173,50 @@ func (r Rest) CheckExpectation(req request, res *http.Response) error {
 	res.Body.Close()
 	res.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 
-	if exp.code != res.StatusCode {
-		return fmt.Errorf("Incorrect status code returned %d != %d\nbody: %s", exp.code, res.StatusCode, string(body))
+	if exp.Code != res.StatusCode {
+		return fmt.Errorf("Incorrect status code returned %d != %d\nbody: %s", exp.Code, res.StatusCode, string(body))
 	}
 
-	if len(exp.body) > 0 {
-		if !bytes.Equal([]byte(exp.body), body) {
-			return fmt.Errorf("Body does not match expectation\nExpected:\n%s\nGot:\n%s\n", exp.body, string(body))
+	if len(exp.Body) > 0 {
+		if !bytes.Equal([]byte(exp.Body), body) {
+			return fmt.Errorf("Body does not match expectation\nExpected:\n%s\nGot:\n%s\n", exp.Body, string(body))
 		}
 	}
 
 	return nil
+}
+
+// takeVariables : get outputs if available
+func (r *Rest) takeVariables(res *http.Response) (err error) {
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return
+	}
+	res.Body.Close()
+	if len(body) == 0 {
+		return
+	}
+
+	res.Body = ioutil.NopCloser(bytes.NewBuffer(body)) // put body back
+
+	// TODO: add other return types
+	var j map[string]interface{}
+	err = json.Unmarshal(body, &j)
+	// if the return is not json just ignore it
+	if err != nil {
+		// err = fmt.Errorf("could not take variables from request %w", err)
+		err = nil
+		return
+	}
+	for k, v := range r.vars {
+		for jk, jv := range j {
+			if v == jk { // if json key is a previous value
+				r.vars[k] = jv.(string)
+			}
+		}
+	}
+
+	return
 }
 
 // IsRestFile : checks if file can be parsed
@@ -242,45 +229,13 @@ func (r Rest) IsRestFile(fn string) (bool, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	lex := newLexer(
+	lex := lexer.New(
 		false, // concurrent
 	)
-	_, err = lex.parse(scanner)
+	_, _, err = lex.Parse(scanner)
 	if err != nil {
 		return false, fmt.Errorf("Invalid format or malformed file: %w", err)
 	}
 	log.Debugf("Yay! %s is valid!\n", fn)
 	return true, nil
-}
-
-func (rest Rest) takeVariables(res *http.Response, rtVars *map[string]restVar) (err error) {
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return
-	}
-	res.Body.Close()
-	if len(body) == 0 {
-		return
-	}
-
-	res.Body = ioutil.NopCloser(bytes.NewBuffer(body)) // put body back
-
-	var j map[string]interface{}
-	err = json.Unmarshal(body, &j)
-	if err != nil {
-		err = fmt.Errorf("could not take variables from request %w", err)
-		return
-	}
-	for k, v := range *rtVars {
-		for jk, jv := range j {
-			if v.value == jk {
-				(*rtVars)[k] = restVar{
-					name:  k,
-					value: jv.(string),
-				}
-			}
-		}
-	}
-
-	return
 }

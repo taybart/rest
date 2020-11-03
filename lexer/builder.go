@@ -1,7 +1,8 @@
-package rest
+package lexer
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -15,24 +16,24 @@ import (
 	"github.com/taybart/log"
 )
 
-type request struct {
-	label       string
-	skip        bool
-	r           *http.Request
-	delay       time.Duration
-	expectation expectation
+type Request struct {
+	Label       string
+	Skip        bool
+	R           *http.Request
+	Delay       time.Duration
+	Expectation Expectation
 	outputs     map[string]string
 }
 
 // type builder struct{}
 
-// buildRequest : generate http.Request from parsed input
-func buildRequest(input metaRequest, variables map[string]restVar) (req request, err error) {
-	if input.reinterpret {
+// BuildRequest : generate http.Request from parsed input
+func BuildRequest(input MetaRequest, variables map[string]string) (req Request, err error) {
+	if input.Reinterpret {
 		log.Debug("Re-interpreting request", variables)
-		l := newLexer(false)
+		l := New(false)
 		l.variables = variables
-		input, err = l.parseBlock(input.block)
+		input, err = l.parseBlock(input.Block)
 		if err != nil {
 			return
 		}
@@ -43,13 +44,13 @@ func buildRequest(input metaRequest, variables map[string]restVar) (req request,
 	}
 
 	var r *http.Request
-	url := fmt.Sprintf("%s%s", input.url, input.path)
-	if !input.skip { // don't validate if skipped
+	url := fmt.Sprintf("%s%s", input.URL, input.Path)
+	if !input.Skip { // don't validate if skipped
 		if !isUrl(url) {
 			err = fmt.Errorf("url invalid or missing")
 			return
 		}
-		if input.method == "" {
+		if input.Method == "" {
 			err = fmt.Errorf("missing method")
 			return
 		}
@@ -60,25 +61,24 @@ func buildRequest(input metaRequest, variables map[string]restVar) (req request,
 			err = fmt.Errorf("creating body %w", err)
 			return
 		}
-		r, err = http.NewRequest(input.method, url, body)
+		r, err = http.NewRequest(input.Method, url, body)
 		if err != nil {
 			err = fmt.Errorf("creating request %w", err)
 			return
 		}
-		for header, value := range input.headers {
+		for header, value := range input.Headers {
 			r.Header.Set(header, value)
 		}
 	}
-	req = request{
-		label:       input.label,
-		skip:        input.skip,
-		delay:       input.delay,
-		expectation: input.expectation,
-
-		r: r,
+	req = Request{
+		Label:       input.Label,
+		Skip:        input.Skip,
+		Delay:       input.Delay,
+		Expectation: input.Expectation,
+		R:           r,
 	}
 
-	if !req.skip {
+	if !req.Skip {
 		err = isValidRequest(req)
 		if err != nil {
 			err = fmt.Errorf("invalid request %w", err)
@@ -88,8 +88,8 @@ func buildRequest(input metaRequest, variables map[string]restVar) (req request,
 	return
 }
 
-func buildFileBody(input *metaRequest) (body *bytes.Buffer, err error) {
-	file, err := os.Open(input.filepath)
+func buildFileBody(input *MetaRequest) (body *bytes.Buffer, err error) {
+	file, err := os.Open(input.Filepath)
 	if err != nil {
 		return
 	}
@@ -97,7 +97,7 @@ func buildFileBody(input *metaRequest) (body *bytes.Buffer, err error) {
 
 	body = &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile(input.filelabel, filepath.Base(input.filepath))
+	part, err := writer.CreateFormFile(input.Filelabel, filepath.Base(input.Filepath))
 	if err != nil {
 		return
 	}
@@ -110,46 +110,57 @@ func buildFileBody(input *metaRequest) (body *bytes.Buffer, err error) {
 	if err != nil {
 		return
 	}
-	input.headers["Content-Type"] = writer.FormDataContentType()
+	input.Headers["Content-Type"] = writer.FormDataContentType()
 	return body, err
 }
 
-func buildBody(input *metaRequest) (body io.Reader, err error) {
-	if input.filepath != "" {
+func buildBody(input *MetaRequest) (body io.Reader, err error) {
+	if input.Filepath != "" {
 		return buildFileBody(input)
 	}
 
-	// unknown body
-	if input.body != "" {
-		body = strings.NewReader(input.body)
-		return
+	if input.Body != "" {
+		fmt.Println(input.Body)
+		switch input.Headers["Content-Type"] {
+		case "application/json":
+			var b bytes.Buffer
+			err = json.Compact(&b, []byte(input.Body))
+			if err != nil {
+				err = fmt.Errorf("json in body is malformed: [%w]", err)
+				return
+			}
+			body = bytes.NewReader(b.Bytes())
+			// fmt.Println(b.String())
+		default: // unknown body
+			body = strings.NewReader(input.Body)
+		}
 	}
 	return
 }
 
 // isValidMetaRequest : checks if request is complete
-func isValidMetaRequest(req metaRequest) error {
-	if req.url == "" {
+func isValidMetaRequest(req MetaRequest) error {
+	if req.URL == "" {
 		return fmt.Errorf("No URL found in request")
 	}
-	if req.method == "" {
+	if req.Method == "" {
 		return fmt.Errorf("No method found in request")
 	}
-	if req.filepath != "" && req.headers["Content-Type"] == "" {
+	if req.Filepath != "" && req.Headers["Content-Type"] == "" {
 		return fmt.Errorf("Content-Type not set for request with file")
 	}
-	if req.filepath != "" && req.filelabel == "" {
-		return fmt.Errorf("file %s not labeled in request (ex file://path label)", req.filepath)
+	if req.Filepath != "" && req.Filelabel == "" {
+		return fmt.Errorf("file %s not labeled in request (ex file://path label)", req.Filepath)
 	}
 	return nil
 }
 
 // isValidRequest : checks if request is complete
-func isValidRequest(req request) error {
-	if req.r.URL.String() == "" {
+func isValidRequest(req Request) error {
+	if req.R.URL.String() == "" {
 		return fmt.Errorf("No URL found in request")
 	}
-	if req.r.Method == "" {
+	if req.R.Method == "" {
 		return fmt.Errorf("No method found in request")
 	}
 	return nil

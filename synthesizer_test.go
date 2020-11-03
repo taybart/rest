@@ -25,13 +25,15 @@ func TestSynthesizeRequests(t *testing.T) {
 		tt := tt
 		t.Run(tt.lang, func(t *testing.T) {
 			// Gen requests
-			requests, err := r.SynthesizeRequests(tt.lang)
+			requests, _, err := r.SynthesizeRequests(tt.lang)
 			is.NoErr(err)
 
 			// Get answer
 			ans, err := ioutil.ReadFile(fmt.Sprintf("./test/template_request.%s", tt.ft))
 			is.NoErr(err)
 
+			t.Log(string(ans))
+			t.Log(requests[0])
 			// Check answer
 			for i, c := range requests[0] {
 				is.Equal(rune(ans[i]), c)

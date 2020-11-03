@@ -1,4 +1,4 @@
-req, err := http.NewRequest("POST", "http://localhost:8080/post-test", nil)
+req, err := http.NewRequest("POST", "http://localhost:8080/post-test", strings.NewReader(`{"data":"Yeah!","other":43}`))
 req.Header.Set("Content-Type", "application/json")
 
 res, err := http.DefaultClient.Do(req)
