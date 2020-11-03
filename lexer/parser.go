@@ -14,7 +14,7 @@ import (
 const (
 	stateUrl = iota + 1
 	stateHeaders
-	stateMethodPath
+	// stateMethodPath
 	stateBody
 )
 
@@ -65,7 +65,7 @@ func (l *Lexer) firstPass(scanner *bufio.Scanner) (meta []MetaRequest, err error
 			l.runtimeVariables[v[2]] = true
 		case rxVarDefinition.MatchString(line):
 			v := rxVarDefinition.FindStringSubmatch(line)
-			log.Debugf("Setting %s to %s\n", string(v[1]), string(v[2]))
+			log.Debugf("Setting %s to %s\n", v[1], v[2])
 			l.variables[v[1]] = v[2]
 		}
 	}
@@ -79,7 +79,7 @@ func (l *Lexer) firstPass(scanner *bufio.Scanner) (meta []MetaRequest, err error
 }
 
 // parseBlock : Get all parts of request from request block
-func (l *Lexer) parseBlock(block []string) (MetaRequest, error) {
+func (l *Lexer) parseBlock(block []string) MetaRequest {
 	req := MetaRequest{
 		Headers: make(map[string]string),
 		Block:   block,
@@ -114,7 +114,7 @@ func (l *Lexer) parseBlock(block []string) (MetaRequest, error) {
 				log.Errorf("Cannot parse expected code in block %d [%s]\n", i, line)
 				continue
 			}
-			if len(m) == 3 {
+			if len(m) == 3 { //nolint:gomnd
 				req.Expectation.Body = m[2]
 			}
 		case rxDelay.MatchString(line):
@@ -168,7 +168,7 @@ func (l *Lexer) parseBlock(block []string) (MetaRequest, error) {
 	if l.concurrent {
 		l.bch <- req
 	}
-	return req, nil
+	return req
 }
 
 func (l Lexer) checkForUndeclaredVariables(line string) (string, bool, error) {

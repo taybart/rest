@@ -22,7 +22,6 @@ type Request struct {
 	R           *http.Request
 	Delay       time.Duration
 	Expectation Expectation
-	outputs     map[string]string
 }
 
 // type builder struct{}
@@ -33,10 +32,7 @@ func BuildRequest(input MetaRequest, variables map[string]string) (req Request, 
 		log.Debug("Re-interpreting request", variables)
 		l := New(false)
 		l.variables = variables
-		input, err = l.parseBlock(input.Block)
-		if err != nil {
-			return
-		}
+		input = l.parseBlock(input.Block)
 	}
 
 	if err = isValidMetaRequest(input); err != nil {
@@ -166,13 +162,15 @@ func isValidRequest(req Request) error {
 }
 
 // isValidFile checks if file should be consumed
-func isValidFile(s string) bool {
-	if s == "" {
+func isValidFile(fn string) bool {
+	if fn == "" {
 		return false
 	}
-	// check file path for ..
-	// check if file exists and is not dir
-	return true
+	info, err := os.Stat(fn)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
 }
 
 // isUrl tests a string to determine if it is a well-structured url or not.

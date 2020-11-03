@@ -145,7 +145,7 @@ func (r Rest) ExecIndex(i int) (result string, err error) {
 
 	if r.color {
 		color := log.Green
-		if resp.StatusCode >= 400 {
+		if resp.StatusCode >= http.StatusBadRequest {
 			color = log.Red
 		}
 		result = fmt.Sprintf("%s%s%s\n%s\n---\n",

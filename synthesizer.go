@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"text/template"
 
 	"github.com/taybart/log"
 	"github.com/taybart/rest/lexer"
@@ -89,8 +88,4 @@ func (r Rest) SynthesizeRequests(lang string) ([]string, []lexer.Request, error)
 		return generated, requests, nil
 	}
 	return nil, nil, fmt.Errorf("Unknown template")
-}
-
-func buildTemplate(lang, templ string) *template.Template {
-	return template.Must(template.New(lang).Parse(templ))
 }

@@ -156,7 +156,11 @@ func exec(r *rest.Rest) {
 }
 
 func readStdin(r *rest.Rest) {
-	r.ReadIO(os.Stdin)
+	err := r.ReadIO(os.Stdin)
+	if err != nil {
+		log.Error(err)
+		return
+	}
 	success, err := r.Exec()
 	for _, res := range success {
 		fmt.Println(res)

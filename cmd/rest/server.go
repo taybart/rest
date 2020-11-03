@@ -11,6 +11,10 @@ import (
 	"github.com/taybart/log"
 )
 
+const (
+	httpTimeout = 15 * time.Second
+)
+
 type server struct {
 	router *http.ServeMux
 }
@@ -25,8 +29,8 @@ func newServer(dir bool, addr string) http.Server {
 	return http.Server{
 		Handler:      s.router,
 		Addr:         addr,
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
+		WriteTimeout: httpTimeout,
+		ReadTimeout:  httpTimeout,
 	}
 }
 
@@ -53,7 +57,10 @@ func (s *server) routes(dir bool) {
 		}
 		w.WriteHeader(http.StatusOK)
 
-		json.NewEncoder(w).Encode(res)
+		err = json.NewEncoder(w).Encode(res)
+		if err != nil {
+			panic(err)
+		}
 	}))
 }
 

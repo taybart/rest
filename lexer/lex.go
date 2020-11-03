@@ -2,7 +2,6 @@ package lexer
 
 import (
 	"bufio"
-	"fmt"
 	"time"
 
 	"github.com/taybart/log"
@@ -55,40 +54,37 @@ func (l *Lexer) Parse(scanner *bufio.Scanner) (requests []MetaRequest, variables
 
 	var rs []MetaRequest
 	if l.concurrent {
-		rs, err = l.parseConcurrent(p)
+		rs = l.parseConcurrent(p)
 	} else {
-		rs, err = l.parseSerial(p)
+		rs = l.parseSerial(p)
 	}
-	return rs, l.variables, err
+	return rs, l.variables, nil
 }
 
 // parseBlocks : Parse blocks in the order in which they were given
-func (l *Lexer) parseSerial(input []MetaRequest) (reqs []MetaRequest, err error) {
+func (l *Lexer) parseSerial(input []MetaRequest) []MetaRequest {
 	log.Debug("Starting to parse blocks in order")
-	for i, r := range input {
-		lexed, e := l.parseBlock(r.Block)
-		if e != nil {
-			err = fmt.Errorf("block %d: %w", i, e)
-			// log.Error(e)
-			continue // TODO maybe should super fail
-		}
+	reqs := []MetaRequest{}
+	for _, r := range input {
+		lexed := l.parseBlock(r.Block)
 		reqs = append(reqs, lexed)
 	}
 	log.Debugf("Parsed %d blocks\n", len(reqs))
-	return
+	return reqs
 }
 
 // parseBlocksConcurrently : Parse all blocks but don't care about order
-func (l *Lexer) parseConcurrent(input []MetaRequest) (reqs []MetaRequest, err error) {
+func (l *Lexer) parseConcurrent(input []MetaRequest) []MetaRequest {
 	log.Debug("Starting to parse blocks concurrently")
 	for _, r := range input {
 		go l.parseBlock(r.Block)
 	}
 
+	reqs := []MetaRequest{}
 	for i := 0; i < len(input); i++ {
 		r := <-l.bch
 		reqs = append(reqs, r)
 	}
 	log.Debug("Done")
-	return
+	return reqs
 }

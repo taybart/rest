@@ -15,10 +15,10 @@ func parse(fn string) (err error) {
 	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
-	lex := newLexer(
+	lex := New(
 		false, // concurrent
 	)
-	_, err = lex.parse(scanner)
+	_, _, err = lex.Parse(scanner)
 	return
 }
 

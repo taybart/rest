@@ -29,7 +29,7 @@ func TestSynthesizeRequests(t *testing.T) {
 			is.NoErr(err)
 
 			// Get answer
-			ans, err := ioutil.ReadFile(fmt.Sprintf("./test/template_request.%s", tt.ft))
+			ans, err := ioutil.ReadFile(fmt.Sprintf("./test/template_request.%s.ans", tt.ft))
 			is.NoErr(err)
 
 			t.Log(string(ans))
