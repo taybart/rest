@@ -16,6 +16,10 @@ import (
 	"github.com/taybart/rest/lexer"
 )
 
+const (
+	isConcurrent = true
+)
+
 // Rest : client
 type Rest struct {
 	color  bool
@@ -46,7 +50,7 @@ func (r *Rest) SetClient(c *http.Client) {
 // ReadIO : read ordered requests from io reader
 func (r *Rest) ReadIO(buf io.Reader) error {
 	scanner := bufio.NewScanner(buf)
-	return r.read(scanner, false)
+	return r.read(scanner, !isConcurrent)
 }
 
 // Read : read ordered requests from file
@@ -58,7 +62,7 @@ func (r *Rest) Read(fn string) error {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	return r.read(scanner, false)
+	return r.read(scanner, !isConcurrent)
 }
 
 // ReadConcurrent : read unordered requests from file
@@ -70,7 +74,7 @@ func (r *Rest) ReadConcurrent(fn string) error {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	return r.read(scanner, true)
+	return r.read(scanner, isConcurrent)
 }
 
 func (r *Rest) read(scanner *bufio.Scanner, concurrent bool) error {
@@ -201,13 +205,13 @@ func (r *Rest) takeVariables(res *http.Response) (err error) {
 
 	// TODO: add other return types
 	var j map[string]interface{}
-	err = json.Unmarshal(body, &j)
+
 	// if the return is not json just ignore it
-	if err != nil {
-		// err = fmt.Errorf("could not take variables from request %w", err)
+	if err = json.Unmarshal(body, &j); err != nil {
 		err = nil
 		return
 	}
+
 	for k, v := range r.vars {
 		for jk, jv := range j {
 			if v == jk { // if json key is a previous value
@@ -229,9 +233,7 @@ func (r Rest) IsRestFile(fn string) (bool, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	lex := lexer.New(
-		false, // concurrent
-	)
+	lex := lexer.New(!isConcurrent)
 	_, _, err = lex.Parse(scanner)
 	if err != nil {
 		return false, fmt.Errorf("Invalid format or malformed file: %w", err)

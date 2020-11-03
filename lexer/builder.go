@@ -120,7 +120,6 @@ func buildBody(input *MetaRequest) (body io.Reader, err error) {
 	}
 
 	if input.Body != "" {
-		fmt.Println(input.Body)
 		switch input.Headers["Content-Type"] {
 		case "application/json":
 			var b bytes.Buffer
