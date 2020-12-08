@@ -33,3 +33,23 @@ http://localhost:${PORT}
 Content-Type: multipart/form-data
 POST /users
 file://test/file_test.csv csv
+
+
+---
+
+# Set variables based on runtime outputs
+http://localhost:${PORT}
+Content-Type: application/json
+POST /login
+
+expect 200
+
+# response will look like {"auth_token": "asdfasdfasdf"}
+take auth_token as AUTH_TOKEN
+
+---
+
+# AUTH_TOKEN is set to the previous output
+http://localhost:${PORT}
+GET /account?auth_token=${AUTH_TOKEN}
+
