@@ -20,23 +20,27 @@ func (i *filenames) Set(value string) error {
 	return nil
 }
 
-var fns filenames
-var stdin bool
-var port string
-var servelog bool
-var servedir bool
-var nocolor bool
-var verbose bool
-var outputLang string
-var makeClient bool
-var index int
-var local bool
+var (
+	fns        filenames
+	stdin      bool
+	port       string
+	servelog   bool
+	servedir   string
+	servespa   bool
+	nocolor    bool
+	verbose    bool
+	outputLang string
+	makeClient bool
+	index      int
+	local      bool
+)
 
 func init() {
 	flag.Var(&fns, "f", "Filenames of .rest file")
 	flag.StringVar(&port, "p", "8080", "Port to attach to, requires -s or -d")
 	flag.BoolVar(&servelog, "s", false, "Accept and log requests at :8080 or -p")
-	flag.BoolVar(&servedir, "d", false, "Serve directory at :8080 or -p")
+	flag.BoolVar(&servespa, "spa", false, "Use in case of SPA")
+	flag.StringVar(&servedir, "d", "", "Serve directory at :8080 or -p")
 	flag.BoolVar(&local, "l", false, "Bind only to localhost")
 	flag.BoolVar(&stdin, "i", false, "Exec requests in stdin")
 	flag.BoolVar(&nocolor, "nc", false, "Remove all color from output")
@@ -62,8 +66,8 @@ func main() {
 		log.SetLevel(log.DEBUG)
 	}
 
-	if servelog || servedir {
-		serve(servedir, local, port)
+	if servelog || servedir != "" || servespa {
+		serve(port)
 		return
 	}
 

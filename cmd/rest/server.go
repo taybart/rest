@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/taybart/log"
@@ -17,14 +18,16 @@ const (
 
 type server struct {
 	router *http.ServeMux
+	local  bool
+	dir    bool
 }
 
-func newServer(dir bool, addr string) http.Server {
+func newServer(addr string) http.Server {
 
 	s := server{
 		router: http.NewServeMux(),
 	}
-	s.routes(dir)
+	s.routes()
 
 	return http.Server{
 		Handler:      s.router,
@@ -34,9 +37,25 @@ func newServer(dir bool, addr string) http.Server {
 	}
 }
 
-func (s *server) routes(dir bool) {
-	if dir {
-		s.router.Handle("/", http.FileServer(http.Dir(".")))
+func (s *server) routes() {
+	if servedir != "" {
+
+		d, err := filepath.Abs(servedir)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fs := http.FileServer(http.Dir(d))
+		if servespa {
+			s.router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				if _, err := os.Stat(fmt.Sprintf("%s%s", d, r.URL)); os.IsNotExist(err) {
+					http.ServeFile(w, r, fmt.Sprintf("%s/index.html", d))
+					return
+				}
+				fs.ServeHTTP(w, r)
+			})
+		} else {
+			s.router.Handle("/", fs)
+		}
 		return
 	}
 
@@ -64,17 +83,17 @@ func (s *server) routes(dir bool) {
 	}))
 }
 
-func serve(dir, local bool, port string) {
+func serve(port string) {
 	log.SetLevel(log.DEBUG)
 	location := fmt.Sprintf(":%s", port)
 	if local {
 		location = fmt.Sprintf("localhost:%s", port)
 	}
-	srv := newServer(dir, location)
-	if dir {
-		d, err := os.Getwd()
+	srv := newServer(location)
+	if servedir != "" {
+		d, err := filepath.Abs(servedir)
 		if err != nil {
-			log.Warn(err)
+			log.Fatal(err)
 		}
 		log.Infof("Serving %s at %s\n", d, location)
 	} else {
