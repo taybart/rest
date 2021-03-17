@@ -1,4 +1,4 @@
-package lexer
+package parser
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -174,24 +173,24 @@ func isValidFile(fn string) bool {
 }
 
 // isUrl tests a string to determine if it is a well-structured url or not.
-func isUrl(s string) bool {
-	if s == "" {
-		return false
-	}
-	// checks needed as of Go 1.6 because of change:
-	// https://github.com/golang/go/commit/617c93ce740c3c3cc28cdd1a0d712be183d0b328#diff-6c2d018290e298803c0c9419d8739885L195
-	// emulate browser and strip the '#' suffix prior to validation. see issue-#237
-	if i := strings.Index(s, "#"); i > -1 {
-		s = s[:i]
-	}
+// func isUrl(s string) bool {
+// 	if s == "" {
+// 		return false
+// 	}
+// 	// checks needed as of Go 1.6 because of change:
+// 	// https://github.com/golang/go/commit/617c93ce740c3c3cc28cdd1a0d712be183d0b328#diff-6c2d018290e298803c0c9419d8739885L195
+// 	// emulate browser and strip the '#' suffix prior to validation. see issue-#237
+// 	if i := strings.Index(s, "#"); i > -1 {
+// 		s = s[:i]
+// 	}
 
-	if len(s) == 0 {
-		return false
-	}
+// 	if len(s) == 0 {
+// 		return false
+// 	}
 
-	url, err := url.ParseRequestURI(s)
-	if err != nil || url.Scheme == "" || url.Host == "" {
-		return false
-	}
-	return true
-}
+// 	url, err := url.ParseRequestURI(s)
+// 	if err != nil || url.Scheme == "" || url.Host == "" {
+// 		return false
+// 	}
+// 	return true
+// }

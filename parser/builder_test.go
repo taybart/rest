@@ -1,3 +1,3 @@
-package lexer
+package parser
 
 // Tots testing this stuff
