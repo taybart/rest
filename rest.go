@@ -13,11 +13,7 @@ import (
 	"time"
 
 	"github.com/taybart/log"
-	"github.com/taybart/rest/lexer"
-)
-
-const (
-	isConcurrent = true
+	lexer "github.com/taybart/rest/parser"
 )
 
 // Rest : client
@@ -25,7 +21,7 @@ type Rest struct {
 	color  bool
 	client *http.Client
 	vars   map[string]string
-	lexed  []lexer.MetaRequest
+	lexed  []lexer.Block
 }
 
 // New : create new client
@@ -50,7 +46,7 @@ func (r *Rest) SetClient(c *http.Client) {
 // ReadIO : read ordered requests from io reader
 func (r *Rest) ReadIO(buf io.Reader) error {
 	scanner := bufio.NewScanner(buf)
-	return r.read(scanner, !isConcurrent)
+	return r.read(scanner)
 }
 
 // Read : read ordered requests from file
@@ -62,23 +58,11 @@ func (r *Rest) Read(fn string) error {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	return r.read(scanner, !isConcurrent)
+	return r.read(scanner)
 }
 
-// ReadConcurrent : read unordered requests from file
-func (r *Rest) ReadConcurrent(fn string) error {
-	file, err := os.Open(fn)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	return r.read(scanner, isConcurrent)
-}
-
-func (r *Rest) read(scanner *bufio.Scanner, concurrent bool) error {
-	lex := lexer.New(concurrent)
+func (r *Rest) read(scanner *bufio.Scanner) error {
+	lex := parser.New()
 	reqs, vars, err := lex.Parse(scanner)
 	if err != nil {
 		return err
@@ -233,7 +217,7 @@ func (r Rest) IsRestFile(fn string) (bool, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	lex := lexer.New(!isConcurrent)
+	lex := lexer.New()
 	_, _, err = lex.Parse(scanner)
 	if err != nil {
 		return false, fmt.Errorf("Invalid format or malformed file: %w", err)

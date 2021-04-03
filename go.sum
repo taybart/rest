@@ -2,3 +2,5 @@ github.com/matryer/is v1.2.0 h1:92UTHpy8CDwaJ08GqLDzhhuixiBUUD1p3AU6PHddz4A=
 github.com/matryer/is v1.2.0/go.mod h1:2fLPjFQM9rhQ15aVEtbuwhJinnOqrmgXPNdZsdwlWXA=
 github.com/taybart/log v1.2.2 h1:jlg3dibUsaanJLzofXzRmBMD+JHHPqbXiYpXdgXTYa8=
 github.com/taybart/log v1.2.2/go.mod h1:e9MmKdjMsNxSFbn46ag778NSmhFrx9yLC60CDRRcSOo=
+github.com/taybart/log v1.4.0 h1:/td9/cfVd0TIW8aNsJ0EHQgZFERnGk7k/7RxZH0pl9c=
+github.com/taybart/log v1.4.0/go.mod h1:e9MmKdjMsNxSFbn46ag778NSmhFrx9yLC60CDRRcSOo=

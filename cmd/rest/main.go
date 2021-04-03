@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -66,15 +67,21 @@ func main() {
 		log.SetLevel(log.DEBUG)
 	}
 
-	if servelog || servedir != "" || servespa {
-		serve(port)
-		return
-	}
-
 	r := rest.New()
 	if nocolor {
 		r.NoColor()
 		log.UseColors(false)
+	}
+	if err := run(r); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+func run(r *rest.Rest) error {
+	if servelog || servedir != "" || servespa {
+		serve(port)
+		return nil
 	}
 
 	// only use block number when 1 file specified
@@ -86,35 +93,39 @@ func main() {
 	}
 	if len(fns) > 0 {
 		readFiles(r)
-		if outputLang != "" {
-			if makeClient {
-				client, err := r.SynthesizeClient(outputLang)
-				if err != nil {
-					os.Exit(1)
-				}
-				fmt.Println(client)
-				os.Exit(0)
+		if makeClient && outputLang == "" {
+			return errors.New("Must specify output language with -o")
+		}
+		if makeClient {
+			log.Debug("Making client")
+			client, err := r.SynthesizeClient(outputLang)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
 			}
+			fmt.Println(client)
+			return nil
+		} else if outputLang != "" {
 			requests, _, err := r.SynthesizeRequests(outputLang)
 			for i, req := range requests {
 				fmt.Printf("\n~~~~~~~ %d ~~~~~~~\n\n", i)
 				fmt.Println(req)
 			}
 			if err != nil {
-				os.Exit(1)
+				return err
 			}
-			os.Exit(0)
+			return nil
 		}
 		exec(r)
-		os.Exit(0)
+		return nil
 	}
 	help()
-	os.Exit(1)
+	return errors.New("")
 }
 
 func readFiles(r *rest.Rest) {
 	for _, f := range fns {
-		log.Debug("Reading file %s...", f)
+		log.Debugf("Reading file %s...\n", f)
 		if fileExists(f) {
 			valid, err := r.IsRestFile(f)
 			if !valid {

@@ -1,10 +1,14 @@
 package parser
 
 import (
+	"bytes"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"net/url"
 	"strconv"
+
+	"github.com/taybart/log"
 )
 
 type Body struct {
@@ -23,7 +27,7 @@ type Block struct {
 	Label         string
 	Variables     map[string]string
 	UndefVars     map[string]string
-	URI           url.URL
+	URI           *url.URL
 	Headers       map[string]string
 	Method        string
 	Path          string
@@ -31,12 +35,40 @@ type Block struct {
 	Expectaion    Expectation
 }
 
+func (b Block) String() string {
+	// vars := ""
+	// if len(b.Variables) > 0 {
+	// 	vars = fmt.Sprintf("\n%s-- Variables set in Block--%s\n", log.Red, log.Rtd)
+	// 	for k, v := range b.Variables {
+	// 		vars += fmt.Sprintf("  %s: %s\n", k, v)
+	// 	}
+	// }
+
+	tb := `{{green "~~~~~START~~~~~" }}
+{{- if .Label }}
+label: {{.Label}}
+{{- end}}
+uri: {{ .URI.String }}
+{{- if .Headers }}
+headers: {{ range $key, $value := .Headers }}
+  {{ yellow $key }}: {{ yellow $value }}
+{{- end}}{{ end}}
+method: {{.Method}} {{.Path}}
+{{ green "~~~~~~END~~~~~~" }}`
+
+	t := template.Must(template.New("block").Funcs(log.TmplFuncs).Parse(tb))
+
+	var buf bytes.Buffer
+	t.Execute(&buf, b)
+	return buf.String()
+}
+
 type Parser struct {
 	variables        map[string]string
 	runtimeVariables map[string]bool
 	blocks           []Block
 	blockIndex       int
-	lexer            Lexer
+	lexer            lexer
 }
 
 func New(fn string) Parser {
@@ -53,27 +85,36 @@ func New(fn string) Parser {
 
 }
 
-func (p *Parser) Parse() error {
+func (p *Parser) Run() error {
 	go p.lexer.Run()
 
 	for i := range p.lexer.items {
-		// if i.token != COMMENT {
-		// 	fmt.Println(log.Green, i.token.String(), log.Rtd, i.value)
-		// }
-
+		block := &p.blocks[p.blockIndex]
 		switch i.token {
+		case VAR_REQUEST:
+			if block.Variables != nil {
+				if v, ok := block.Variables[i.value]; ok {
+					p.lexer.cmd <- v
+					break
+				}
+			}
+			if v, ok := p.variables[i.value]; ok {
+				p.lexer.cmd <- v
+				break
+			}
+			return fmt.Errorf("Found variable with no definition %s", i.value)
 		case COMMENT:
-			fmt.Println("#", i.value)
+			log.Verbosef("%s# %s%s\n", log.Gray, i.value, log.Rtd)
 		case LABEL:
-			if p.blocks[p.blockIndex].Label != "" {
+			if block.Label != "" {
 				return fmt.Errorf("Block already labled")
 			}
 			label := <-p.lexer.items
 			if !isIdent(label) {
 				return fmt.Errorf("Expected variable assignment")
 			}
-			p.blocks[p.blockIndex].Label = label.value
-			fmt.Println("Block label: ", p.blockIndex, label.value)
+			block.Label = label.value
+			log.Verbose("label:", label.value)
 
 		case VARIABLE:
 			ident := <-p.lexer.items
@@ -85,37 +126,66 @@ func (p *Parser) Parse() error {
 			if value.token != ASSIGN {
 				return fmt.Errorf("Expected variable assignment")
 			}
-			p.variables[ident.value] = value.value
+			p.variables[ident.value] = value.value // take latest global value
 
-			if p.blocks[p.blockIndex].Variables == nil {
-				p.blocks[p.blockIndex].Variables = make(map[string]string)
+			if block.Variables == nil {
+				block.Variables = make(map[string]string)
 			}
-			p.blocks[p.blockIndex].Variables[i.value] = value.value
+			block.Variables[ident.value] = value.value
 
-			fmt.Println("VARIABLE", ident.value, "=", value.value)
+			log.Verbosef("%s%s=%s%s\n", log.Green, ident.value, value.value, log.Rtd)
 		case HEADER:
 			value := <-p.lexer.items
 			if value.token != ASSIGN {
 				return fmt.Errorf("Expected header value")
 			}
 
-			if p.blocks[p.blockIndex].Headers == nil {
-				p.blocks[p.blockIndex].Headers = make(map[string]string)
+			if block.Headers == nil {
+				block.Headers = make(map[string]string)
 			}
-			p.blocks[p.blockIndex].Headers[i.value] = value.value
-			fmt.Println("HEADER", i.value, ":", value.value)
+			block.Headers[i.value] = value.value
+			log.Verbosef("%s%s: %s%s\n", log.Yellow, i.value, value.value, log.Rtd)
+		case URL:
+			log.Verbosef("%sURL -> %s%s\n", log.Blue, i.value, log.Rtd)
+			u, err := url.Parse(i.value)
+			if err != nil {
+				panic(err)
+			}
+			block.URI = u
+		case METHOD:
+			// value := <-p.lexer.items
+			// if value.token != ASSIGN {
+			// 	return fmt.Errorf("Expected header value")
+			// }
+
+			if block.Headers == nil {
+				block.Headers = make(map[string]string)
+			}
+			block.Method = i.value
+			log.Verbosef("METHOD %s%s%s\n", log.Red, i.value, log.Rtd)
 		case EXPECTATION:
 			code, err := strconv.Atoi(i.value)
 			if err != nil {
 				return fmt.Errorf("could not convert expectaion")
 			}
-			p.blocks[p.blockIndex].Expectaion.Code = code
-			fmt.Println("Expect", i.value)
+			block.Expectaion.Code = code
+			log.Verbosef("%sexpect %s%s\n", log.Red, i.value, log.Rtd)
 		case BLOCK_END:
-			fmt.Println("~~ BLOCK END ~~")
+			log.Verbosef("%s~~~~~~~END BLOCK %d~~~~~~~~%s\n", log.Blue, p.blockIndex, log.Rtd)
 			p.blockIndex++
 			p.blocks = append(p.blocks, Block{})
+		case TEXT:
+			fmt.Println("TEXT", i.value)
+		case EOF:
+			return p.parse()
 		}
+	}
+	return nil
+}
+
+func (p *Parser) parse() error {
+	for _, b := range p.blocks {
+		fmt.Println(b.String())
 	}
 	return nil
 }

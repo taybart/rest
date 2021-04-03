@@ -1,0 +1,27 @@
+# Simple requests
+label GetHttpBin
+https://httpbin.org
+GET /get?test=true
+
+---
+# Use variables!
+set HOST httpbin.org
+set AUTH apikey1234
+
+https://${HOST}
+Authorization: Bearer ${AUTH}
+GET /bearer
+
+---
+set PORT 8080
+
+delay 500ms
+
+http://localhost:${PORT}
+Content-Type: application/json
+POST /
+{
+  # Comment all the things!
+  "ints": 123,
+  "strings": ""
+}

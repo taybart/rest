@@ -9,6 +9,16 @@ import (
 )
 
 /*
+
+take input
+split by \n
+for lines
+	scan for vars
+	lex
+
+*/
+
+/*
 label LABEL
 DELAY
 URL
@@ -18,59 +28,6 @@ BODY
 EXPECTATION
 */
 
-type Token int
-
-const (
-	ILLEGAL Token = iota
-	EOF
-
-	COMMENT
-	LABEL
-	VARIABLE
-	HEADER
-	EXPECTATION
-
-	IDENT
-	ASSIGN
-	DECL
-
-	METHOD
-	URL
-	BODY
-	BLOCK_END
-	TEXT
-)
-
-func (t Token) String() string {
-	return []string{
-		"ILLEGAL",
-		"EOF",
-		"COMMENT",
-		"LABEL",
-		"VARIABLE",
-		"HEADER",
-		"EXPECTATION",
-		"IDENT",
-		"ASSIGN",
-		"DECL",
-		"METHOD",
-		"URL",
-		"BODY",
-		"BLOCK_END",
-		"TEXT",
-	}[t]
-}
-
-const (
-	eof        = rune(0)
-	comment    = "#"
-	label      = "label "
-	variable   = "set "
-	delay      = "delay "
-	expectaion = "expect "
-	blockEnd   = "---"
-)
-
 type stateFn func() stateFn
 
 type item struct {
@@ -78,181 +35,40 @@ type item struct {
 	value string
 }
 
-type Lexer struct {
+type lexer struct {
 	name  string // used only for error reports
 	input string // the string being scanned
 	start int    // start position of this item
 	pos   int    // current position in the input
 	width int    // width of last rune read
 	items chan item
+	cmd   chan string
 }
 
-func newLexer(input string) Lexer {
-	return Lexer{
+func newLexer(input string) lexer {
+	return lexer{
 		input: input,
 		items: make(chan item),
+		cmd:   make(chan string),
 	}
 }
 
 // Parse : Get all parts of request from request block
-func (l *Lexer) Run() {
+func (l *lexer) Run() {
 	done := make(chan bool)
-	for state := l.lexText; state != nil; {
+	for state := l.lexLine; state != nil; {
 		state = state()
 	}
 	close(l.items) // we are done
 	<-done
 }
 
-func (l *Lexer) lexText() stateFn {
-	for {
-		if strings.HasPrefix(l.input[l.pos:], blockEnd) {
-			return l.lexBlockEnd
-		} else if strings.HasPrefix(l.input[l.pos:], comment) {
-			return l.lexComment
-		} else if strings.HasPrefix(l.input[l.pos:], label) {
-			return l.lexLabel
-		} else if strings.HasPrefix(l.input[l.pos:], variable) {
-			return l.lexVariableAssignment
-			// } else if hasMethodPrefix(l.input[l.pos:]) {
-			// 	return l.lexMethod
-		} else if isUrl(l.peekToNewLine()) {
-			return l.lexUrl
-		}
-
-		ch := l.next()
-
-		if ch == eof {
-			break
-		}
-	}
-
-	if l.pos > l.start {
-		l.emit(TEXT)
-	}
-	l.emit(EOF)
-
-	return nil
-}
-
-func (l *Lexer) lexBlockEnd() stateFn {
-	l.pos += len(blockEnd)
-	l.acceptToNewline()
-	l.emit(BLOCK_END)
-	return l.lexText
-}
-
-func (l *Lexer) lexComment() stateFn {
-	l.pos += len(comment)
-	l.ignore()
-
-	l.acceptToNewline()
-
-	l.emit(COMMENT)
-
-	return l.lexText
-}
-
-func (l *Lexer) lexLabel() stateFn {
-	l.pos += len(label)
-	l.emit(LABEL)
-
-	l.acceptToNewline()
-	l.emit(IDENT)
-	return l.lexText
-}
-
-func (l *Lexer) lexVariableAssignment() stateFn {
-	l.pos += len(variable)
-	l.ignore()
-	l.emit(VARIABLE)
-
-	for {
-		ch := l.peek()
-		if isWhitespace(ch) {
-			l.emit(IDENT)
-			l.skipWhitespace() // skip space
-			break
-		}
-		l.next()
-	}
-
-	l.acceptToNewline()
-	l.emit(ASSIGN)
-	return l.lexText
-}
-
-func (l *Lexer) lexUrl() stateFn {
-	l.acceptToNewline()
-	l.emit(URL)
-	l.skip()
-	return l.lexHeader
-}
-
-func (l *Lexer) lexHeader() stateFn {
-	colonSeen := false
-	for {
-		ch := l.peek()
-		if ch == ':' {
-			l.emit(HEADER)
-			l.skip()
-			colonSeen = true
-			l.skipWhitespace()
-		}
-		if isEnd(ch) {
-			if colonSeen {
-				l.emit(ASSIGN)
-				return l.lexHeader
-			}
-			return l.lexMethod
-		}
-		l.next()
-	}
-}
-
-func (l *Lexer) lexMethod() stateFn {
-	l.acceptToNewline()
-
-	l.emit(METHOD)
-
-	return l.lexBody
-}
-
-func (l *Lexer) lexBody() stateFn {
-	for {
-		if strings.HasPrefix(l.input[l.pos:], blockEnd) {
-			return l.lexBlockEnd
-		}
-		if strings.HasPrefix(l.input[l.pos:], expectaion) {
-			return l.lexExpectation
-		}
-		ch := l.next()
-		if ch == eof {
-			return nil
-		}
-	}
-
-	l.emit(BODY)
-
-	return l.lexBody
-}
-func (l *Lexer) lexExpectation() stateFn {
-	l.pos += len(expectaion)
-
-	l.skipWhitespace()
-
-	l.acceptToNewline()
-	l.emit(EXPECTATION)
-
-	return l.lexText
-}
-
-func (l *Lexer) emit(t Token) {
+func (l *lexer) emit(t Token) {
 	l.items <- item{t, l.input[l.start:l.pos]}
 	l.start = l.pos
 }
 
-func (l *Lexer) next() (r rune) {
+func (l *lexer) next() (r rune) {
 	if l.pos >= len(l.input) { // are we done with the input?
 		l.width = 0
 		return eof
@@ -262,26 +78,36 @@ func (l *Lexer) next() (r rune) {
 	return r
 }
 
-func (l *Lexer) ignore() {
+func (l *lexer) replace(s string, start, end int) {
+	r := []rune(l.input)
+	r = append(r[:start], r[end:]...)
+
+	r = append(r[:start], append([]rune(s), r[start:]...)...)
+
+	l.input = string(r)
+	// fmt.Println(l.input[start-10 : start+len(s)+5])
+}
+
+func (l *lexer) ignore() {
 	l.start = l.pos
 }
 
-func (l *Lexer) backup() {
+func (l *lexer) backup() {
 	l.pos -= l.width
 }
 
-func (l *Lexer) peek() rune {
+func (l *lexer) peek() rune {
 	r := l.next()
 	l.backup()
 	return r
 }
 
-func (l *Lexer) skip() {
+func (l *lexer) skip() {
 	l.next()
 	l.ignore()
 }
 
-func (l *Lexer) skipWhitespace() {
+func (l *lexer) skipWhitespace() {
 	for {
 		ch := l.peek()
 		if !isWhitespace(ch) {
@@ -292,14 +118,14 @@ func (l *Lexer) skipWhitespace() {
 	l.ignore()
 }
 
-func (l *Lexer) accept(valid string) bool { // Allow {{ valid }} chars
+func (l *lexer) accept(valid string) bool { // Allow {{ valid }} chars
 	if strings.IndexRune(valid, l.next()) >= 0 {
 		return true
 	}
 	l.backup()
 	return false
 }
-func (l *Lexer) errorf(format string, args ...interface{}) stateFn {
+func (l *lexer) errorf(format string, args ...interface{}) stateFn {
 	l.items <- item{
 		ILLEGAL,
 		fmt.Sprintf(format, args...),
@@ -307,8 +133,9 @@ func (l *Lexer) errorf(format string, args ...interface{}) stateFn {
 	return nil
 }
 
-func (l *Lexer) peekToNewLine() string {
+func (l *lexer) peekToNewLine() string {
 	var s string
+	start := l.pos
 	for {
 		ch := l.next()
 		if isEnd(ch) {
@@ -317,11 +144,12 @@ func (l *Lexer) peekToNewLine() string {
 			s += string(ch)
 		}
 	}
-	l.backup()
+	l.pos = start
 	return s
 }
 
-func (l *Lexer) acceptToNewline() {
+func (l *lexer) acceptToNewline() {
+	// l.scanForVariables(false)
 	for {
 		ch := l.peek()
 		if isEnd(ch) {
@@ -360,6 +188,10 @@ func isUrl(s string) bool {
 		return false
 	}
 	return true
+}
+
+func hasVariablePrefix(s string) bool {
+	return strings.HasPrefix(s, variablePrefix)
 }
 
 func isWhitespace(ch rune) bool {
