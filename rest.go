@@ -107,7 +107,7 @@ func (r Rest) Exec() ([]string, error) {
 // ExecIndex : do specific block in requests
 func (r Rest) ExecIndex(i int) (result string, err error) {
 	if i > len(r.lexed)-1 {
-		err = fmt.Errorf("Block %d does not exist", i)
+		err = fmt.Errorf("block %d does not exist", i)
 		return
 	}
 
@@ -172,18 +172,18 @@ func (r Rest) checkExpectation(req lexer.Request, res *http.Response) error {
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return fmt.Errorf("Issue reading body %w", err)
+		return fmt.Errorf("issue reading body %w", err)
 	}
 	res.Body.Close()
 	res.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 
 	if exp.Code != res.StatusCode {
-		return fmt.Errorf("Incorrect status code returned %d != %d\nbody: %s", exp.Code, res.StatusCode, string(body))
+		return fmt.Errorf("incorrect status code returned %d != %d\nbody: %s", exp.Code, res.StatusCode, string(body))
 	}
 
 	if len(exp.Body) > 0 {
 		if !bytes.Equal([]byte(exp.Body), body) {
-			return fmt.Errorf("Body does not match expectation\nExpected:\n%s\nGot:\n%s\n", exp.Body, string(body))
+			return fmt.Errorf("body does not match expectation\nexpected:\n%s\ngot:\n%s", exp.Body, string(body))
 		}
 	}
 
@@ -236,7 +236,7 @@ func (r Rest) IsRestFile(fn string) (bool, error) {
 	lex := lexer.New(!isConcurrent)
 	_, _, err = lex.Parse(scanner)
 	if err != nil {
-		return false, fmt.Errorf("Invalid format or malformed file: %w", err)
+		return false, fmt.Errorf("invalid format or malformed file: %w", err)
 	}
 	log.Debugf("Yay! %s is valid!\n", fn)
 	return true, nil

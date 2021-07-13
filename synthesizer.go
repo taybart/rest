@@ -87,5 +87,5 @@ func (r Rest) SynthesizeRequests(lang string) ([]string, []lexer.Request, error)
 		}
 		return generated, requests, nil
 	}
-	return nil, nil, fmt.Errorf("Unknown template")
+	return nil, nil, fmt.Errorf("unknown template")
 }

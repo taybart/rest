@@ -191,7 +191,7 @@ func (l Lexer) checkForUndeclaredVariables(line string) (string, bool, error) {
 				tmp = strings.ReplaceAll(tmp, match[0], v)
 				continue
 			}
-			return "", false, fmt.Errorf("Saw variable %s%s%s and did not have a value for it",
+			return "", false, fmt.Errorf("saw variable %s%s%s and did not have a value for it",
 				log.Blue, match[1], log.Rtd)
 		}
 		log.Debug(line, "->", tmp)

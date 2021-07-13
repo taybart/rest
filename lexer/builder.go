@@ -136,10 +136,10 @@ func buildBody(input *MetaRequest) (body io.Reader, err error) {
 // isValidMetaRequest : checks if request is complete
 func isValidMetaRequest(req MetaRequest) error {
 	if req.URL == "" {
-		return fmt.Errorf("No URL found in request")
+		return fmt.Errorf("no URL found in request")
 	}
 	if req.Method == "" {
-		return fmt.Errorf("No method found in request")
+		return fmt.Errorf("no method found in request")
 	}
 	if req.Filepath != "" && req.Headers["Content-Type"] == "" {
 		return fmt.Errorf("Content-Type not set for request with file")
@@ -153,10 +153,10 @@ func isValidMetaRequest(req MetaRequest) error {
 // isValidRequest : checks if request is complete
 func isValidRequest(req Request) error {
 	if req.R.URL.String() == "" {
-		return fmt.Errorf("No URL found in request")
+		return fmt.Errorf("no URL found in request")
 	}
 	if req.R.Method == "" {
-		return fmt.Errorf("No method found in request")
+		return fmt.Errorf("no method found in request")
 	}
 	return nil
 }
