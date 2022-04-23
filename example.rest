@@ -1,55 +1,30 @@
-# Simple requests
-label GetHttpBin
-https://httpbin.org
-GET /get?test=true
-
----
-# Use variables!
-set HOST httpbin.org
-set AUTH apikey1234
-
-https://${HOST}
-Authorization: Bearer ${AUTH}
-GET /bearer
-
----
-set PORT 8080
-
-# Strategic delays [call after X[ns|us|µs|ms|s|m|h]]
-delay 500ms
-http://localhost:${PORT}
-Content-Type: application/json
-POST /
-{
-  # Comment all the things!
-  "ints": 123,
-  "strings": ""
+// vim: ft=hcl
+locals {
+  url = "http://localhost:8080"
+  asdf = "world"
 }
 
----
+// test
+request {
+  label = "hell_yeah"
+  method = "GET"
+  headers = [
+    "X-TEST: you:😄",
+  ]
+  url = "${locals.url}/get"
+}
 
-# Upload documents
-http://localhost:${PORT}
-Content-Type: multipart/form-data
-POST /users
-file://test/file_test.csv csv
+request {
+  method = "POST"
+  url = "${locals.url}/post"
+  headers = [
+    "Content-Type: application/json",
+  ]
 
-
----
-
-# Set variables based on runtime outputs
-http://localhost:${PORT}
-Content-Type: application/json
-POST /login
-
-expect 200
-
-# response will look like {"auth_token": "asdfasdfasdf"}
-take auth_token as AUTH_TOKEN
-
----
-
-# AUTH_TOKEN is set to the previous output
-http://localhost:${PORT}
-GET /account?auth_token=${AUTH_TOKEN}
-
+  body = <<END
+  {
+    "hello": "${locals.asdf}"
+  }
+  END
+  expect = 200
+}

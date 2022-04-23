@@ -1,5 +1,0 @@
-http//bad.com/
-GET
----
-bad.com
-GET

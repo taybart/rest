@@ -1,4 +1,0 @@
-http://localhost:8080
-Content-Type: multipart/form-data
-POST /file
-file://test/file_test.csv filelabel
