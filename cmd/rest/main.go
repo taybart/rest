@@ -37,20 +37,41 @@ var (
 				Help:    "File to run",
 				Default: "",
 			},
+			"block": {
+				Short:   "b",
+				Help:    "Request block to run",
+				Default: -1,
+			},
+			"label": {
+				Short:   "l",
+				Help:    "Request label to run",
+				Default: "",
+			},
+			"no-color": {
+				Short:   "nc",
+				Help:    "No colors",
+				Default: false,
+			},
 		},
 	}
 
 	c = struct {
+		// cli
+		NoColor bool `arg:"no-color"`
+		// client
+		File  string `arg:"file"`
+		Block int    `arg:"block"`
+		Label string `arg:"label"`
+		// server
 		Addr  string `arg:"addr"`
 		Serve bool   `arg:"serve"`
-		File  string `arg:"file"`
 		Dir   string `arg:"dir"`
 	}{}
 )
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Println(err)
+		log.Error(err)
 		os.Exit(1)
 	}
 }
@@ -64,6 +85,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	log.UseColors(!c.NoColor)
+
+	/**********
+	 * SERVER *
+	 **********/
 	if c.Serve {
 		s := server.New(server.Config{
 			Addr: c.Addr,
@@ -71,10 +98,24 @@ func run() error {
 		})
 		log.Infof("listening to %s...\n", c.Addr)
 		log.Fatal(s.ListenAndServe())
-	} else if c.File != "" {
-		log.Info("running", c.File)
-		request.RunFile(c.File)
+		return nil
 	}
 
-	return nil
+	/**********
+	 * CLIENT *
+	 **********/
+	if c.File == "" {
+		return fmt.Errorf("missing required flag -f")
+	}
+
+	if c.Block >= 0 {
+		log.Info("running block", c.Block, "on file", c.File)
+		return request.RunBlock(c.File, c.Block)
+	} else if c.Label != "" {
+		log.Info("running request", c.Label, "on file", c.File)
+		return request.RunLabel(c.File, c.Label)
+	} else {
+		log.Info("running file", c.File)
+		return request.RunFile(c.File)
+	}
 }

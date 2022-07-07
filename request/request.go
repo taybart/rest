@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strings"
+	"time"
 
 	"github.com/taybart/log"
 )
@@ -38,6 +39,13 @@ func (r Request) String() string {
 
 func (r Request) Do() error {
 
+	if r.Delay != "" {
+		delay, err := time.ParseDuration(r.Delay)
+		if err != nil {
+			return err
+		}
+		time.Sleep(delay)
+	}
 	r.Format()
 
 	// fmt.Println(r)
