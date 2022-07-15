@@ -17,6 +17,18 @@ var (
 		Author:  "Taybart <taybart@email.com>",
 		About:   "all the rest",
 		Args: map[string]*args.Arg{
+			/*** cli ***/
+			"no-color": {
+				Short:   "nc",
+				Help:    "No colors",
+				Default: false,
+			},
+			"quiet": {
+				Short:   "q",
+				Help:    "Minimize logging",
+				Default: false,
+			},
+			/*** server ***/
 			"addr": {
 				Short:   "a",
 				Help:    "Address to listen on",
@@ -32,6 +44,8 @@ var (
 				Help:    "Directory to serve",
 				Default: "",
 			},
+
+			/*** client ***/
 			"file": {
 				Short:   "f",
 				Help:    "File to run",
@@ -47,25 +61,21 @@ var (
 				Help:    "Request label to run",
 				Default: "",
 			},
-			"no-color": {
-				Short:   "nc",
-				Help:    "No colors",
-				Default: false,
-			},
 		},
 	}
 
 	c = struct {
 		// cli
 		NoColor bool `arg:"no-color"`
-		// client
-		File  string `arg:"file"`
-		Block int    `arg:"block"`
-		Label string `arg:"label"`
+		Quiet   bool `arg:"quiet"`
 		// server
 		Addr  string `arg:"addr"`
 		Serve bool   `arg:"serve"`
 		Dir   string `arg:"dir"`
+		// client
+		File  string `arg:"file"`
+		Block int    `arg:"block"`
+		Label string `arg:"label"`
 	}{}
 )
 
@@ -95,6 +105,7 @@ func run() error {
 		s := server.New(server.Config{
 			Addr: c.Addr,
 			Dir:  c.Dir,
+			Dump: c.Quiet,
 		})
 		log.Infof("listening to %s...\n", c.Addr)
 		log.Fatal(s.ListenAndServe())

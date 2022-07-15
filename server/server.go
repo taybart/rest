@@ -2,7 +2,6 @@ package server
 
 import (
 	"compress/gzip"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -49,6 +48,7 @@ type Server struct {
 type Config struct {
 	Addr string
 	Dir  string
+	Dump bool
 }
 
 func New(c Config) http.Server {
@@ -69,7 +69,6 @@ func New(c Config) http.Server {
 
 func (s *Server) routes() {
 	if s.c.Dir != "" {
-
 		d, err := filepath.Abs(s.c.Dir)
 		if err != nil {
 			log.Fatal(err)
@@ -86,25 +85,17 @@ func (s *Server) routes() {
 	}
 
 	s.router.HandleFunc("/", log.Middleware(gzipHandler(func(w http.ResponseWriter, r *http.Request) {
-		dump, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
-			return
+		if !s.c.Dump {
+			dump, err := httputil.DumpRequest(r, true)
+			if err != nil {
+				http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
+				return
+			}
+			fmt.Printf("%s%s%s\n", log.Yellow, string(dump), log.Rtd)
 		}
-		fmt.Println(log.Yellow)
-		fmt.Println(string(dump))
-		fmt.Println(log.Rtd)
 
-		res := struct {
-			Status string `json:"status"`
-		}{
-			Status: "ok",
-		}
 		w.WriteHeader(http.StatusOK)
 
-		err = json.NewEncoder(w).Encode(res)
-		if err != nil {
-			panic(err)
-		}
+		fmt.Fprintf(w, `{"status": "ok"}`)
 	})))
 }
