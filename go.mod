@@ -2,11 +2,9 @@ module github.com/taybart/rest
 
 go 1.17
 
-replace github.com/taybart/args => ../../taybart/args
-
 require (
 	github.com/hashicorp/hcl/v2 v2.11.1
-	github.com/taybart/args v0.0.0-20220224221651-d96033464fcd
+	github.com/taybart/args v0.0.1
 	github.com/taybart/log v1.5.1
 	github.com/zclconf/go-cty v1.8.0
 )

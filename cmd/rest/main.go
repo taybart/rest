@@ -28,6 +28,7 @@ var (
 				Help:    "Minimize logging",
 				Default: false,
 			},
+
 			/*** server ***/
 			"addr": {
 				Short:   "a",
@@ -68,10 +69,12 @@ var (
 		// cli
 		NoColor bool `arg:"no-color"`
 		Quiet   bool `arg:"quiet"`
+
 		// server
 		Addr  string `arg:"addr"`
 		Serve bool   `arg:"serve"`
 		Dir   string `arg:"dir"`
+
 		// client
 		File  string `arg:"file"`
 		Block int    `arg:"block"`
