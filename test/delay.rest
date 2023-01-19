@@ -1,4 +1,0 @@
-delay 1000ms
-
-http://localhost:8080
-GET /
