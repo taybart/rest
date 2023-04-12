@@ -34,3 +34,29 @@ request {
   expect = 200
 }
 ```
+
+Server/Client:
+
+<img width="721" alt="image" src="https://user-images.githubusercontent.com/3513897/231360482-d54f6e43-b1e9-45ba-883c-7e1d044da2df.png">
+
+
+```sh
+rest -h
+    --no-color, -nc:
+        No colors
+    --quiet, -q:
+        Minimize logging
+    --addr, -a:
+        Address to listen on
+    --serve, -s:
+        Run a server
+    --dir, -d:
+        Directory to serve
+    --file, -f:
+        File to run
+    --block, -b:
+        Request block to run
+    --label, -l:
+        Request label to run
+```
+
