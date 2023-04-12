@@ -8,6 +8,7 @@ type Root struct {
 	} `hcl:"locals,block"`
 
 	Requests []*struct {
-		Body hcl.Body `hcl:",remain"`
+		Label string   `hcl:"label,label"`
+		Body  hcl.Body `hcl:",remain"`
 	} `hcl:"request,block"`
 }

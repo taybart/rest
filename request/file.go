@@ -34,7 +34,7 @@ func parseFile(filename string) ([]Request, error) {
 	requests := []Request{}
 	labels := []string{}
 	for _, block := range root.Requests {
-		var req Request
+		req := Request{Label: block.Label}
 		if diags = gohcl.DecodeBody(block.Body, ctx, &req); diags.HasErrors() {
 			writeDiags(map[string]*hcl.File{filename: file}, diags)
 			return nil, fmt.Errorf("error decoding HCL configuration: %w", diags)

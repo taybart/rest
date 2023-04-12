@@ -20,7 +20,7 @@ type Request struct {
 	Headers []string          `hcl:"headers,optional"`
 	Query   map[string]string `hcl:"query,optional"`
 	// extras
-	Label  string `hcl:"label,optional"`
+	Label  string `hcl:"label,label"`
 	Delay  string `hcl:"delay,optional"`
 	Expect int    `hcl:"expect,optional"`
 }

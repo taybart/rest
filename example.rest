@@ -1,12 +1,10 @@
-// vim: ft=hcl
 locals {
   url = "http://localhost:8080"
   asdf = "world"
 }
 
 // test
-request {
-  label = "hell_yeah"
+request "get with header" {
   method = "GET"
   headers = [
     "X-TEST: you:😄",
@@ -14,7 +12,7 @@ request {
   url = "${locals.url}/get"
 }
 
-request {
+request "post with body" {
   method = "POST"
   url = "${locals.url}/post"
   headers = [
@@ -27,4 +25,19 @@ request {
   }
   END
   expect = 200
+}
+
+request "post with body that should fail" {
+  method = "POST"
+  url = "${locals.url}/post"
+  headers = [
+    "Content-Type: application/json",
+  ]
+
+  body = <<END
+  {
+    "hello": "${locals.asdf}"
+  }
+  END
+  expect = 401
 }
