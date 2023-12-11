@@ -10,8 +10,7 @@ locals {
 }
 
 // test
-request {
-  label = "hell_yeah"
+request "hell_yeah" {
   method = "GET"
   headers = [
     "X-TEST: you:😄",
@@ -19,7 +18,7 @@ request {
   url = "${locals.url}/get"
 }
 
-request {
+request "my_post" {
   method = "POST"
   url = "${locals.url}/post"
   headers = [
