@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -21,28 +22,34 @@ type Server struct {
 }
 
 type Config struct {
-	Addr string
-	Dir  string
-	Dump bool
+	Addr    string
+	Dir     string
+	Dump    bool
+	Headers map[string]string
 }
 
-func New(c Config) http.Server {
+func New(c Config) *http.Server {
 
 	s := Server{
 		router: http.NewServeMux(),
 		c:      c,
 	}
-	s.routes()
-
-	return http.Server{
-		Handler:      s.router,
+	goserver := &http.Server{
 		Addr:         c.Addr,
 		WriteTimeout: httpTimeout,
 		ReadTimeout:  httpTimeout,
 	}
+	// weird thing for shutdown route
+	s.routes(goserver)
+	goserver.Handler = s.router
+	return goserver
 }
 
-func (s *Server) routes() {
+func (s *Server) routes(server *http.Server) {
+	s.router.HandleFunc("/__quit__", gzipHandler(func(w http.ResponseWriter, _ *http.Request) {
+		log.Warn("got signal on __quit__, stopping...")
+		server.Shutdown(context.Background())
+	}))
 	if s.c.Dir != "" {
 		d, err := filepath.Abs(s.c.Dir)
 		if err != nil {
@@ -50,6 +57,9 @@ func (s *Server) routes() {
 		}
 		fs := http.FileServer(http.Dir(d))
 		s.router.HandleFunc("/", gzipHandler(func(w http.ResponseWriter, r *http.Request) {
+			for k, v := range s.c.Headers {
+				w.Header().Add(k, v)
+			}
 			if _, err := os.Stat(fmt.Sprintf("%s%s", d, r.URL)); os.IsNotExist(err) {
 				http.ServeFile(w, r, fmt.Sprintf("%s/index.html", d))
 				return

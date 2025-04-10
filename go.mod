@@ -4,8 +4,8 @@ go 1.17
 
 require (
 	github.com/hashicorp/hcl/v2 v2.11.1
-	github.com/taybart/args v0.0.1
-	github.com/taybart/log v1.5.1
+	github.com/taybart/args v0.0.4
+	github.com/taybart/log v1.6.4
 	github.com/zclconf/go-cty v1.8.0
 )
 

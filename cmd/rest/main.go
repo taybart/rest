@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/taybart/args"
@@ -45,6 +47,16 @@ var (
 				Help:    "Directory to serve",
 				Default: "",
 			},
+			"origins": {
+				Short:   "o",
+				Help:    "Add Access-Control-Allow-Origin header value\n\t\tex: -o * or -o 'http://localhost:8080 http://localhost:3000' ",
+				Default: "",
+			},
+			"tls": {
+				Short:   "t",
+				Help:    "TLS path name to be used for tls key/cert (defaults to no TLS)\n\t\tex: '-t ./keys/site.com' where the files ./keys/site.com.{key,crt} exist",
+				Default: "",
+			},
 
 			/*** client ***/
 			"file": {
@@ -71,9 +83,11 @@ var (
 		Quiet   bool `arg:"quiet"`
 
 		// server
-		Addr  string `arg:"addr"`
-		Serve bool   `arg:"serve"`
-		Dir   string `arg:"dir"`
+		Addr    string `arg:"addr"`
+		Serve   bool   `arg:"serve"`
+		Dir     string `arg:"dir"`
+		Origins string `arg:"origins"`
+		TLS     string `arg:"tls"`
 
 		// client
 		File  string `arg:"file"`
@@ -90,12 +104,15 @@ func main() {
 }
 
 func run() error {
-	err := a.Parse()
-	if err != nil {
+
+	if err := a.Parse(); err != nil {
+		if errors.Is(err, args.ErrUsageRequested) {
+			return nil
+		}
 		return err
 	}
-	err = a.Marshal(&c)
-	if err != nil {
+
+	if err := a.Marshal(&c); err != nil {
 		return err
 	}
 
@@ -105,13 +122,32 @@ func run() error {
 	 * SERVER *
 	 **********/
 	if c.Serve {
+		headers := map[string]string{}
+		if c.Origins != "" {
+			headers["Access-Control-Allow-Origin"] = c.Origins
+		}
 		s := server.New(server.Config{
-			Addr: c.Addr,
-			Dir:  c.Dir,
-			Dump: c.Quiet,
+			Addr:    c.Addr,
+			Dir:     c.Dir,
+			Dump:    c.Quiet,
+			Headers: headers,
 		})
 		log.Infof("listening to %s...\n", c.Addr)
-		log.Fatal(s.ListenAndServe())
+		if c.TLS != "" {
+			crt := fmt.Sprintf("%s.crt", c.TLS)
+			key := fmt.Sprintf("%s.key", c.TLS)
+			if err := s.ListenAndServeTLS(crt, key); err != nil {
+				if !errors.Is(err, http.ErrServerClosed) {
+					log.Fatal(err)
+				}
+			}
+			return nil
+		}
+		if err := s.ListenAndServe(); err != nil {
+			if !errors.Is(err, http.ErrServerClosed) {
+				log.Fatal(err)
+			}
+		}
 		return nil
 	}
 
