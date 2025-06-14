@@ -3,28 +3,37 @@ locals {
   url = "https://httpbin.org"
   name = "world"
   hook = <<LUA
-    print(rest.req.method.." "..rest.req.url)
+    print("\n"..rest.req.method.." "..rest.req.url)
     if rest.req.expect then
-    if rest.res.status ~= rest.req.expect then
-      fail(("bad status %d != %d"):format(rest.res.status, rest.req.expect))
-      -- print(rest.req.expect.." == "..rest.res.status)
-end
+      if rest.res.status ~= rest.req.expect then
+        fail(("bad status %d != %d"):format(rest.res.status, rest.req.expect))
+      end
     end
     local decoded = json.decode(rest.res.body)
     if decoded.json then
       return inspect(decoded.json)
-      -- return decoded.json.test + 10
     elseif decoded.args then
-      -- print(inspect(decoded.args))
+      return ("test plus 70 = %d"):format(decoded.args.test + 70)
     end
   LUA
 }
 
 // test
 request "post hook get" {
-  url = "${locals.url}/get?test=1"
+  url = "${locals.url}/get"
+  query = {
+    test = 1
+    "other[friend]" = 3
+  }
   method = "GET"
-  post_hook = "${locals.hook}"
+  post_hook = <<LUA
+    local decoded = json.decode(rest.res.body)
+      print(inspect(decoded.args))
+      print(inspect(rest.req))
+    if decoded.args then
+      return ("\ntest plus 70 => %d"):format(decoded.args.test + 70)
+    end
+  LUA
 }
 
 request "post hook post" {

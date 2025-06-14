@@ -49,28 +49,53 @@ func registerModules(l *lua.LState) error {
 	return nil
 }
 
-func populateObject(l *lua.LState, req *Request, res *http.Response) error {
+func makeLTable(l *lua.LState, tblMap map[string]lua.LValue) *lua.LTable {
+	tbl := l.NewTable()
+	for k, v := range tblMap {
+		l.SetField(tbl, k, v)
+	}
+	return tbl
+}
+
+func populateGlobalObject(l *lua.LState, req *Request, res *http.Response) error {
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return err
 	}
 
-	reqTable := l.NewTable()
-	l.SetField(reqTable, "url", lua.LString(res.Request.URL.String()))
-	l.SetField(reqTable, "method", lua.LString(res.Request.Method))
-	l.SetField(reqTable, "body", lua.LString(req.BodyRaw))
-	if req.Expect != 0 {
-		l.SetField(reqTable, "expect", lua.LNumber(req.Expect))
+	headerMap := map[string]lua.LValue{}
+	for k, v := range res.Request.Header {
+		headerMap[k] = lua.LString(v[0])
 	}
+	headerTbl := makeLTable(l, headerMap)
+	queryMap := map[string]lua.LValue{}
+	for k, v := range res.Request.URL.Query() {
+		queryMap[k] = lua.LString(v[0])
+	}
+	queryTbl := makeLTable(l, queryMap)
 
-	resTable := l.NewTable()
-	l.SetField(resTable, "status", lua.LNumber(res.StatusCode))
-	l.SetField(resTable, "body", lua.LString(string(body)))
+	reqMap := map[string]lua.LValue{
+		"url":     lua.LString(res.Request.URL.String()),
+		"method":  lua.LString(res.Request.Method),
+		"body":    lua.LString(req.BodyRaw),
+		"query":   queryTbl,
+		"headers": headerTbl,
+	}
+	if req.Expect != 0 {
+		reqMap["expect"] = lua.LNumber(req.Expect)
+	}
+	reqTbl := makeLTable(l, reqMap)
 
-	table := l.NewTable()
-	l.SetField(table, "req", reqTable)
-	l.SetField(table, "res", resTable)
+	resTbl := makeLTable(l, map[string]lua.LValue{
+		"status": lua.LNumber(res.StatusCode),
+		"body":   lua.LString(string(body)),
+	})
+
+	table := makeLTable(l, map[string]lua.LValue{
+		"req": reqTbl,
+		"res": resTbl,
+	})
 	l.SetGlobal("rest", table)
 	return nil
 }
@@ -100,7 +125,7 @@ func (r *Request) RunPostHook(res *http.Response) (string, error) {
 	if err := registerModules(l); err != nil {
 		return "", err
 	}
-	if err := populateObject(l, r, res); err != nil {
+	if err := populateGlobalObject(l, r, res); err != nil {
 		return "", err
 	}
 

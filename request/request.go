@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"strings"
 	"time"
 
@@ -53,6 +54,12 @@ func (r Request) Do() (string, error) {
 		hdrs := strings.Split(h, ":")
 		req.Header.Add(hdrs[0], strings.TrimPrefix(h, hdrs[0]+":"))
 	}
+
+	query := url.Values{}
+	for k, v := range r.Query {
+		query.Add(k, v)
+	}
+	req.URL.RawQuery = query.Encode()
 
 	req.Header.Set("User-Agent", "rest-client/2.0")
 
