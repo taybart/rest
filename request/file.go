@@ -80,7 +80,6 @@ func RunLabel(filename string, label string) error {
 		if req.Label == label {
 			res, err := req.Do()
 			if err != nil {
-				log.Errorln(err)
 				return err
 			}
 			if res != "" {
@@ -100,12 +99,10 @@ func RunBlock(filename string, block int) error {
 	}
 	res, err := requests[block].Do()
 	if err != nil {
-		log.Errorln(err)
 		return err
 	}
 	if res != "" {
 		fmt.Println(res)
 	}
-
 	return nil
 }

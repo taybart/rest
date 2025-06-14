@@ -26,6 +26,7 @@ request "post hook get" {
   method = "GET"
   post_hook = "${locals.hook}"
 }
+
 request "post hook post" {
   url = "${locals.url}/post"
   method = "POST"
