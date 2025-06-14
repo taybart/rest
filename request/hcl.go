@@ -2,7 +2,6 @@ package request
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/hashicorp/hcl/v2"
@@ -11,7 +10,7 @@ import (
 )
 
 func readFile(filename string) (*hcl.File, hcl.Diagnostics) {
-	src, err := ioutil.ReadFile(filename)
+	src, err := os.ReadFile(filename)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, hcl.Diagnostics{

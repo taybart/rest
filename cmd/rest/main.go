@@ -16,7 +16,7 @@ var (
 	a = args.App{
 		Name:    "Rest",
 		Version: "v0.0.1",
-		Author:  "Taybart <taybart@email.com>",
+		Author:  "taybart <taybart@email.com>",
 		About:   "all the rest",
 		Args: map[string]*args.Arg{
 			/*** cli ***/
@@ -27,7 +27,12 @@ var (
 			},
 			"quiet": {
 				Short:   "q",
-				Help:    "Minimize logging",
+				Help:    "Don't log server requests",
+				Default: false,
+			},
+			"verbose": {
+				Short:   "v",
+				Help:    "More client logging",
 				Default: false,
 			},
 
@@ -81,6 +86,7 @@ var (
 		// cli
 		NoColor bool `arg:"no-color"`
 		Quiet   bool `arg:"quiet"`
+		Verbose bool `arg:"verbose"`
 
 		// server
 		Addr    string `arg:"addr"`
@@ -117,6 +123,10 @@ func run() error {
 	}
 
 	log.UseColors(!c.NoColor)
+
+	if c.Verbose {
+		log.SetLevel(log.TRACE)
+	}
 
 	/**********
 	 * SERVER *
@@ -159,13 +169,13 @@ func run() error {
 	}
 
 	if c.Block >= 0 {
-		log.Info("running block", c.Block, "on file", c.File)
+		log.Debug("running block", c.Block, "on file", c.File)
 		return request.RunBlock(c.File, c.Block)
 	} else if c.Label != "" {
-		log.Info("running request", c.Label, "on file", c.File)
+		log.Debug("running request", c.Label, "on file", c.File)
 		return request.RunLabel(c.File, c.Label)
 	} else {
-		log.Info("running file", c.File)
+		log.Debug("running file", c.File)
 		return request.RunFile(c.File)
 	}
 }

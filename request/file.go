@@ -44,6 +44,10 @@ func parseFile(filename string) ([]Request, error) {
 				return nil, fmt.Errorf("labels must be unique: %s", l)
 			}
 		}
+		if err := req.ParseBody(ctx); err != nil {
+			return nil, err
+		}
+
 		requests = append(requests, req)
 		labels = append(labels, req.Label)
 	}

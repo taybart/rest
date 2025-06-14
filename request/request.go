@@ -1,24 +1,25 @@
 package request
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"strings"
 	"time"
 
-	"github.com/taybart/log"
+	"github.com/hashicorp/hcl/v2"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
 type Request struct {
-	URL     string            `hcl:"url"`
-	Method  string            `hcl:"method"`
-	Port    int               `hcl:"port,optional"`
-	Body    string            `hcl:"body,optional"`
-	Headers []string          `hcl:"headers,optional"`
-	Query   map[string]string `hcl:"query,optional"`
+	URL      string            `hcl:"url"`
+	Method   string            `hcl:"method"`
+	Port     int               `hcl:"port,optional"`
+	Body     hcl.Expression    `hcl:"body,optional"`
+	BodyRaw  string            `hcl:"body_raw,optional"`
+	Headers  []string          `hcl:"headers,optional"`
+	Query    map[string]string `hcl:"query,optional"`
+	PostHook string            `hcl:"post_hook,optional"`
 	// extras
 	Label  string `hcl:"label,label"`
 	Delay  string `hcl:"delay,optional"`
@@ -30,11 +31,8 @@ func (r Request) String() string {
 	for _, h := range r.Headers {
 		headers += fmt.Sprintf("%s\n", h)
 	}
-	body := ""
-	if r.Body != "" {
-		body = r.Body
-	}
-	return fmt.Sprintf("%s %s\n%s\n%s", r.Method, r.URL, headers, body)
+
+	return fmt.Sprintf("%s %s\n%s\n%s", r.Method, r.URL, headers, r.BodyRaw)
 }
 
 func (r Request) Do() error {
@@ -46,10 +44,8 @@ func (r Request) Do() error {
 		}
 		time.Sleep(delay)
 	}
-	r.Format()
 
-	// fmt.Println(r)
-	req, err := http.NewRequest(r.Method, r.URL, strings.NewReader(r.Body))
+	req, err := http.NewRequest(r.Method, r.URL, strings.NewReader(r.BodyRaw))
 	if err != nil {
 		return err
 	}
@@ -64,32 +60,35 @@ func (r Request) Do() error {
 	if err != nil {
 		return err
 	}
-	if r.Expect != 0 {
-		if res.StatusCode != r.Expect {
-			return fmt.Errorf("unexpected response code %d != %d", r.Expect, res.StatusCode)
-		}
+	if r.PostHook != "" {
+		return r.RunPostHook(res)
 	}
+
 	dumped, err := httputil.DumpResponse(res, true)
 	if err != nil {
 		return err
 	}
 	fmt.Println(string(dumped))
-	return nil
-}
-
-func (r *Request) Format() error {
-	if r.Body != "" {
-		r.Body = formatJSON(r.Body)
+	if r.Expect != 0 {
+		if res.StatusCode != r.Expect {
+			return fmt.Errorf("unexpected response code %d != %d", r.Expect, res.StatusCode)
+		}
 	}
 	return nil
 }
 
-func formatJSON(toFmt string) string {
-	var b bytes.Buffer
-	err := json.Compact(&b, []byte(toFmt))
+func (r *Request) ParseBody(ctx *hcl.EvalContext) error {
+
+	body, diags := r.Body.Value(ctx)
+	if diags.HasErrors() {
+		fmt.Println("errors", diags)
+		return fmt.Errorf("%+v", diags.Errs())
+	}
+	simple := ctyjson.SimpleJSONValue{Value: body}
+	jsonBytes, err := simple.MarshalJSON()
 	if err != nil {
-		log.Error(err)
-		return toFmt
+		return err
 	}
-	return b.String()
+	r.BodyRaw = string(jsonBytes)
+	return nil
 }

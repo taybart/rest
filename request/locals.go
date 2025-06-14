@@ -14,13 +14,13 @@ type Local struct {
 }
 
 func decodeLocals(root Root) (map[string]cty.Value, hcl.Diagnostics) {
-	var diags hcl.Diagnostics
+	// var diags hcl.Diagnostics
 	locals := make(map[string]cty.Value)
 	for _, l := range root.Locals {
-		tmp, diag := decodeLocalsBlock(l.Body)
-		if diag.HasErrors() {
-			diags = append(diags, diag...)
-		}
+		tmp, _ := decodeLocalsBlock(l.Body)
+		// if diag.HasErrors() {
+		// 		diags = append(diags, diag...)
+		// }
 
 		for k, v := range tmp {
 			locals[k] = v
