@@ -13,6 +13,7 @@ import (
 var library embed.FS
 
 func loadModule(l *lua.LState, name, filename string) error {
+	// read code from embed fs
 	code, err := library.ReadFile("lua/" + filename)
 	if err != nil {
 		return err
@@ -35,9 +36,10 @@ func loadModule(l *lua.LState, name, filename string) error {
 
 func registerModules(l *lua.LState) error {
 	libs := map[string]string{
-		"base64": "base64.lua",
-		"json":   "json.lua",
-		"u":      "util.lua",
+		"base64":  "base64.lua",
+		"json":    "json.lua",
+		"inspect": "inspect.lua",
+		// "u":       "util.lua",
 	}
 	for name, filename := range libs {
 		if err := loadModule(l, name, filename); err != nil {
@@ -47,7 +49,7 @@ func registerModules(l *lua.LState) error {
 	return nil
 }
 
-func (r *Request) populateLuaRuntime(l *lua.LState, res *http.Response) error {
+func populateObject(l *lua.LState, req *Request, res *http.Response) error {
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -55,8 +57,12 @@ func (r *Request) populateLuaRuntime(l *lua.LState, res *http.Response) error {
 	}
 
 	reqTable := l.NewTable()
-	l.SetField(reqTable, "body", lua.LString(r.BodyRaw))
-	l.SetField(reqTable, "expect", lua.LNumber(r.Expect))
+	l.SetField(reqTable, "url", lua.LString(res.Request.URL.String()))
+	l.SetField(reqTable, "method", lua.LString(res.Request.Method))
+	l.SetField(reqTable, "body", lua.LString(req.BodyRaw))
+	if req.Expect != 0 {
+		l.SetField(reqTable, "expect", lua.LNumber(req.Expect))
+	}
 
 	resTable := l.NewTable()
 	l.SetField(resTable, "status", lua.LNumber(res.StatusCode))
@@ -69,21 +75,41 @@ func (r *Request) populateLuaRuntime(l *lua.LState, res *http.Response) error {
 	return nil
 }
 
-func (r *Request) RunPostHook(res *http.Response) error {
+func execute(l *lua.LState, code string) error {
+	var cleanError error
+
+	l.SetGlobal("fail", l.NewFunction(func(L *lua.LState) int {
+		cleanError = fmt.Errorf(L.CheckString(1))
+		for range 10 {
+			L.Push(lua.LNil)
+		}
+		return 10
+	}))
+
+	if err := l.DoString(fmt.Sprintf("%s\nreturn nil", code)); err != nil {
+		return err
+	}
+	return cleanError
+}
+
+func (r *Request) RunPostHook(res *http.Response) (string, error) {
 
 	l := lua.NewState()
 	defer l.Close()
 
 	if err := registerModules(l); err != nil {
-		return err
+		return "", err
+	}
+	if err := populateObject(l, r, res); err != nil {
+		return "", err
 	}
 
-	if err := r.populateLuaRuntime(l, res); err != nil {
-		return err
+	if err := execute(l, r.PostHook); err != nil {
+		return "", err
 	}
 
-	if err := l.DoString(r.PostHook); err != nil {
-		return err
+	if ret := l.Get(-1); ret.String() != "nil" {
+		return ret.String(), nil
 	}
-	return nil
+	return "", nil
 }

@@ -60,8 +60,12 @@ func RunFile(filename string) error {
 		return err
 	}
 	for _, req := range requests {
-		if err := req.Do(); err != nil {
+		res, err := req.Do()
+		if err != nil {
 			log.Errorln(err)
+		}
+		if res != "" {
+			fmt.Println(res)
 		}
 	}
 	return nil
@@ -74,7 +78,15 @@ func RunLabel(filename string, label string) error {
 	}
 	for _, req := range requests {
 		if req.Label == label {
-			return req.Do()
+			res, err := req.Do()
+			if err != nil {
+				log.Errorln(err)
+				return err
+			}
+			if res != "" {
+				fmt.Println(res)
+			}
+			return nil
 		}
 	}
 
@@ -86,9 +98,13 @@ func RunBlock(filename string, block int) error {
 	if err != nil {
 		return err
 	}
-	err = requests[block].Do()
+	res, err := requests[block].Do()
 	if err != nil {
+		log.Errorln(err)
 		return err
+	}
+	if res != "" {
+		fmt.Println(res)
 	}
 
 	return nil

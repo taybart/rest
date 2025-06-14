@@ -35,19 +35,19 @@ func (r Request) String() string {
 	return fmt.Sprintf("%s %s\n%s\n%s", r.Method, r.URL, headers, r.BodyRaw)
 }
 
-func (r Request) Do() error {
+func (r Request) Do() (string, error) {
 
 	if r.Delay != "" {
 		delay, err := time.ParseDuration(r.Delay)
 		if err != nil {
-			return err
+			return "", err
 		}
 		time.Sleep(delay)
 	}
 
 	req, err := http.NewRequest(r.Method, r.URL, strings.NewReader(r.BodyRaw))
 	if err != nil {
-		return err
+		return "", err
 	}
 	for _, h := range r.Headers {
 		hdrs := strings.Split(h, ":")
@@ -58,7 +58,7 @@ func (r Request) Do() error {
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if r.PostHook != "" {
 		return r.RunPostHook(res)
@@ -66,15 +66,14 @@ func (r Request) Do() error {
 
 	dumped, err := httputil.DumpResponse(res, true)
 	if err != nil {
-		return err
+		return "", err
 	}
-	fmt.Println(string(dumped))
 	if r.Expect != 0 {
 		if res.StatusCode != r.Expect {
-			return fmt.Errorf("unexpected response code %d != %d", r.Expect, res.StatusCode)
+			return string(dumped), fmt.Errorf("unexpected response code %d != %d", r.Expect, res.StatusCode)
 		}
 	}
-	return nil
+	return string(dumped), nil
 }
 
 func (r *Request) ParseBody(ctx *hcl.EvalContext) error {

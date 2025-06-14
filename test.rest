@@ -1,0 +1,43 @@
+locals {
+  # url = "http://localhost:8089"
+  url = "https://httpbin.org"
+  name = "world"
+  hook = <<LUA
+    print(rest.req.method.." "..rest.req.url)
+    if rest.req.expect then
+    if rest.res.status ~= rest.req.expect then
+      fail(("bad status %d != %d"):format(rest.res.status, rest.req.expect))
+      -- print(rest.req.expect.." == "..rest.res.status)
+end
+    end
+    local decoded = json.decode(rest.res.body)
+    if decoded.json then
+      return inspect(decoded.json)
+      -- return decoded.json.test + 10
+    elseif decoded.args then
+      -- print(inspect(decoded.args))
+    end
+  LUA
+}
+
+// test
+request "post hook get" {
+  url = "${locals.url}/get?test=1"
+  method = "GET"
+  post_hook = "${locals.hook}"
+}
+request "post hook post" {
+  url = "${locals.url}/post"
+  method = "POST"
+  headers = [
+    "X-TEST: you:😄",
+    "Content-Type: application/json",
+  ]
+  body = {
+    name: "test"
+    hello: "${locals.name}"
+    test: 17
+  }
+  expect = 201
+  post_hook = "${locals.hook}"
+}
