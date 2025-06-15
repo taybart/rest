@@ -49,6 +49,21 @@ func registerModules(l *lua.LState) error {
 	return nil
 }
 
+func makeLMap[M ~map[string][]string](inMap M) map[string]lua.LValue {
+	lmap := map[string]lua.LValue{}
+	for k, v := range inMap {
+		lmap[k] = lua.LString(v[0])
+	}
+	return lmap
+}
+
+//	func makeLArray(l *lua.LState, tblArr []lua.LValue) *lua.LTable {
+//		tbl := l.NewTable()
+//		for i, v := range tblArr {
+//			l.SetField(tbl, i, v)
+//		}
+//		return tbl
+//	}
 func makeLTable(l *lua.LState, tblMap map[string]lua.LValue) *lua.LTable {
 	tbl := l.NewTable()
 	for k, v := range tblMap {
@@ -64,33 +79,45 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response) error
 		return err
 	}
 
-	headerMap := map[string]lua.LValue{}
-	for k, v := range res.Request.Header {
-		headerMap[k] = lua.LString(v[0])
-	}
+	// headerMap := map[string]lua.LValue{}
+	// for k, v := range res.Request.Header {
+	// 	headerMap[k] = lua.LString(v[0])
+	// }
+	headerMap := makeLMap(res.Request.Header)
 	headerTbl := makeLTable(l, headerMap)
-	queryMap := map[string]lua.LValue{}
-	for k, v := range res.Request.URL.Query() {
-		queryMap[k] = lua.LString(v[0])
-	}
+	// queryMap := map[string]lua.LValue{}
+	// for k, v := range res.Request.URL.Query() {
+	// 	queryMap[k] = lua.LString(v[0])
+	// }
+	queryMap := makeLMap(res.Request.URL.Query())
 	queryTbl := makeLTable(l, queryMap)
 
 	reqMap := map[string]lua.LValue{
 		"url":     lua.LString(res.Request.URL.String()),
 		"method":  lua.LString(res.Request.Method),
-		"body":    lua.LString(req.BodyRaw),
 		"query":   queryTbl,
 		"headers": headerTbl,
+		"body":    lua.LString(req.BodyRaw),
 	}
 	if req.Expect != 0 {
 		reqMap["expect"] = lua.LNumber(req.Expect)
 	}
 	reqTbl := makeLTable(l, reqMap)
 
-	resTbl := makeLTable(l, map[string]lua.LValue{
-		"status": lua.LNumber(res.StatusCode),
-		"body":   lua.LString(string(body)),
-	})
+	// headerMap = map[string]lua.LValue{}
+	// for k, v := range res.Header {
+	// 	headerMap[k] = lua.LString(v[0])
+	// }
+	fmt.Println("cookies", res.Cookies())
+	headerMap = makeLMap(res.Header)
+	headerTbl = makeLTable(l, headerMap)
+	resMap := map[string]lua.LValue{
+		"status":  lua.LNumber(res.StatusCode),
+		"headers": headerTbl,
+		"body":    lua.LString(string(body)),
+		// "cookies": lua.LTable(),
+	}
+	resTbl := makeLTable(l, resMap)
 
 	table := makeLTable(l, map[string]lua.LValue{
 		"req": reqTbl,

@@ -12,15 +12,22 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
+// type Cookie struct {
+// 	Value string `hcl:"value"`
+// 	Path  string `hcl:"path"`
+// }
+
 type Request struct {
-	URL      string            `hcl:"url"`
-	Method   string            `hcl:"method"`
-	Port     int               `hcl:"port,optional"`
-	Body     hcl.Expression    `hcl:"body,optional"`
-	BodyRaw  string            `hcl:"body_raw,optional"`
-	Headers  []string          `hcl:"headers,optional"`
-	Query    map[string]string `hcl:"query,optional"`
-	PostHook string            `hcl:"post_hook,optional"`
+	URL              string            `hcl:"url"`
+	Method           string            `hcl:"method,optional"`
+	Port             int               `hcl:"port,optional"`
+	Body             hcl.Expression    `hcl:"body,optional"`
+	BodyRaw          string            `hcl:"body_raw,optional"`
+	Headers          []string          `hcl:"headers,optional"`
+	Cookies          map[string]string `hcl:"cookies,optional"`
+	Query            map[string]string `hcl:"query,optional"`
+	NoFollowRedirect bool              `hcl:"no_follow_redirect,optional"`
+	PostHook         string            `hcl:"post_hook,optional"`
 	// extras
 	Label  string `hcl:"label,label"`
 	Delay  string `hcl:"delay,optional"`
@@ -54,6 +61,12 @@ func (r Request) Do() (string, error) {
 		hdrs := strings.Split(h, ":")
 		req.Header.Add(hdrs[0], strings.TrimPrefix(h, hdrs[0]+":"))
 	}
+	for n, c := range r.Cookies {
+		req.AddCookie(&http.Cookie{
+			Name:  n,
+			Value: c,
+		})
+	}
 
 	query := url.Values{}
 	for k, v := range r.Query {
@@ -63,7 +76,13 @@ func (r Request) Do() (string, error) {
 
 	req.Header.Set("User-Agent", "rest-client/2.0")
 
-	res, err := http.DefaultClient.Do(req)
+	client := http.Client{}
+	if r.NoFollowRedirect {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	}
+	res, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -83,6 +102,12 @@ func (r Request) Do() (string, error) {
 	return string(dumped), nil
 }
 
+func (r *Request) SetDefaults(ctx *hcl.EvalContext) error {
+	if r.Method == "" {
+		r.Method = "GET"
+	}
+	return nil
+}
 func (r *Request) ParseBody(ctx *hcl.EvalContext) error {
 
 	body, diags := r.Body.Value(ctx)
