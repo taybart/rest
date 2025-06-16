@@ -14,23 +14,18 @@ import (
 var library embed.FS
 
 func loadModule(l *lua.LState, name, filename string) error {
-	// read code from embed fs
 	code, err := library.ReadFile("lua/" + filename)
 	if err != nil {
 		return err
 	}
-	// Load the module code
 	if err := l.DoString(string(code)); err != nil {
 		return fmt.Errorf("failed to load module %s: %w", name, err)
 	}
-	// Get the returned module table
 	module := l.Get(-1)
 	l.Pop(1)
-	// Verify it's a table
 	if module.Type() != lua.LTTable {
 		return fmt.Errorf("module %s did not return a table", name)
 	}
-	// Set as global
 	l.SetGlobal(name, module)
 	return nil
 }
@@ -40,7 +35,6 @@ func registerModules(l *lua.LState) error {
 		"base64":  "base64.lua",
 		"json":    "json.lua",
 		"inspect": "inspect.lua",
-		// "u":       "util.lua",
 	}
 	for name, filename := range libs {
 		if err := loadModule(l, name, filename); err != nil {
@@ -50,13 +44,6 @@ func registerModules(l *lua.LState) error {
 	return nil
 }
 
-//	func makeLMap[M ~map[string][]string](inMap M) map[string]lua.LValue {
-//		lmap := map[string]lua.LValue{}
-//		for k, v := range inMap {
-//			lmap[k] = lua.LString(v[0])
-//		}
-//		return lmap
-//	}
 func makeLTableFromMap[M ~map[string][]string](l *lua.LState, inMap M) *lua.LTable {
 	tbl := l.NewTable()
 	for k, v := range inMap {
