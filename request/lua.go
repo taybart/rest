@@ -50,13 +50,13 @@ func registerModules(l *lua.LState) error {
 	return nil
 }
 
-func makeLMap[M ~map[string][]string](inMap M) map[string]lua.LValue {
-	lmap := map[string]lua.LValue{}
-	for k, v := range inMap {
-		lmap[k] = lua.LString(v[0])
-	}
-	return lmap
-}
+//	func makeLMap[M ~map[string][]string](inMap M) map[string]lua.LValue {
+//		lmap := map[string]lua.LValue{}
+//		for k, v := range inMap {
+//			lmap[k] = lua.LString(v[0])
+//		}
+//		return lmap
+//	}
 func makeLTableFromMap[M ~map[string][]string](l *lua.LState, inMap M) *lua.LTable {
 	tbl := l.NewTable()
 	for k, v := range inMap {
@@ -73,7 +73,7 @@ func makeLTable(l *lua.LState, tblMap map[string]lua.LValue) *lua.LTable {
 	return tbl
 }
 
-func populateGlobalObject(l *lua.LState, req *Request, res *http.Response) error {
+func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar http.CookieJar) error {
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -97,8 +97,8 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response) error
 		return err
 	}
 	cookieMap := map[string]lua.LValue{}
-	if req.Jar != nil {
-		for _, cookie := range req.Jar.Cookies(u) {
+	if jar != nil {
+		for _, cookie := range jar.Cookies(u) {
 			cookieMap[cookie.Name] = lua.LString(cookie.Value)
 		}
 	}
@@ -129,14 +129,13 @@ func execute(l *lua.LState, code string) error {
 		return 10
 	}))
 
-	// if err := l.DoString(fmt.Sprintf("%s\nreturn nil", code)); err != nil {
 	if err := l.DoString(code); err != nil {
 		return err
 	}
 	return cleanError
 }
 
-func (r *Request) RunPostHook(res *http.Response) (string, error) {
+func (r *Request) RunPostHook(res *http.Response, jar http.CookieJar) (string, error) {
 
 	l := lua.NewState()
 	defer l.Close()
@@ -144,7 +143,7 @@ func (r *Request) RunPostHook(res *http.Response) (string, error) {
 	if err := registerModules(l); err != nil {
 		return "", err
 	}
-	if err := populateGlobalObject(l, r, res); err != nil {
+	if err := populateGlobalObject(l, r, res, jar); err != nil {
 		return "", err
 	}
 

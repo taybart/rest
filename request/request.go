@@ -24,12 +24,9 @@ type Request struct {
 	Label  string `hcl:"label,label"`
 	Delay  string `hcl:"delay,optional"`
 	Expect int    `hcl:"expect,optional"`
-	// state
-	Jar http.CookieJar
 }
 
 func (r *Request) Build() (*http.Request, error) {
-
 	req, err := http.NewRequest(r.Method, r.URL, strings.NewReader(r.BodyRaw))
 	if err != nil {
 		return nil, err
@@ -74,7 +71,9 @@ func (r *Request) ParseBody(ctx *hcl.EvalContext) error {
 	if err != nil {
 		return err
 	}
-	r.BodyRaw = string(jsonBytes)
+	if string(jsonBytes) != "null" {
+		r.BodyRaw = string(jsonBytes)
+	}
 	return nil
 }
 

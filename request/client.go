@@ -71,8 +71,7 @@ func (c *RequestClient) Do(r Request) (string, error) {
 	}
 	// run lua code if it exists
 	if r.PostHook != "" {
-		r.Jar = c.client.Jar
-		return r.RunPostHook(res)
+		return r.RunPostHook(res, c.client.Jar)
 	}
 
 	dumped, err := httputil.DumpResponse(res, true)
