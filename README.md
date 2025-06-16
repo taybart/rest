@@ -3,34 +3,37 @@
 Goes well with [rest.nvim](https://github.com/taybart/rest.nvim)
 
 Example:
+
 ```hcl
 locals {
   url = "http://localhost:8080"
-  asdf = "world"
+  name = "world"
 }
 
 // test
 request "hell_yeah" {
+  url = "${locals.url}/get"
   method = "GET"
   headers = [
     "X-TEST: you:😄",
   ]
-  url = "${locals.url}/get"
 }
 
-request "my_post" {
+request "httpbin post" {
   method = "POST"
-  url = "${locals.url}/post"
-  headers = [
-    "Content-Type: application/json",
-  ]
+  url = "https://httpbin.org/post"
+  headers = [ "Content-Type: application/json" ]
 
-  body = <<END
-  {
-    "hello": "${locals.asdf}"
+  body = {
+    hello: "${locals.name}"
   }
-  END
-  expect = 200
+  # has lua interpreter to post process check docs for more
+  post_hook = <<LUA
+      local body = json.decode(rest.res.body)
+      local ret = json.decode(body.data) -- what_we_sent_to_httpbin
+      print(inspect(ret)) -- { hello = "world" }
+      return ret.hello -- cli prints -> world
+  LUA
 }
 ```
 
@@ -41,8 +44,6 @@ Server/Client:
 Testing:
 
 <img width="716" alt="image" src="https://user-images.githubusercontent.com/3513897/231361047-0a539866-e289-4905-b089-b93753e50e89.png">
-
-
 
 ```sh
 rest -h
@@ -63,4 +64,3 @@ rest -h
     --label, -l:
         Request label to run
 ```
-
