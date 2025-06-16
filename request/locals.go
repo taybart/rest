@@ -1,6 +1,8 @@
 package request
 
 import (
+	"maps"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
@@ -14,22 +16,20 @@ type Local struct {
 }
 
 func decodeLocals(root Root) (map[string]cty.Value, hcl.Diagnostics) {
-	var diags hcl.Diagnostics
+	// var diags hcl.Diagnostics
 	locals := make(map[string]cty.Value)
+	ctx := createContext(nil)
 	for _, l := range root.Locals {
-		tmp, diag := decodeLocalsBlock(l.Body)
-		if diag.HasErrors() {
-			diags = append(diags, diag...)
-		}
-
-		for k, v := range tmp {
-			locals[k] = v
-		}
+		tmp, _ := decodeLocalsBlock(ctx, l.Body)
+		// if diag.HasErrors() {
+		// 		diags = append(diags, diag...)
+		// }
+		maps.Copy(locals, tmp)
 	}
 	return locals, nil
 }
 
-func decodeLocalsBlock(block hcl.Body) (map[string]cty.Value, hcl.Diagnostics) {
+func decodeLocalsBlock(ctx *hcl.EvalContext, block hcl.Body) (map[string]cty.Value, hcl.Diagnostics) {
 	attrs, diags := block.JustAttributes()
 	if len(attrs) == 0 {
 		return nil, diags
@@ -38,12 +38,12 @@ func decodeLocalsBlock(block hcl.Body) (map[string]cty.Value, hcl.Diagnostics) {
 	locals := map[string]cty.Value{}
 	for name, attr := range attrs {
 		var val cty.Value
-		val, diags = attr.Expr.Value(nil)
+		val, diags = attr.Expr.Value(ctx)
 		if !hclsyntax.ValidIdentifier(name) {
 			diags = append(diags, &hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Invalid local value name",
-				Detail:   "asdf",
+				Detail:   "invalid id",
 				Subject:  &attr.NameRange,
 			})
 		}

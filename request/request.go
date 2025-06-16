@@ -1,28 +1,81 @@
 package request
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httputil"
+	"net/url"
 	"strings"
-	"time"
 
-	"github.com/taybart/log"
+	"github.com/hashicorp/hcl/v2"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
 type Request struct {
-	URL     string            `hcl:"url"`
-	Method  string            `hcl:"method"`
-	Port    int               `hcl:"port,optional"`
-	Body    string            `hcl:"body,optional"`
-	Headers []string          `hcl:"headers,optional"`
-	Query   map[string]string `hcl:"query,optional"`
+	URL              string            `hcl:"url"`
+	Method           string            `hcl:"method,optional"`
+	Body             hcl.Expression    `hcl:"body,optional"`
+	BodyRaw          string            `hcl:"body_raw,optional"`
+	Headers          []string          `hcl:"headers,optional"`
+	Cookies          map[string]string `hcl:"cookies,optional"`
+	Query            map[string]string `hcl:"query,optional"`
+	NoFollowRedirect bool              `hcl:"no_follow_redirect,optional"`
+	PostHook         string            `hcl:"post_hook,optional"`
 	// extras
 	Label  string `hcl:"label,label"`
 	Delay  string `hcl:"delay,optional"`
 	Expect int    `hcl:"expect,optional"`
+	// state
+	Jar http.CookieJar
+}
+
+func (r *Request) Build() (*http.Request, error) {
+
+	req, err := http.NewRequest(r.Method, r.URL, strings.NewReader(r.BodyRaw))
+	if err != nil {
+		return nil, err
+	}
+	for _, h := range r.Headers {
+		hdrs := strings.Split(h, ":")
+		req.Header.Add(hdrs[0], strings.TrimPrefix(h, hdrs[0]+":"))
+	}
+	for n, c := range r.Cookies {
+		req.AddCookie(&http.Cookie{
+			Name:  n,
+			Value: c,
+		})
+	}
+
+	query := url.Values{}
+	for k, v := range r.Query {
+		query.Add(k, v)
+	}
+	req.URL.RawQuery = query.Encode()
+
+	req.Header.Set("User-Agent", "rest-client/2.0")
+
+	return req, nil
+}
+
+func (r *Request) SetDefaults(ctx *hcl.EvalContext) error {
+	if r.Method == "" {
+		r.Method = "GET"
+	}
+	return nil
+}
+func (r *Request) ParseBody(ctx *hcl.EvalContext) error {
+
+	body, diags := r.Body.Value(ctx)
+	if diags.HasErrors() {
+		fmt.Println("errors", diags)
+		return fmt.Errorf("%+v", diags.Errs())
+	}
+	simple := ctyjson.SimpleJSONValue{Value: body}
+	jsonBytes, err := simple.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	r.BodyRaw = string(jsonBytes)
+	return nil
 }
 
 func (r Request) String() string {
@@ -30,66 +83,6 @@ func (r Request) String() string {
 	for _, h := range r.Headers {
 		headers += fmt.Sprintf("%s\n", h)
 	}
-	body := ""
-	if r.Body != "" {
-		body = r.Body
-	}
-	return fmt.Sprintf("%s %s\n%s\n%s", r.Method, r.URL, headers, body)
-}
 
-func (r Request) Do() error {
-
-	if r.Delay != "" {
-		delay, err := time.ParseDuration(r.Delay)
-		if err != nil {
-			return err
-		}
-		time.Sleep(delay)
-	}
-	r.Format()
-
-	// fmt.Println(r)
-	req, err := http.NewRequest(r.Method, r.URL, strings.NewReader(r.Body))
-	if err != nil {
-		return err
-	}
-	for _, h := range r.Headers {
-		hdrs := strings.Split(h, ":")
-		req.Header.Add(hdrs[0], strings.TrimPrefix(h, hdrs[0]+":"))
-	}
-
-	req.Header.Set("User-Agent", "rest-client/2.0")
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	if r.Expect != 0 {
-		if res.StatusCode != r.Expect {
-			return fmt.Errorf("unexpected response code %d != %d", r.Expect, res.StatusCode)
-		}
-	}
-	dumped, err := httputil.DumpResponse(res, true)
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(dumped))
-	return nil
-}
-
-func (r *Request) Format() error {
-	if r.Body != "" {
-		r.Body = formatJSON(r.Body)
-	}
-	return nil
-}
-
-func formatJSON(toFmt string) string {
-	var b bytes.Buffer
-	err := json.Compact(&b, []byte(toFmt))
-	if err != nil {
-		log.Error(err)
-		return toFmt
-	}
-	return b.String()
+	return fmt.Sprintf("%s %s\n%s\n%s", r.Method, r.URL, headers, r.BodyRaw)
 }
