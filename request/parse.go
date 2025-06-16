@@ -28,7 +28,6 @@ func parseFile(filename string) (Config, []Request, error) {
 
 	file, diags := readFile(filename)
 	if diags.HasErrors() {
-		log.Infoln("parse")
 		writeDiags(map[string]*hcl.File{filename: file}, diags)
 		return config, nil, diags
 	}

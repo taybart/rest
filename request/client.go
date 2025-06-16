@@ -12,18 +12,6 @@ var (
 	client = &http.Client{}
 )
 
-type Config struct {
-	NoFollowRedirect bool `hcl:"no_follow_redirect,optional"`
-	NoCookies        bool `hcl:"no_cookies,optional"`
-}
-
-func DefaultConfig() Config {
-	return Config{
-		NoFollowRedirect: false,
-		NoCookies:        false,
-	}
-}
-
 type RequestClient struct {
 	client *http.Client
 	Config Config
