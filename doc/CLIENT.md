@@ -6,7 +6,7 @@ It also has a lua interpreter to post-process responses.
 1. [Cli](#client-cli)
 1. [Config/Locals](#configlocals)
 1. [Request Blocks](#request-blocks)
-   1. [Functions](#functions)
+1. [Functions](#functions)
 1. [Hooks](#hooks)
 1. [Export](#export-to-a-different-language)
 
