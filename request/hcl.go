@@ -82,7 +82,7 @@ func makeEnvFunc() function.Function {
 	})
 }
 
-func createContext(vars map[string]cty.Value) *hcl.EvalContext {
+func makeContext(vars map[string]cty.Value) *hcl.EvalContext {
 	return &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			"locals": cty.ObjectVal(vars),

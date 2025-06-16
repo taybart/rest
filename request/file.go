@@ -2,8 +2,10 @@ package request
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/taybart/log"
+	"github.com/taybart/rest/request/templates"
 )
 
 func RunFile(filename string) error {
@@ -68,5 +70,23 @@ func RunBlock(filename string, block int) error {
 	if res != "" {
 		fmt.Println(res)
 	}
+	return nil
+}
+
+func ExportFile(filename, export string) error {
+	return fmt.Errorf("request generation not implemented...yet")
+	_, requests, err := parseFile(filename)
+	if err != nil {
+		return err
+	}
+
+	curlTmpl := `echo "running {{.Label}}" && \
+curl -X {{.Method}} {{.URL}}{{if .Headers}}\{{range $header := .Headers}} 
+-H {{ $header }}
+{{end}}{{end}} {{if .BodyRaw}}\
+-d '{{.BodyRaw}}'{{end}}`
+	t := templates.NewVanilla(curlTmpl)
+	t.Execute(os.Stdout, requests[0])
+
 	return nil
 }

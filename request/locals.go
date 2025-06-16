@@ -18,7 +18,7 @@ type Local struct {
 func decodeLocals(root Root) (map[string]cty.Value, hcl.Diagnostics) {
 	// var diags hcl.Diagnostics
 	locals := make(map[string]cty.Value)
-	ctx := createContext(nil)
+	ctx := makeContext(nil)
 	for _, l := range root.Locals {
 		tmp, _ := decodeLocalsBlock(ctx, l.Body)
 		// if diag.HasErrors() {

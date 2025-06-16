@@ -45,7 +45,7 @@ func parseFile(filename string) (Config, []Request, error) {
 		return config, nil, err
 	}
 
-	ctx := createContext(locals)
+	ctx := makeContext(locals)
 
 	if root.Config != nil {
 		if diags = gohcl.DecodeBody(root.Config.Body, ctx, &config); diags.HasErrors() {

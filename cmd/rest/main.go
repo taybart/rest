@@ -79,6 +79,11 @@ var (
 				Help:    "Request label to run",
 				Default: "",
 			},
+			"export": {
+				Short:   "e",
+				Help:    "Export file to specified language",
+				Default: "",
+			},
 		},
 	}
 
@@ -96,9 +101,10 @@ var (
 		TLS     string `arg:"tls"`
 
 		// client
-		File  string `arg:"file"`
-		Block int    `arg:"block"`
-		Label string `arg:"label"`
+		File   string `arg:"file"`
+		Block  int    `arg:"block"`
+		Label  string `arg:"label"`
+		Export string `arg:"export"`
 	}{}
 )
 
@@ -166,6 +172,11 @@ func run() error {
 	 **********/
 	if c.File == "" {
 		return fmt.Errorf("missing required flag -f")
+	}
+
+	if c.Export != "" {
+		log.Debugf("exporting file %s to %s\n", c.File, c.Export)
+		return request.ExportFile(c.File, c.Export)
 	}
 
 	if c.Block >= 0 {

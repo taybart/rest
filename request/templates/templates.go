@@ -4,6 +4,10 @@ import (
 	"text/template"
 )
 
+func NewVanilla(tmpl string) *template.Template {
+	return template.Must(template.New("Client").Funcs(stdFns).Parse(tmpl))
+}
+
 // RequestTemplate : for building onther language requests
 type RequestTemplate struct {
 	ClientStr   string
