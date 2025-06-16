@@ -9,7 +9,7 @@ It also has a lua interpreter to post-process responses.
 # run file
 rest -f FILE_NAME
 # run block 0-based
-rest -f FILE_NAME -b BLOCK_NAME
+rest -f FILE_NAME -b BLOCK_NUMBER
 # run by label (request "LABEL_NAME" {)
 rest -f FILE_NAME -l LABLE_NAME
 
