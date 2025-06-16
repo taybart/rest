@@ -1,18 +1,15 @@
 package request
 
-import "github.com/hashicorp/hcl/v2"
+type Config struct {
+	NoFollowRedirect bool `hcl:"no_follow_redirect,optional"`
+	NoCookies        bool `hcl:"no_cookies,optional"`
+	// todo:
+	UserAgent string `hcl:"user_agent,optional"`
+}
 
-type Root struct {
-	Locals []*struct {
-		Body hcl.Body `hcl:",remain"`
-	} `hcl:"locals,block"`
-
-	Config *struct {
-		Body hcl.Body `hcl:",remain"`
-	} `hcl:"config,block"`
-
-	Requests []*struct {
-		Label string   `hcl:"label,label"`
-		Body  hcl.Body `hcl:",remain"`
-	} `hcl:"request,block"`
+func DefaultConfig() Config {
+	return Config{
+		NoFollowRedirect: false,
+		NoCookies:        false,
+	}
 }

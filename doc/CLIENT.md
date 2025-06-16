@@ -3,6 +3,13 @@
 Rest uses HCL to define requests and run them.
 It also has a lua interpreter to post-process responses.
 
+1. [Cli](#client-cli)
+1. [Config/Locals](#configlocals)
+1. [Request Blocks](#request-blocks)
+   1. [Functions](#functions)
+1. [Hooks](#hooks)
+1. [Export](#export-to-a-different-language)
+
 ## Client cli
 
 ```sh
@@ -22,14 +29,16 @@ The config block is used to set global options for the client, there can only be
 ```hcl
 # defaults
 config {
-  # don't use cookies
+  # when true, all cookies are ignored
   no_cookies = false
-  # don't follow redirects
+  # when true, all redirects are ignored
   no_follow_redirect = false
 }
 ```
 
-Locals just set variables that can be referenced in request blocks, there can be many locals blocks. There is something to be aware of though, locals are preprocessed so the last value set for a particular local will be its value for the whole file.
+Locals just set variables that can be referenced in request blocks, there can be many locals blocks.
+
+There is something to be aware of though, locals are preprocessed so the last value set for a particular local will be its value for the whole file.
 
 ```hcl
 locals {
@@ -53,30 +62,43 @@ request "second" {
 
 ## Request Blocks
 
-Blocks are defined in the `request` block, they require some kind of label.
+Requests are defined in the `request` block (duh), they require some kind of label.
 
 ```hcl
 request "my request" {
+  # url must include protocol (http(s) for now)
   url = "http://localhost:8080/"
-  method = "GET" # if not specified, defaults to GET
-  headers = [ "X-Test: test" ] # array of strings, they are directly included so ensure they are formatted correctly
+
+  # if not specified, defaults to GET
+  method = "GET"
+
+  # array of strings, they are directly included so ensure they are formatted correctly
+  headers = [ "X-Test: test" ]
+
   # only single level query params are allowed so maps must be explicitly defined
   query = {
     b = "2"
     "config[key]" = "value"
   }
+
   # body can look like a json object or a regular hcl map
   body = { test: "body" } # or body = { test = "body" }
+
   # cookies can be set for a single request
   cookies = { a = "1" }
+
   # if a hook is not defined response code will be checked agains this value
   # and fail if it doesn't match (ie return 1)
   expect = 200
+
+  # is a string, heredoc (<<IDENT ... IDENT) is a good way to set it,
+  # if you are using treesitter, using LUA as your ident will highlight
+  #the hook well
   post_hook = "see hooks below"
 }
 ```
 
-### Functions
+## Functions
 
 There are a few functions that can be used in a rest file:
 
@@ -141,3 +163,7 @@ Hooks are also passed a `rest` table that contains the following:
 It is possible to return a string from a hook, this will be returned to the client (printed out for now)
 
 There is also a special `fail` function that can be used to fail the request. It takes a string argument and returns an error. This is different than a lua `error` and will just return the error to the client.
+
+## Export to a different language
+
+`todo!()`

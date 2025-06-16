@@ -8,6 +8,21 @@ import (
 	"github.com/taybart/log"
 )
 
+type Root struct {
+	Locals []*struct {
+		Body hcl.Body `hcl:",remain"`
+	} `hcl:"locals,block"`
+
+	Config *struct {
+		Body hcl.Body `hcl:",remain"`
+	} `hcl:"config,block"`
+
+	Requests []*struct {
+		Label string   `hcl:"label,label"`
+		Body  hcl.Body `hcl:",remain"`
+	} `hcl:"request,block"`
+}
+
 func parseFile(filename string) (Config, []Request, error) {
 	config := DefaultConfig()
 
