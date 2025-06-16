@@ -28,23 +28,27 @@ request "post hook get" {
     # test = 1
     # "other[friend]" = "yes"
   }
-  cookies = {
-    a = "${locals.cookie}"
-    # a = "${env("COOKIE")}"
-  }
+  # cookies = {
+  #   a = "${locals.cookie}"
+  #   env = "${env("COOKIE")}"
+  # }
   body = read("./body.json")
   post_hook = <<LUA
     print('from lua below:')
+    for k, v in pairs(rest.res.cookies) do
+      print(k..'='..v)
+    end
+    --[[
     local decoded = json.decode(rest.res.body)
     -- print(inspect(decoded.args))
     print('req body', json.decode(rest.req.body))
-    
     print(inspect(rest.req))
     print(rest.res.status, inspect(rest.res))
     -- print(rest.res.status, inspect(decoded))
     if decoded.args then
       return ("\ntest plus 70 => %d"):format(decoded.args.test + 70)
     end
+  ]]--
   LUA
 }
 
@@ -60,15 +64,15 @@ request "post hook post" {
     hello: "${locals.name}"
     test: 17
   }
-  # expect = 201
-  post_hook = <<LUA
-    local decoded = json.decode(rest.res.body)
-    print()
-    print(inspect(decoded.json))
-    print('headers', inspect(rest.res.headers))
-    local header = 'Content-Length'
-    print(header..': '..rest.res.headers[header])
-    -- print(msgpack.encode(decoded.json))
+  expect = 201
+  # post_hook = <<LUA
+  #   local decoded = json.decode(rest.res.body)
+  #   print()
+  #   print(inspect(decoded.json))
+  #   print('headers', inspect(rest.res.headers))
+  #   local header = 'Content-Length'
+  #   print(header..': '..rest.res.headers[header])
+  #   -- print(msgpack.encode(decoded.json))
 
-  LUA
+  # LUA
 }

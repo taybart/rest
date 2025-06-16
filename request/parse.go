@@ -8,12 +8,14 @@ import (
 	"github.com/taybart/log"
 )
 
-func parseFile(filename string) ([]Request, error) {
+func parseFile(filename string) (Config, []Request, error) {
+	config := DefaultConfig()
+
 	file, diags := readFile(filename)
 	if diags.HasErrors() {
 		log.Infoln("parse")
 		writeDiags(map[string]*hcl.File{filename: file}, diags)
-		return nil, diags
+		return config, nil, diags
 	}
 
 	var root Root
@@ -21,15 +23,22 @@ func parseFile(filename string) ([]Request, error) {
 	if diags.HasErrors() {
 		log.Infoln("decode")
 		writeDiags(map[string]*hcl.File{filename: file}, diags)
-		return nil, diags
+		return config, nil, diags
 	}
 
 	locals, err := decodeLocals(root)
 	if err != nil {
-		return nil, err
+		return config, nil, err
 	}
 
 	ctx := createContext(locals)
+
+	if root.Config != nil {
+		if diags = gohcl.DecodeBody(root.Config.Body, ctx, &config); diags.HasErrors() {
+			writeDiags(map[string]*hcl.File{filename: file}, diags)
+			return config, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
+		}
+	}
 
 	requests := []Request{}
 	labels := []string{}
@@ -37,22 +46,22 @@ func parseFile(filename string) ([]Request, error) {
 		req := Request{Label: block.Label}
 		if diags = gohcl.DecodeBody(block.Body, ctx, &req); diags.HasErrors() {
 			writeDiags(map[string]*hcl.File{filename: file}, diags)
-			return nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
+			return config, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
 		}
 		for _, l := range labels {
 			if l == req.Label {
-				return nil, fmt.Errorf("labels must be unique: %s", l)
+				return config, nil, fmt.Errorf("labels must be unique: %s", l)
 			}
 		}
 		if err := req.ParseBody(ctx); err != nil {
-			return nil, err
+			return config, nil, err
 		}
 		if err := req.SetDefaults(ctx); err != nil {
-			return nil, err
+			return config, nil, err
 		}
 
 		requests = append(requests, req)
 		labels = append(labels, req.Label)
 	}
-	return requests, nil
+	return config, requests, nil
 }

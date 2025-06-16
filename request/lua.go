@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -56,14 +57,14 @@ func makeLMap[M ~map[string][]string](inMap M) map[string]lua.LValue {
 	}
 	return lmap
 }
+func makeLTableFromMap[M ~map[string][]string](l *lua.LState, inMap M) *lua.LTable {
+	tbl := l.NewTable()
+	for k, v := range inMap {
+		l.SetField(tbl, k, lua.LString(v[0]))
+	}
+	return tbl
+}
 
-//	func makeLArray(l *lua.LState, tblArr []lua.LValue) *lua.LTable {
-//		tbl := l.NewTable()
-//		for i, v := range tblArr {
-//			l.SetField(tbl, i, v)
-//		}
-//		return tbl
-//	}
 func makeLTable(l *lua.LState, tblMap map[string]lua.LValue) *lua.LTable {
 	tbl := l.NewTable()
 	for k, v := range tblMap {
@@ -79,24 +80,11 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response) error
 		return err
 	}
 
-	// headerMap := map[string]lua.LValue{}
-	// for k, v := range res.Request.Header {
-	// 	headerMap[k] = lua.LString(v[0])
-	// }
-	headerMap := makeLMap(res.Request.Header)
-	headerTbl := makeLTable(l, headerMap)
-	// queryMap := map[string]lua.LValue{}
-	// for k, v := range res.Request.URL.Query() {
-	// 	queryMap[k] = lua.LString(v[0])
-	// }
-	queryMap := makeLMap(res.Request.URL.Query())
-	queryTbl := makeLTable(l, queryMap)
-
 	reqMap := map[string]lua.LValue{
 		"url":     lua.LString(res.Request.URL.String()),
 		"method":  lua.LString(res.Request.Method),
-		"query":   queryTbl,
-		"headers": headerTbl,
+		"query":   makeLTableFromMap(l, res.Request.URL.Query()),
+		"headers": makeLTableFromMap(l, res.Request.Header),
 		"body":    lua.LString(req.BodyRaw),
 	}
 	if req.Expect != 0 {
@@ -104,20 +92,23 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response) error
 	}
 	reqTbl := makeLTable(l, reqMap)
 
-	// headerMap = map[string]lua.LValue{}
-	// for k, v := range res.Header {
-	// 	headerMap[k] = lua.LString(v[0])
-	// }
-	fmt.Println("cookies", res.Cookies())
-	headerMap = makeLMap(res.Header)
-	headerTbl = makeLTable(l, headerMap)
-	resMap := map[string]lua.LValue{
-		"status":  lua.LNumber(res.StatusCode),
-		"headers": headerTbl,
-		"body":    lua.LString(string(body)),
-		// "cookies": lua.LTable(),
+	u, err := url.Parse(res.Request.URL.String())
+	if err != nil {
+		return err
 	}
-	resTbl := makeLTable(l, resMap)
+	cookieMap := map[string]lua.LValue{}
+	if req.Jar != nil {
+		for _, cookie := range req.Jar.Cookies(u) {
+			cookieMap[cookie.Name] = lua.LString(cookie.Value)
+		}
+	}
+
+	resTbl := makeLTable(l, map[string]lua.LValue{
+		"status":  lua.LNumber(res.StatusCode),
+		"headers": makeLTableFromMap(l, res.Header),
+		"body":    lua.LString(string(body)),
+		"cookies": makeLTable(l, cookieMap),
+	})
 
 	table := makeLTable(l, map[string]lua.LValue{
 		"req": reqTbl,
@@ -138,7 +129,8 @@ func execute(l *lua.LState, code string) error {
 		return 10
 	}))
 
-	if err := l.DoString(fmt.Sprintf("%s\nreturn nil", code)); err != nil {
+	// if err := l.DoString(fmt.Sprintf("%s\nreturn nil", code)); err != nil {
+	if err := l.DoString(code); err != nil {
 		return err
 	}
 	return cleanError

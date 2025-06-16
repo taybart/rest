@@ -7,12 +7,16 @@ import (
 )
 
 func RunFile(filename string) error {
-	requests, err := parseFile(filename)
+	config, requests, err := parseFile(filename)
+	if err != nil {
+		return err
+	}
+	client, err := NewRequestClient(config)
 	if err != nil {
 		return err
 	}
 	for _, req := range requests {
-		res, err := req.Do()
+		res, err := client.Do(req)
 		if err != nil {
 			log.Errorln(err)
 		}
@@ -24,13 +28,17 @@ func RunFile(filename string) error {
 }
 
 func RunLabel(filename string, label string) error {
-	requests, err := parseFile(filename)
+	config, requests, err := parseFile(filename)
+	if err != nil {
+		return err
+	}
+	client, err := NewRequestClient(config)
 	if err != nil {
 		return err
 	}
 	for _, req := range requests {
 		if req.Label == label {
-			res, err := req.Do()
+			res, err := client.Do(req)
 			if err != nil {
 				return err
 			}
@@ -45,11 +53,15 @@ func RunLabel(filename string, label string) error {
 }
 
 func RunBlock(filename string, block int) error {
-	requests, err := parseFile(filename)
+	config, requests, err := parseFile(filename)
 	if err != nil {
 		return err
 	}
-	res, err := requests[block].Do()
+	client, err := NewRequestClient(config)
+	if err != nil {
+		return err
+	}
+	res, err := client.Do(requests[block])
 	if err != nil {
 		return err
 	}
