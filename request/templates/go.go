@@ -2,32 +2,56 @@ package templates
 
 // Go : template
 var Go = RequestTemplate{
+	Name: "go",
 	ClientStr: `package main
 import (
   "fmt"
-  "io/ioutil"
+  "io"
   "net/http"
+	"net/url"
   "strings"
 )
 // Client : my client
 type Client struct { }
 {{.Code}}
 	`,
-	FunctionStr: `func (c Client) {{.Label}}() {
-{{.Code}}
-}
-		`,
-	RequestStr: `req, err := http.NewRequest("{{.Method}}", "{{.URL}}", {{if .Body}}strings.NewReader(` + "`" + `{{json .Headers .Body}}` + "`" + `){{else}}nil{{end}})
-{{range $name, $value := .Headers}}req.Header.Set("{{$name}}", "{{range $internal := $value}}{{$internal}}{{end}}")
-{{end}}
+	FunctionStr: `
+	{{.Code}}`,
+	RequestStr: `
+	func (c Client) {{camelcase .Label}}() (*http.Response, error) {
+	req, err := http.NewRequest("{{.Method}}", "{{.URL}}", {{if .Body}}
+		strings.NewReader(` + "`" + `{{json .Headers .Body}}` + "`" + `){{else}}nil{{end}})
+	if err != nil {
+		return nil, err
+	}
+	{{range .Headers}}req.Header.Set("{{split . ":" 0}}", "{{split . ":" 1}}"){{end}}
+	{{ if .Cookies }}
+	{{range $key, $value := .Cookies}}
+	req.AddCookie(&http.Cookie{
+		Name:  "{{$key}}",
+		Value: "{{$value}}",
+	}){{end}} {{end}}
+	{{ if .Query }}
+	query := url.Values{}
+	{{range $key, $value := .Query}} query.Add("{{$key}}", "{{$value}}") 
+	{{end}} req.URL.RawQuery = query.Encode()
+	{{end}}
 res, err := http.DefaultClient.Do(req)
 if err != nil {
-  fmt.Println(err)
+	return nil, err
 }
 defer res.Body.Close()
-body, err := ioutil.ReadAll(res.Body)
+body, err := io.ReadAll(res.Body)
 if err != nil {
-  fmt.Println(err)
+	return nil, err
 }
-fmt.Println(string(body))`,
+fmt.Println(string(body))
+{{ if .Expect }}
+if res.StatusCode != {{.Expect}} {
+	return nil, fmt.Errorf("status code %d != %d", res.StatusCode, {{.Expect}})
+}
+{{ end }}
+return res, nil
+}
+`,
 }

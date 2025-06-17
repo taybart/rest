@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
 func readFile(filename string) (*hcl.File, hcl.Diagnostics) {
@@ -81,6 +82,47 @@ func makeEnvFunc() function.Function {
 		},
 	})
 }
+func makeJSONFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name:             "str",
+				Type:             cty.String,
+				AllowDynamicType: true,
+			},
+		},
+		Type: func(args []cty.Value) (cty.Type, error) {
+			if !args[0].IsKnown() {
+				return cty.DynamicPseudoType, nil
+			}
+
+			jsonStr := args[0].AsString()
+			jsonType, err := ctyjson.ImpliedType([]byte(jsonStr))
+			if err != nil {
+				return cty.DynamicPseudoType, err
+			}
+
+			return jsonType, nil
+		},
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			jsonStr := args[0].AsString()
+
+			// First determine the type
+			jsonType, err := ctyjson.ImpliedType([]byte(jsonStr))
+			if err != nil {
+				return cty.DynamicVal, fmt.Errorf("invalid JSON: %s", err)
+			}
+
+			// Then unmarshal with that type
+			val, err := ctyjson.Unmarshal([]byte(jsonStr), jsonType)
+			if err != nil {
+				return cty.DynamicVal, fmt.Errorf("failed to parse JSON: %s", err)
+			}
+
+			return val, nil
+		},
+	})
+}
 
 func makeContext(vars map[string]cty.Value) *hcl.EvalContext {
 	return &hcl.EvalContext{
@@ -90,6 +132,7 @@ func makeContext(vars map[string]cty.Value) *hcl.EvalContext {
 		Functions: map[string]function.Function{
 			"env":  makeEnvFunc(),
 			"read": makeFileReadFunc(),
+			"json": makeJSONFunc(),
 		},
 	}
 }

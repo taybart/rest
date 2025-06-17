@@ -73,20 +73,61 @@ func RunBlock(filename string, block int) error {
 	return nil
 }
 
-func ExportFile(filename, export string) error {
-	return fmt.Errorf("request generation not implemented...yet")
-	_, requests, err := parseFile(filename)
+func ExportFile(filename, export string, client bool) error {
+	if export == "?" || export == "ls" || export == "list" {
+		for _, e := range templates.Exports() {
+			fmt.Println(e)
+		}
+		return nil
+	}
+
+	config, requests, err := parseFile(filename)
 	if err != nil {
 		return err
 	}
-
-	curlTmpl := `echo "running {{.Label}}" && \
-curl -X {{.Method}} {{.URL}}{{if .Headers}}\{{range $header := .Headers}} 
--H {{ $header }}
-{{end}}{{end}} {{if .BodyRaw}}\
--d '{{.BodyRaw}}'{{end}}`
-	t := templates.NewVanilla(curlTmpl)
-	t.Execute(os.Stdout, requests[0])
+	t := templates.Get(export)
+	treqs := []templates.Request{}
+	for _, req := range requests {
+		body := req.BodyRaw
+		if body == "null" {
+			body = ""
+		}
+		ua := config.UserAgent
+		if ua == DefaultConfig().UserAgent {
+			ua = ""
+		}
+		treqs = append(treqs, templates.Request{
+			Method:   req.Method,
+			URL:      req.URL,
+			Headers:  req.Headers,
+			Body:     body,
+			Query:    req.Query,
+			Cookies:  req.Cookies,
+			PostHook: req.PostHook,
+			Label:    req.Label,
+			Delay:    req.Delay,
+			Expect:   req.Expect,
+			// config
+			UserAgent: ua,
+		})
+	}
+	if client {
+		err := t.ExecuteClient(os.Stdout, treqs)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	for i, req := range treqs {
+		err := t.Execute(os.Stdout, req)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("\n")
+		if i < len(requests)-1 {
+			fmt.Printf("\n")
+		}
+	}
 
 	return nil
 }

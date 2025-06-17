@@ -104,12 +104,14 @@ There are a few functions that can be used in a rest file:
 
 - `env("VALUE")` - grab an environment variable
 - `read("./filepath")` - read a file into the rest file, this will just be read into a string so it can be used anywhere (ex. request body,
+- `json("{\"string\": \"json\"}")` - turn string value into a json object, there are some caveats with this function
 
 For example:
 
 ```hcl
 locals {
-    parial_body = read("./body.json")
+    # contents of body.json: { "hello": "from a file" }
+    partial_body = read("./body.json")
 }
 
 request "my request" {
@@ -119,8 +121,10 @@ request "my request" {
   ]
   # will be {"test": {"hello": "from a file"}}
   body = {
-    test: "${locals.partial_body}"
+    test: json("${locals.partial_body}")
   }
+  # or just used directly
+  body = json(locals.partial_body)
 }
 ```
 

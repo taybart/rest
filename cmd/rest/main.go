@@ -5,12 +5,42 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/taybart/args"
 	"github.com/taybart/log"
 	"github.com/taybart/rest/request"
 	"github.com/taybart/rest/server"
 )
+
+func usage(u args.Usage) {
+	cli := []string{
+		"no-color",
+	}
+	server := []string{
+		"addr", "serve", "dir",
+		"origins", "tls", "quiet",
+	}
+	client := []string{
+		"file", "block", "label",
+		"export", "client", "verbose",
+	}
+
+	var usage strings.Builder
+	usage.WriteString(
+		fmt.Sprintf("%s\t\t=== Rest Easy ===\n%s",
+			log.BoldBlue, log.Reset))
+	usage.WriteString(
+		fmt.Sprintf("%sCLI:\n%s", log.BoldGreen, log.Reset))
+	u.BuildFlagString(&usage, cli)
+	usage.WriteString(
+		fmt.Sprintf("%sServer:\n%s", log.BoldGreen, log.Reset))
+	u.BuildFlagString(&usage, server)
+	usage.WriteString(
+		fmt.Sprintf("%sClient:\n%s", log.BoldGreen, log.Reset))
+	u.BuildFlagString(&usage, client)
+	fmt.Println(usage.String())
+}
 
 var (
 	a = args.App{
@@ -65,26 +95,29 @@ var (
 
 			/*** client ***/
 			"file": {
-				Short:   "f",
-				Help:    "File to run",
-				Default: "",
+				Short: "f",
+				Help:  "File to run",
 			},
 			"block": {
 				Short:   "b",
-				Help:    "Request block to run",
+				Help:    "Request block to run, 0-indexed",
 				Default: -1,
 			},
 			"label": {
-				Short:   "l",
-				Help:    "Request label to run",
-				Default: "",
+				Short: "l",
+				Help:  "Request label to run",
 			},
 			"export": {
-				Short:   "e",
-				Help:    "Export file to specified language",
-				Default: "",
+				Short: "e",
+				Help:  "Export file to specified language",
+			},
+			"client": {
+				Short:   "c",
+				Help:    "Export full client instead of individual requests",
+				Default: false,
 			},
 		},
+		UsageFunc: usage,
 	}
 
 	c = struct {
@@ -105,6 +138,7 @@ var (
 		Block  int    `arg:"block"`
 		Label  string `arg:"label"`
 		Export string `arg:"export"`
+		Client bool   `arg:"client"`
 	}{}
 )
 
@@ -175,8 +209,8 @@ func run() error {
 	}
 
 	if c.Export != "" {
-		log.Debugf("exporting file %s to %s\n", c.File, c.Export)
-		return request.ExportFile(c.File, c.Export)
+		log.Debugf("exporting file %s to %s (client: %t)\n", c.File, c.Export, c.Client)
+		return request.ExportFile(c.File, c.Export, c.Client)
 	}
 
 	if c.Block >= 0 {

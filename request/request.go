@@ -1,25 +1,27 @@
 package request
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
 type Request struct {
-	URL              string            `hcl:"url"`
-	Method           string            `hcl:"method,optional"`
-	Body             hcl.Expression    `hcl:"body,optional"`
-	BodyRaw          string            `hcl:"body_raw,optional"`
-	Headers          []string          `hcl:"headers,optional"`
-	Cookies          map[string]string `hcl:"cookies,optional"`
-	Query            map[string]string `hcl:"query,optional"`
-	NoFollowRedirect bool              `hcl:"no_follow_redirect,optional"`
-	PostHook         string            `hcl:"post_hook,optional"`
+	URL       string            `hcl:"url"`
+	Method    string            `hcl:"method,optional"`
+	Body      hcl.Expression    `hcl:"body,optional"`
+	BodyRaw   string            `hcl:"body_raw,optional"`
+	Headers   []string          `hcl:"headers,optional"`
+	Cookies   map[string]string `hcl:"cookies,optional"`
+	Query     map[string]string `hcl:"query,optional"`
+	PostHook  string            `hcl:"post_hook,optional"`
+	UserAgent string
 	// extras
 	Label  string `hcl:"label,label"`
 	Delay  string `hcl:"delay,optional"`
@@ -47,8 +49,7 @@ func (r *Request) Build() (*http.Request, error) {
 		query.Add(k, v)
 	}
 	req.URL.RawQuery = query.Encode()
-
-	req.Header.Set("User-Agent", "rest-client/2.0")
+	req.Header.Set("User-Agent", r.UserAgent)
 
 	return req, nil
 }
@@ -59,21 +60,54 @@ func (r *Request) SetDefaults(ctx *hcl.EvalContext) error {
 	}
 	return nil
 }
-func (r *Request) ParseBody(ctx *hcl.EvalContext) error {
 
-	body, diags := r.Body.Value(ctx)
+func (r *Request) ParseBody(ctx *hcl.EvalContext) error {
+	bodyVal, diags := r.Body.Value(ctx)
 	if diags.HasErrors() {
-		fmt.Println("errors", diags)
 		return fmt.Errorf("%+v", diags.Errs())
 	}
-	simple := ctyjson.SimpleJSONValue{Value: body}
+
+	// Handle different value types
+	switch bodyVal.Type() {
+	case cty.String:
+		body := bodyVal.AsString()
+		if json.Valid([]byte(body)) {
+			r.BodyRaw = body
+			return nil
+		}
+		// Not valid JSON, treat as plain string and marshal it
+		r.BodyRaw = body
+		return nil
+
+	case cty.DynamicPseudoType:
+		// Handle dynamic values
+		if bodyVal.IsNull() {
+			r.BodyRaw = "null"
+			return nil
+		}
+
+	default:
+		// For objects, lists, maps, etc.
+		// Check if it's already been converted to a JSON string somehow
+		if bodyVal.Type().IsPrimitiveType() && bodyVal.Type().FriendlyName() == "string" {
+			strVal := bodyVal.AsString()
+			if json.Valid([]byte(strVal)) {
+				r.BodyRaw = strVal
+				return nil
+			}
+		}
+	}
+
+	simple := ctyjson.SimpleJSONValue{Value: bodyVal}
 	jsonBytes, err := simple.MarshalJSON()
 	if err != nil {
 		return err
 	}
+
 	if string(jsonBytes) != "null" {
 		r.BodyRaw = string(jsonBytes)
 	}
+
 	return nil
 }
 

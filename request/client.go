@@ -42,6 +42,7 @@ func (c *RequestClient) Do(r Request) (string, error) {
 		}
 		time.Sleep(delay)
 	}
+	r.UserAgent = c.Config.UserAgent
 
 	req, err := r.Build()
 	if err != nil {

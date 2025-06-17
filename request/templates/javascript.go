@@ -2,21 +2,21 @@ package templates
 
 // Javascript : template
 var Javascript = RequestTemplate{
+	Name: "js",
 	ClientStr: `
 	class Client {
 	{{- .Code -}}
 	}
 	`,
-	FunctionStr: `{{if not .Client}}function {{end}}{{.Label}}() {
+	FunctionStr: `function {{camelcase .Label}}() {
 	{{.Code}}
 	}`,
 	RequestStr: `fetch('{{.URL}}', {
   method: '{{.Method}}',
 {{- if .Headers}}
   headers: {
-{{range $name, $value := .Headers}}    '{{$name}}': '{{range $internal := $value}}{{$internal}}{{end}}',
-{{end}}  },
-{{- end}}
+{{range .Headers}}'{{split . ":" 0}}', '{{split . ":" 1}}',{{end}}
+},{{- end}}
 {{- if .Body}}
   body: JSON.stringify({{.Body}}),
 {{- end}}
