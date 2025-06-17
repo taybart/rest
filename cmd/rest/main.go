@@ -151,6 +151,8 @@ func main() {
 
 func run() error {
 
+	log.SetNoTime()
+
 	if err := a.Parse(); err != nil {
 		if errors.Is(err, args.ErrUsageRequested) {
 			return nil

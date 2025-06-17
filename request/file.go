@@ -86,6 +86,9 @@ func ExportFile(filename, export string, client bool) error {
 		return err
 	}
 	t := templates.Get(export)
+	if t == nil {
+		return fmt.Errorf("language export not supported")
+	}
 	treqs := []templates.Request{}
 	for _, req := range requests {
 		body := req.BodyRaw
