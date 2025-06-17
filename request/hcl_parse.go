@@ -21,15 +21,18 @@ type Root struct {
 		Label string   `hcl:"label,label"`
 		Body  hcl.Body `hcl:",remain"`
 	} `hcl:"request,block"`
+	Socket *struct {
+		Body hcl.Body `hcl:",remain"`
+	} `hcl:"socket,block"`
 }
 
-func parseFile(filename string) (Config, []Request, error) {
+func parseFile(filename string) (Config, []Request, *Socket, error) {
 	config := DefaultConfig()
 
 	file, diags := readFile(filename)
 	if diags.HasErrors() {
 		writeDiags(map[string]*hcl.File{filename: file}, diags)
-		return config, nil, diags
+		return config, nil, nil, diags
 	}
 
 	var root Root
@@ -37,12 +40,12 @@ func parseFile(filename string) (Config, []Request, error) {
 	if diags.HasErrors() {
 		log.Infoln("decode")
 		writeDiags(map[string]*hcl.File{filename: file}, diags)
-		return config, nil, diags
+		return config, nil, nil, diags
 	}
 
 	locals, err := decodeLocals(root)
 	if err != nil {
-		return config, nil, err
+		return config, nil, nil, err
 	}
 
 	ctx := makeContext(locals)
@@ -50,7 +53,18 @@ func parseFile(filename string) (Config, []Request, error) {
 	if root.Config != nil {
 		if diags = gohcl.DecodeBody(root.Config.Body, ctx, &config); diags.HasErrors() {
 			writeDiags(map[string]*hcl.File{filename: file}, diags)
-			return config, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
+			return config, nil, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
+		}
+	}
+	var socket *Socket
+	if root.Socket != nil {
+		socket = &Socket{} // move to concrete pointer
+		if diags = gohcl.DecodeBody(root.Socket.Body, ctx, socket); diags.HasErrors() {
+			writeDiags(map[string]*hcl.File{filename: file}, diags)
+			return config, nil, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
+		}
+		if err := socket.ParsePlaybook(ctx); err != nil {
+			return config, nil, nil, err
 		}
 	}
 
@@ -60,22 +74,22 @@ func parseFile(filename string) (Config, []Request, error) {
 		req := Request{Label: block.Label}
 		if diags = gohcl.DecodeBody(block.Body, ctx, &req); diags.HasErrors() {
 			writeDiags(map[string]*hcl.File{filename: file}, diags)
-			return config, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
+			return config, nil, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
 		}
 		for _, l := range labels {
 			if l == req.Label {
-				return config, nil, fmt.Errorf("labels must be unique: %s", l)
+				return config, nil, nil, fmt.Errorf("labels must be unique: %s", l)
 			}
 		}
 		if err := req.ParseBody(ctx); err != nil {
-			return config, nil, err
+			return config, nil, nil, err
 		}
 		if err := req.SetDefaults(ctx); err != nil {
-			return config, nil, err
+			return config, nil, nil, err
 		}
 
 		requests = append(requests, req)
 		labels = append(labels, req.Label)
 	}
-	return config, requests, nil
+	return config, requests, socket, nil
 }

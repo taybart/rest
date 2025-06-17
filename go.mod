@@ -5,6 +5,7 @@ go 1.23
 toolchain go1.24.3
 
 require (
+	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/hcl/v2 v2.11.1
 	github.com/taybart/args v0.0.6
 	github.com/taybart/log v1.6.6

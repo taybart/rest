@@ -9,7 +9,7 @@ import (
 )
 
 func RunFile(filename string) error {
-	config, requests, err := parseFile(filename)
+	config, requests, _, err := parseFile(filename)
 	if err != nil {
 		return err
 	}
@@ -30,7 +30,7 @@ func RunFile(filename string) error {
 }
 
 func RunLabel(filename string, label string) error {
-	config, requests, err := parseFile(filename)
+	config, requests, _, err := parseFile(filename)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func RunLabel(filename string, label string) error {
 }
 
 func RunBlock(filename string, block int) error {
-	config, requests, err := parseFile(filename)
+	config, requests, _, err := parseFile(filename)
 	if err != nil {
 		return err
 	}
@@ -73,6 +73,24 @@ func RunBlock(filename string, block int) error {
 	return nil
 }
 
+func RunSocket(filename string) error {
+	config, _, socket, err := parseFile(filename)
+	if err != nil {
+		return err
+	}
+	if socket == nil {
+		return fmt.Errorf("no socket in file")
+	}
+	client, err := NewRequestClient(config)
+	if err != nil {
+		return err
+	}
+	if err := client.DoSocket(*socket); err != nil {
+		return err
+	}
+	return nil
+}
+
 func ExportFile(filename, export string, client bool) error {
 	if export == "?" || export == "ls" || export == "list" {
 		for _, e := range templates.Exports() {
@@ -81,7 +99,7 @@ func ExportFile(filename, export string, client bool) error {
 		return nil
 	}
 
-	config, requests, err := parseFile(filename)
+	config, requests, _, err := parseFile(filename)
 	if err != nil {
 		return err
 	}
