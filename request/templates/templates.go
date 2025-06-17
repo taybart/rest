@@ -73,8 +73,16 @@ type RequestTemplate struct {
 }
 
 func (r *RequestTemplate) Build() *RequestTemplate {
-	r.Client = template.Must(template.New("Client").Funcs(stdFns).Funcs(r.FuncMap).Parse(r.ClientStr))
-	r.Function = template.Must(template.New("Function").Funcs(stdFns).Funcs(r.FuncMap).Parse(r.FunctionStr))
+	client := r.ClientStr
+	if client == "" {
+		client = "{{.Code}}"
+	}
+	r.Client = template.Must(template.New("Client").Funcs(stdFns).Funcs(r.FuncMap).Parse(client))
+	function := r.FunctionStr
+	if function == "" {
+		function = "{{.Code}}\n"
+	}
+	r.Function = template.Must(template.New("Function").Funcs(stdFns).Funcs(r.FuncMap).Parse(function))
 	r.Request = template.Must(template.New("Request").Funcs(stdFns).Funcs(r.FuncMap).Parse(r.RequestStr))
 	return r
 }
