@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -48,7 +49,12 @@ func New(c Config) *http.Server {
 func (s *Server) routes(server *http.Server) {
 	s.router.HandleFunc("/__quit__", gzipHandler(func(w http.ResponseWriter, _ *http.Request) {
 		log.Warn("got signal on __quit__, stopping...")
-		server.Shutdown(context.Background())
+		w.WriteHeader(http.StatusOK)
+
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			server.Shutdown(context.Background())
+		}()
 	}))
 	if s.c.Dir != "" {
 		d, err := filepath.Abs(s.c.Dir)
@@ -69,6 +75,16 @@ func (s *Server) routes(server *http.Server) {
 		return
 	}
 
+	s.router.HandleFunc("/__echo__", log.Middleware(gzipHandler(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, string(body))
+	})))
 	s.router.HandleFunc("/", log.Middleware(gzipHandler(func(w http.ResponseWriter, r *http.Request) {
 		if !s.c.Dump {
 			dump, err := httputil.DumpRequest(r, true)
@@ -80,7 +96,6 @@ func (s *Server) routes(server *http.Server) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-
 		fmt.Fprintf(w, `{"status": "ok"}`)
 	})))
 }
