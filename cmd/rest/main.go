@@ -84,12 +84,12 @@ var (
 			},
 			"origins": {
 				Short:   "o",
-				Help:    "Add Access-Control-Allow-Origin header value\n\t\tex: -o * or -o 'http://localhost:8080 http://localhost:3000' ",
+				Help:    "Add Access-Control-Allow-Origin header value\n\tex: -o * or -o 'http://localhost:8080 http://localhost:3000' ",
 				Default: "",
 			},
 			"tls": {
 				Short:   "t",
-				Help:    "TLS path name to be used for tls key/cert (defaults to no TLS)\n\t\tex: '-t ./keys/site.com' where the files ./keys/site.com.{key,crt} exist",
+				Help:    "TLS path name to be used for tls key/cert (defaults to no TLS)\n\tex: '-t ./keys/site.com' where the files ./keys/site.com.{key,crt} exist",
 				Default: "",
 			},
 
@@ -107,10 +107,6 @@ var (
 				Short: "l",
 				Help:  "Request label to run",
 			},
-			"socket": {
-				Help:    "Run the socket block (ignores requests)",
-				Default: false,
-			},
 			"export": {
 				Short: "e",
 				Help:  "Export file to specified language",
@@ -119,6 +115,13 @@ var (
 				Short:   "c",
 				Help:    "Export full client instead of individual requests",
 				Default: false,
+			},
+			/*** socket ***/
+			"socket": {
+				Short:            "S",
+				Help:             "Run the socket block (ignores requests)\n\tif set like \"--socket/-S run\", rest will run socket.run.order and exit",
+				DoesNotNeedValue: true,
+				Default:          "",
 			},
 		},
 		UsageFunc: usage,
@@ -141,7 +144,7 @@ var (
 		File   string `arg:"file"`
 		Block  int    `arg:"block"`
 		Label  string `arg:"label"`
-		Socket bool   `arg:"socket"`
+		Socket string `arg:"socket"`
 		Export string `arg:"export"`
 		Client bool   `arg:"client"`
 	}{}
@@ -220,9 +223,9 @@ func run() error {
 		return request.ExportFile(c.File, c.Export, c.Client)
 	}
 
-	if c.Socket {
+	if a.Args["socket"].Provided {
 		log.Debug("running socket block on file", c.File)
-		return request.RunSocket(c.File)
+		return request.RunSocket(c.Socket, c.File)
 	}
 
 	if c.Block >= 0 {

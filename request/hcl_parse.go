@@ -21,6 +21,7 @@ type Root struct {
 		Label string   `hcl:"label,label"`
 		Body  hcl.Body `hcl:",remain"`
 	} `hcl:"request,block"`
+
 	Socket *struct {
 		Body hcl.Body `hcl:",remain"`
 	} `hcl:"socket,block"`
@@ -56,14 +57,15 @@ func parseFile(filename string) (Config, []Request, *Socket, error) {
 			return config, nil, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
 		}
 	}
-	var socket *Socket
+	var socket *Socket // allow nil value for later
 	if root.Socket != nil {
-		socket = &Socket{} // move to concrete pointer
+		// move to concrete pointer, to ensure decode doesn't panic
+		socket = &Socket{}
 		if diags = gohcl.DecodeBody(root.Socket.Body, ctx, socket); diags.HasErrors() {
 			writeDiags(map[string]*hcl.File{filename: file}, diags)
 			return config, nil, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
 		}
-		if err := socket.ParsePlaybook(ctx); err != nil {
+		if err := socket.ParseExtras(ctx); err != nil {
 			return config, nil, nil, err
 		}
 	}

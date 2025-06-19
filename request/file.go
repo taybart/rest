@@ -73,7 +73,7 @@ func RunBlock(filename string, block int) error {
 	return nil
 }
 
-func RunSocket(filename string) error {
+func RunSocket(socketArg string, filename string) error {
 	config, _, socket, err := parseFile(filename)
 	if err != nil {
 		return err
@@ -85,7 +85,7 @@ func RunSocket(filename string) error {
 	if err != nil {
 		return err
 	}
-	if err := client.DoSocket(*socket); err != nil {
+	if err := client.DoSocket(socketArg, socket); err != nil {
 		return err
 	}
 	return nil

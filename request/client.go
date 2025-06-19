@@ -82,14 +82,7 @@ func (c *RequestClient) Do(r Request) (string, error) {
 	}
 	return string(dumped), nil
 }
-func (c *RequestClient) DoSocket(s Socket) error {
-
-	s.UserAgent = c.Config.UserAgent
-
-	// req, err := s.Build()
-	// if err != nil {
-	// 	return "", err
-	// }
+func (c *RequestClient) DoSocket(socketArg string, s *Socket) error {
 
 	if c.Config.NoFollowRedirect {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -105,71 +98,125 @@ func (c *RequestClient) DoSocket(s Socket) error {
 		HandshakeTimeout: 45 * time.Second,
 	}
 
-	// Set multiple custom headers
+	// TODO: probably only set if provided
 	headers := http.Header{
 		"Origin":     []string{s.Origin},
 		"User-Agent": []string{c.Config.UserAgent},
 	}
 
-	// Establish WebSocket connection
 	conn, _, err := dialer.Dial(s.URL, headers)
 	if err != nil {
 		log.Fatal("Failed to connect:", err)
 	}
 	defer conn.Close()
 
-	// Channel for incoming messages
-	done := make(chan struct{})
+	quit := make(chan struct{}) // internal quit
+	done := make(chan struct{}) // cleanup channel
 
-	// Goroutine to read messages from server
+	// recieve goroutine
 	go func() {
 		defer close(done)
 		for {
-			_, message, err := conn.ReadMessage()
-			if err != nil {
-				log.Println("Read error:", err)
+			select {
+			case <-quit:
 				return
+			default:
+				_, message, err := conn.ReadMessage()
+				if err != nil {
+					log.Println("Read error:", err)
+					return
+				}
+				fmt.Printf("%s\r< %s%s\n%s> %s",
+					log.Green, log.Yellow, message, log.Green, log.Reset)
 			}
-			fmt.Printf("%s\r< %s%s\n%s> %s",
-				log.Green, log.Yellow, message, log.Green, log.Reset)
 		}
 	}()
 
-	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Printf("%s> %s", log.Green, log.Reset)
-
-	go func() {
-		for scanner.Scan() {
-			text := strings.TrimSpace(scanner.Text())
-
-			if text == "quit" || text == "exit" {
-				close(done)
-				return
+	if s.Run != nil && socketArg == "run" {
+		fmt.Printf("Runing playbook order: %+v\n", s.Run.Order)
+		var delay time.Duration
+		if s.Run.Delay != "" {
+			var err error
+			delay, err = time.ParseDuration(s.Run.Delay)
+			if err != nil {
+				log.Error(err)
+				return nil
 			}
-			if text == "" {
+		}
+
+		go func() {
+			defer close(quit)
+
+			for _, next := range s.Run.Order {
+
+				if next == "noop" {
+					continue
+				}
+				// TODO: is this even feasible
+				// requireResponse := false
+				// if next[len(next)-1] == '!' {
+				// 	next = next[:len(next)-1]
+				// 	requireResponse = true
+				// }
+				// if requireResponse {
+				// 	// fmt.Println("response required")
+				// }
+				payload := []byte(s.Playbook[next])
+				err := conn.WriteMessage(websocket.TextMessage, payload)
+				if err != nil {
+					log.Error("Write:", err)
+					return
+				}
+				time.Sleep(delay)
+			}
+		}()
+
+	} else {
+		// TODO: this is kind of ambiguous maybe it could be in a switch with run above
+		if socketArg != "" {
+			if pb, ok := s.Playbook[socketArg]; ok {
+				return conn.WriteMessage(websocket.TextMessage, []byte(pb))
+			}
+			return fmt.Errorf("no such playbook entry: %s", socketArg)
+		}
+
+		// REPL
+		scanner := bufio.NewScanner(os.Stdin)
+		fmt.Printf("%s> %s", log.Green, log.Reset)
+
+		go func() {
+			for scanner.Scan() {
+				text := strings.TrimSpace(scanner.Text())
+
+				switch text {
+				case "quit", "exit":
+					close(done)
+					return
+				case "":
+					fmt.Printf("%s> %s", log.Green, log.Reset)
+					continue
+
+				default:
+					pb, ok := s.Playbook[text]
+					if !ok {
+						fmt.Printf("no such playbook entry: %s\n> ", text)
+						continue
+					}
+					err := conn.WriteMessage(websocket.TextMessage, []byte(pb))
+					if err != nil {
+						log.Println("Write error:", err)
+						return
+					}
+				}
+
 				fmt.Printf("%s> %s", log.Green, log.Reset)
-				continue
 			}
+		}()
+	}
 
-			pb, ok := s.PlaybookParsed[text]
-			if !ok {
-				fmt.Printf("no such playbook entry: %s\n> ", text)
-				continue
-			}
-
-			// Send message to server
-			err := conn.WriteMessage(websocket.TextMessage, []byte(pb))
-			if err != nil {
-				log.Println("Write error:", err)
-				return
-			}
-
-			fmt.Printf("%s> %s", log.Green, log.Reset)
-		}
-	}()
-
-	// Wait for interrupt or done signal
+	// Wait for interrupt, quit or done signal
 	select {
+	case <-quit:
 	case <-done:
 	case <-interrupt:
 		err := conn.WriteMessage(websocket.CloseMessage,
@@ -179,6 +226,5 @@ func (c *RequestClient) DoSocket(s Socket) error {
 		}
 		return err
 	}
-
 	return nil
 }
