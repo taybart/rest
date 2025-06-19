@@ -187,6 +187,18 @@ curl -X ...
 
 You can also run a websocket client with a "playbook" of messages either in a REPL or by setting a run order with an inter-message delay.
 
+```sh
+$ rest -f api.rest -S # REPL
+> ping
+< pong
+>
+$ rest -f api.rest -S run # run in order defined
+running playbook ["ping", "subscribe", "post", "noop"]
+...
+$ rest -f api.rest -S ping # run one off playbook message
+< pong
+```
+
 ```hcl
 locals {
     channel = "#general"
