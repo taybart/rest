@@ -9,6 +9,7 @@ It also has a lua interpreter to post-process responses.
 1. [Functions](#functions)
 1. [Hooks](#hooks)
 1. [Export](#export-to-a-different-language)
+1. [Sockets](#sockets)
 
 ## Client cli
 
@@ -105,6 +106,7 @@ There are a few functions that can be used in a rest file:
 - `env("VALUE")` - grab an environment variable
 - `read("./filepath")` - read a file into the rest file, this will just be read into a string so it can be used anywhere (ex. request body,
 - `json("{\"string\": \"json\"}")` - turn string value into a json object, there are some caveats with this function
+- `tmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a template replacing named or indexed values if second argument is an array
 
 For example:
 
@@ -170,4 +172,46 @@ There is also a special `fail` function that can be used to fail the request. It
 
 ## Export to a different language
 
-`todo!()`
+Rest files can be exported to a different language using the cli, either a single block or the whole file (as a "client").
+
+```sh
+$ rest -f api.rest -e ls # list supported languages
+curl
+go
+js
+$ rest -f api.rest -e curl
+curl -X ...
+```
+
+## Sockets
+
+You can also run a websocket client with a "playbook" of messages either in a REPL or by setting a run order with an inter-message delay.
+
+```hcl
+locals {
+    channel = "#general"
+    msg = <<JSON
+    {"msg": "{{$0}}"}
+    JSON
+    post = <<JSON
+    {
+        "msg": "post",
+        "channel": "#general",
+        "content": "{{content}}"
+    }
+    JSON
+}
+socket {
+  url = "ws://localhost:8080"
+  run = {
+    delay = "100ms"
+    order = ["ping", "subscribe", "post", "noop"] # noop can be used to wait for an answer
+  }
+  playbook = {
+    ping = tmpl(locals.msg, ["ping"]) // {"msg": "ping"}
+    subscribe = {msg: "sub", channel: locals.channel }
+    post = tmpl(locals.post, { msg = "hello everyone!" }) // { "msg": "post", "channel": "#general", "content": "hello everyone!" }
+    }
+  }
+}
+```
