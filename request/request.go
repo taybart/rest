@@ -90,9 +90,7 @@ func (r *Request) ParseBody(ctx *hcl.EvalContext) error {
 		return nil
 
 	case cty.DynamicPseudoType:
-		// Handle dynamic values
 		if bodyVal.IsNull() {
-			r.BodyRaw = "null"
 			return nil
 		}
 
