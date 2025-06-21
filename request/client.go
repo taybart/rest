@@ -84,32 +84,32 @@ func (c *RequestClient) Do(r Request) (string, error) {
 }
 func (c *RequestClient) DoSocket(socketArg string, s *Socket) error {
 
-	if c.Config.NoFollowRedirect {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
+	// if c.Config.NoFollowRedirect {
+	// 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	// 		return http.ErrUseLastResponse
+	// 	}
+	// }
+
+	dialer, action, err := s.Build(socketArg, c.Config)
+	if err != nil {
+		return err
 	}
-
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-
-	dialer := &websocket.Dialer{
-		Proxy:            http.ProxyFromEnvironment,
-		HandshakeTimeout: 45 * time.Second,
-	}
-
-	// TODO: probably only set if provided
 	headers := http.Header{
-		"Origin":     []string{s.Origin},
 		"User-Agent": []string{c.Config.UserAgent},
 	}
+	if s.Origin != "" {
+		headers.Set("Origin", s.Origin)
+	}
 
-	conn, _, err := dialer.Dial(s.URL, headers)
+	conn, _, err := dialer.Dial(s.u.String(), headers)
 	if err != nil {
 		log.Fatal("Failed to connect:", err)
 	}
 	defer conn.Close()
 
+	// signals
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
 	quit := make(chan struct{}) // internal quit
 	done := make(chan struct{}) // cleanup channel
 
@@ -132,17 +132,19 @@ func (c *RequestClient) DoSocket(socketArg string, s *Socket) error {
 		}
 	}()
 
-	if s.Run != nil && socketArg == "run" {
-		fmt.Printf("Runing playbook order: %+v\n", s.Run.Order)
-		var delay time.Duration
-		if s.Run.Delay != "" {
-			var err error
-			delay, err = time.ParseDuration(s.Run.Delay)
-			if err != nil {
-				log.Error(err)
-				return nil
-			}
+	// populate delay if available
+	var delay time.Duration
+	if s.Run.Delay != "" {
+		var err error
+		delay, err = time.ParseDuration(s.Run.Delay)
+		if err != nil {
+			log.Error(err)
+			return nil
 		}
+	}
+	switch action {
+	case SocketRunPlaybook:
+		fmt.Printf("Runing playbook order: %+v\n", s.Run.Order)
 
 		go func() {
 			defer close(quit)
@@ -152,7 +154,7 @@ func (c *RequestClient) DoSocket(socketArg string, s *Socket) error {
 				if next == "noop" {
 					continue
 				}
-				// TODO: is this even feasible
+				// TODO: is this even feasible, maybe buffered channel
 				// requireResponse := false
 				// if next[len(next)-1] == '!' {
 				// 	next = next[:len(next)-1]
@@ -171,15 +173,18 @@ func (c *RequestClient) DoSocket(socketArg string, s *Socket) error {
 			}
 		}()
 
-	} else {
-		// TODO: this is kind of ambiguous maybe it could be in a switch with run above
-		if socketArg != "" {
-			if pb, ok := s.Playbook[socketArg]; ok {
-				return conn.WriteMessage(websocket.TextMessage, []byte(pb))
+	case SocketRunEntry:
+		if pb, ok := s.Playbook[socketArg]; ok {
+			err := conn.WriteMessage(websocket.TextMessage, []byte(pb))
+			if err != nil {
+				return err
 			}
-			return fmt.Errorf("no such playbook entry: %s", socketArg)
+			// time.Sleep(delay)
+			return nil
 		}
+		return fmt.Errorf("no such playbook entry: %s", socketArg)
 
+	case SocketREPL:
 		// REPL
 		scanner := bufio.NewScanner(os.Stdin)
 		fmt.Printf("%s> %s", log.Green, log.Reset)

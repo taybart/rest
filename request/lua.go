@@ -2,6 +2,7 @@ package request
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -109,7 +110,7 @@ func execute(l *lua.LState, code string) error {
 	var cleanError error
 
 	l.SetGlobal("fail", l.NewFunction(func(L *lua.LState) int {
-		cleanError = fmt.Errorf(L.CheckString(1))
+		cleanError = errors.New(L.CheckString(1))
 		for range 10 {
 			L.Push(lua.LNil)
 		}

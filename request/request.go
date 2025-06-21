@@ -16,6 +16,7 @@ type Request struct {
 	URL       string            `hcl:"url"`
 	Method    string            `hcl:"method,optional"`
 	Body      hcl.Expression    `hcl:"body,optional"`
+	BasicAuth string            `hcl:"basic_auth,optional"`
 	BodyRaw   string            `hcl:"body_raw,optional"`
 	Headers   []string          `hcl:"headers,optional"`
 	Cookies   map[string]string `hcl:"cookies,optional"`
@@ -26,6 +27,8 @@ type Request struct {
 	Label  string `hcl:"label,label"`
 	Delay  string `hcl:"delay,optional"`
 	Expect int    `hcl:"expect,optional"`
+
+	Remain hcl.Expression `hcl:"remain,optional"`
 }
 
 func (r *Request) Build() (*http.Request, error) {
@@ -36,6 +39,13 @@ func (r *Request) Build() (*http.Request, error) {
 	for _, h := range r.Headers {
 		hdrs := strings.Split(h, ":")
 		req.Header.Add(hdrs[0], strings.TrimPrefix(h, hdrs[0]+":"))
+	}
+	if r.BasicAuth != "" {
+		ba := strings.Split(r.BasicAuth, ":")
+		if len(ba) != 2 {
+			return nil, fmt.Errorf("malformed basic auth value should be -> user:password")
+		}
+		req.SetBasicAuth(ba[0], ba[1])
 	}
 	for n, c := range r.Cookies {
 		req.AddCookie(&http.Cookie{

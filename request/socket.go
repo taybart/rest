@@ -3,10 +3,25 @@ package request
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/cookiejar"
+	"net/url"
+	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
+)
+
+type SocketAction string
+
+var (
+	SocketNOOP        SocketAction = "noop"
+	SocketRunPlaybook SocketAction = "run"
+	SocketRunEntry    SocketAction = "one-off"
+	SocketListen      SocketAction = "listen"
+	SocketREPL        SocketAction = "repl"
 )
 
 type SocketOrder struct {
@@ -28,6 +43,8 @@ type Socket struct {
 	// extras
 	Label  string `hcl:"label,label"`
 	Expect int    `hcl:"expect,optional"`
+
+	u *url.URL
 }
 
 func (s *Socket) ParseExtras(ctx *hcl.EvalContext) error {
@@ -89,6 +106,55 @@ func (s *Socket) ParseExtras(ctx *hcl.EvalContext) error {
 	}
 
 	return nil
+}
+func (s *Socket) Build(arg string, config Config) (*websocket.Dialer, SocketAction, error) {
+	action := SocketNOOP
+
+	if config.NoFollowRedirect {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, action, err
+	}
+
+	cookies := []*http.Cookie{}
+	if s.Cookies != nil {
+		for name, cookie := range s.Cookies {
+			cookies = append(cookies, &http.Cookie{
+				Name:  name,
+				Value: cookie,
+			})
+		}
+	}
+	s.u, err = url.Parse(s.URL)
+	if err != nil {
+		return nil, action, err
+	}
+	jar.SetCookies(s.u, cookies)
+
+	dialer := &websocket.Dialer{
+		Proxy:            http.ProxyFromEnvironment,
+		HandshakeTimeout: 45 * time.Second,
+		Jar:              jar,
+	}
+	switch arg {
+	case "run":
+		if s.Run != nil {
+			action = SocketRunPlaybook
+		}
+	case "listen":
+		action = SocketListen
+	case "":
+		action = SocketREPL
+	default:
+		action = SocketRunEntry
+
+	}
+
+	return dialer, action, nil
 }
 func (s Socket) String() string {
 	// headers := ""
