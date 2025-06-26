@@ -30,10 +30,11 @@ type SocketOrder struct {
 }
 
 type Socket struct {
-	URL     string            `hcl:"url"`
-	Origin  string            `hcl:"origin,optional"`
-	Headers []string          `hcl:"headers,optional"`
-	Cookies map[string]string `hcl:"cookies,optional"`
+	URL           string            `hcl:"url"`
+	Origin        string            `hcl:"origin,optional"`
+	Headers       []string          `hcl:"headers,optional"`
+	Cookies       map[string]string `hcl:"cookies,optional"`
+	NoSpecialCmds bool              `hcl:"no_special_cmds,optional"`
 
 	// parsed fields
 	Run      *SocketOrder

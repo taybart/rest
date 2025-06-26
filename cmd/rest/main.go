@@ -116,6 +116,10 @@ var (
 				Help:    "Export full client instead of individual requests",
 				Default: false,
 			},
+			"ignore-fail": {
+				Help:    "Ignore errors and run all blocks",
+				Default: false,
+			},
 			/*** socket ***/
 			"socket": {
 				Short:            "S",
@@ -141,12 +145,13 @@ var (
 		TLS     string `arg:"tls"`
 
 		// client
-		File   string `arg:"file"`
-		Block  int    `arg:"block"`
-		Label  string `arg:"label"`
-		Socket string `arg:"socket"`
-		Export string `arg:"export"`
-		Client bool   `arg:"client"`
+		File       string `arg:"file"`
+		Block      int    `arg:"block"`
+		Label      string `arg:"label"`
+		Socket     string `arg:"socket"`
+		Export     string `arg:"export"`
+		Client     bool   `arg:"client"`
+		IgnoreFail bool   `arg:"ignore-fail"`
 	}{}
 )
 
@@ -236,6 +241,6 @@ func run() error {
 		return request.RunLabel(c.File, c.Label)
 	} else {
 		log.Debug("running file", c.File)
-		return request.RunFile(c.File)
+		return request.RunFile(c.File, c.IgnoreFail)
 	}
 }

@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/taybart/log"
 	"github.com/taybart/rest/request/templates"
 )
 
-func RunFile(filename string) error {
+func RunFile(filename string, ignoreFail bool) error {
 	config, requests, _, err := parseFile(filename)
 	if err != nil {
 		return err
@@ -20,7 +19,10 @@ func RunFile(filename string) error {
 	for _, req := range requests {
 		res, err := client.Do(req)
 		if err != nil {
-			log.Errorln(err)
+			if !ignoreFail {
+				return err
+			}
+			fmt.Println(err)
 		}
 		if res != "" {
 			fmt.Println(res)

@@ -214,6 +214,7 @@ locals {
     JSON
 }
 socket {
+  no_special_cmds = true # don't reserve "quit" and "exit" commands
   url = "ws://localhost:8080"
   run = {
     delay = "100ms"

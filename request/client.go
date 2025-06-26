@@ -1,14 +1,12 @@
 package request
 
 import (
-	"bufio"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httputil"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -126,8 +124,8 @@ func (c *RequestClient) DoSocket(socketArg string, s *Socket) error {
 					log.Println("Read error:", err)
 					return
 				}
-				fmt.Printf("%s\r< %s%s\n%s> %s",
-					log.Green, log.Yellow, message, log.Green, log.Reset)
+				fmt.Printf("%s\r< %s\r\n%s> %s",
+					log.Yellow, message, log.Green, log.Reset)
 			}
 		}
 	}()
@@ -148,21 +146,10 @@ func (c *RequestClient) DoSocket(socketArg string, s *Socket) error {
 
 		go func() {
 			defer close(quit)
-
 			for _, next := range s.Run.Order {
-
 				if next == "noop" {
 					continue
 				}
-				// TODO: is this even feasible, maybe buffered channel
-				// requireResponse := false
-				// if next[len(next)-1] == '!' {
-				// 	next = next[:len(next)-1]
-				// 	requireResponse = true
-				// }
-				// if requireResponse {
-				// 	// fmt.Println("response required")
-				// }
 				payload := []byte(s.Playbook[next])
 				err := conn.WriteMessage(websocket.TextMessage, payload)
 				if err != nil {
@@ -179,44 +166,24 @@ func (c *RequestClient) DoSocket(socketArg string, s *Socket) error {
 			if err != nil {
 				return err
 			}
-			// time.Sleep(delay)
 			return nil
 		}
 		return fmt.Errorf("no such playbook entry: %s", socketArg)
 
 	case SocketREPL:
-		// REPL
-		scanner := bufio.NewScanner(os.Stdin)
-		fmt.Printf("%s> %s", log.Green, log.Reset)
-
-		go func() {
-			for scanner.Scan() {
-				text := strings.TrimSpace(scanner.Text())
-
-				switch text {
-				case "quit", "exit":
-					close(done)
-					return
-				case "":
-					fmt.Printf("%s> %s", log.Green, log.Reset)
-					continue
-
-				default:
-					pb, ok := s.Playbook[text]
-					if !ok {
-						fmt.Printf("no such playbook entry: %s\n> ", text)
-						continue
-					}
-					err := conn.WriteMessage(websocket.TextMessage, []byte(pb))
-					if err != nil {
-						log.Println("Write error:", err)
-						return
-					}
-				}
-
-				fmt.Printf("%s> %s", log.Green, log.Reset)
+		r := NewREPL(s.NoSpecialCmds)
+		go r.Loop(func(cmd string) error {
+			pb, ok := s.Playbook[cmd]
+			if !ok {
+				return fmt.Errorf("no such playbook entry: %s", cmd)
 			}
-		}()
+			err := conn.WriteMessage(websocket.TextMessage, []byte(pb))
+			if err != nil {
+				return fmt.Errorf("ws write: %w", err)
+			}
+			fmt.Printf("\n\r%ssent(%s)%s", log.BoldGreen, cmd, log.Reset)
+			return nil
+		}, done)
 	}
 
 	// Wait for interrupt, quit or done signal

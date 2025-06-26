@@ -38,7 +38,7 @@ func (r *Request) Build() (*http.Request, error) {
 	}
 	for _, h := range r.Headers {
 		hdrs := strings.Split(h, ":")
-		req.Header.Add(hdrs[0], strings.TrimPrefix(h, hdrs[0]+":"))
+		req.Header.Add(hdrs[0], strings.TrimSpace(strings.TrimPrefix(h, hdrs[0]+":")))
 	}
 	if r.BasicAuth != "" {
 		ba := strings.Split(r.BasicAuth, ":")
