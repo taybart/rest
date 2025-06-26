@@ -111,11 +111,6 @@ func (s *Socket) ParseExtras(ctx *hcl.EvalContext) error {
 func (s *Socket) Build(arg string, config Config) (*websocket.Dialer, SocketAction, error) {
 	action := SocketNOOP
 
-	if config.NoFollowRedirect {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
-	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, action, err
@@ -154,15 +149,8 @@ func (s *Socket) Build(arg string, config Config) (*websocket.Dialer, SocketActi
 		action = SocketRunEntry
 
 	}
-
 	return dialer, action, nil
 }
 func (s Socket) String() string {
-	// headers := ""
-	// for _, h := range r.Headers {
-	// 	headers += fmt.Sprintf("%s\n", h)
-	// }
-
-	// return fmt.Sprintf("%s %s\n%s\n%s", r.Method, r.URL, headers, r.BodyRaw)
-	return ""
+	return "stringer not available due to lazyness"
 }

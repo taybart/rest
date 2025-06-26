@@ -82,12 +82,6 @@ func (c *RequestClient) Do(r Request) (string, error) {
 }
 func (c *RequestClient) DoSocket(socketArg string, s *Socket) error {
 
-	// if c.Config.NoFollowRedirect {
-	// 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-	// 		return http.ErrUseLastResponse
-	// 	}
-	// }
-
 	dialer, action, err := s.Build(socketArg, c.Config)
 	if err != nil {
 		return err
