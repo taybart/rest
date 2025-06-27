@@ -1,6 +1,7 @@
 package request
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
@@ -11,10 +12,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/taybart/log"
-)
-
-var (
-	client = &http.Client{}
 )
 
 type RequestClient struct {
@@ -56,10 +53,17 @@ func (c *RequestClient) Do(r Request) (string, error) {
 	}
 
 	if c.Config.NoFollowRedirect {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		c.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
 	}
+	if c.Config.InsecureNoVerifyTLS {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		c.client.Transport = tr
+	}
+
 	res, err := c.client.Do(req)
 	if err != nil {
 		return "", err

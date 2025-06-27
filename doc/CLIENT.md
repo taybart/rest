@@ -34,6 +34,10 @@ config {
   no_cookies = false
   # when true, all redirects are ignored
   no_follow_redirect = false
+  # override default user agent
+  user_agent = "rest-client/2.0"
+  # don't verify tls certs
+  insecure_no_verify_tls = false
 }
 ```
 

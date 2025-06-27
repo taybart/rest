@@ -22,6 +22,7 @@ type Request struct {
 	Cookies   map[string]string `hcl:"cookies,optional"`
 	Query     map[string]string `hcl:"query,optional"`
 	PostHook  string            `hcl:"post_hook,optional"`
+	CopyFrom  string            `hcl:"copy_from,optional"`
 	UserAgent string
 	// extras
 	Label  string `hcl:"label,label"`

@@ -86,6 +86,6 @@ Client:
 
 ### TODO
 
-- [ ] insecure_no_verify
+- [ ] request.copy_from = "label"
 - [ ] decode locals in blocks so they can be used as they are parsed
 - [ ] proxy requests to add headers or basic auth
