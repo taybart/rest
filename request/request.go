@@ -38,9 +38,14 @@ type Request struct {
 	UserAgent  string
 	Body       string
 	BlockIndex int
+
+	Built *http.Request
 }
 
 func (r *Request) Build() (*http.Request, error) {
+	if r.Built != nil {
+		return r.Built, nil
+	}
 	req, err := http.NewRequest(r.Method, r.URL, strings.NewReader(r.Body))
 	if err != nil {
 		return nil, err
@@ -74,6 +79,7 @@ func (r *Request) Build() (*http.Request, error) {
 	req.URL.RawQuery = query.Encode()
 	req.Header.Set("User-Agent", r.UserAgent)
 
+	r.Built = req
 	return req, nil
 }
 
@@ -139,6 +145,60 @@ func (r Request) String() string {
 	}
 
 	return fmt.Sprintf("%s %s\n%s\n%s", r.Method, r.URL, headers, r.Body)
+}
+
+func (r Request) Equal(cmp Request) bool {
+	if r.Label != cmp.Label {
+		fmt.Println("labels don't match")
+		return false
+	}
+	if r.Method != cmp.Method {
+		fmt.Println("methods don't match")
+		return false
+	}
+	if r.URL != cmp.URL {
+		fmt.Println("urls don't match")
+		return false
+	}
+	if r.Body != cmp.Body {
+		fmt.Println("bodies don't match")
+		return false
+	}
+	if !maps.Equal(r.Headers, cmp.Headers) {
+		fmt.Println("headers don't match")
+		return false
+	}
+	if !maps.Equal(r.Cookies, cmp.Cookies) {
+		fmt.Println("cookies don't match")
+		return false
+	}
+	if !maps.Equal(r.Query, cmp.Query) {
+		fmt.Println("queries don't match")
+
+		return false
+	}
+	if r.BearerToken != cmp.BearerToken {
+		fmt.Println("bearer tokens don't match")
+		return false
+	}
+	if r.BasicAuth != cmp.BasicAuth {
+		fmt.Println("basic auths don't match")
+		return false
+	}
+	if r.UserAgent != cmp.UserAgent {
+		fmt.Println("user agents don't match")
+
+		return false
+	}
+	if r.PostHook != cmp.PostHook {
+		fmt.Println("post hooks don't match")
+		return false
+	}
+	if r.Expect != cmp.Expect {
+		fmt.Println("expect values don't match")
+		return false
+	}
+	return true
 }
 
 func (r *Request) CombineFrom(from Request) {

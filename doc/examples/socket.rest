@@ -1,0 +1,9 @@
+socket {
+  url = "ws://localhost:18080/ws"
+  run = {
+    order = ["ping", "ping", "noop"]
+  }
+  playbook = {
+    ping = {msg: "ping"}
+  }
+}

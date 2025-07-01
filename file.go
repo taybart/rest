@@ -1,3 +1,4 @@
+// Package rest is a simple REST client
 package rest
 
 import (
@@ -10,15 +11,15 @@ import (
 )
 
 func RunFile(filename string, ignoreFail bool) error {
-	config, requests, _, err := file.Parse(filename)
+	rest, err := file.Parse(filename)
 	if err != nil {
 		return err
 	}
-	client, err := request.NewClient(config)
+	client, err := request.NewClient(rest.Config)
 	if err != nil {
 		return err
 	}
-	for _, req := range requests {
+	for _, req := range rest.Requests {
 		res, err := client.Do(req)
 		if err != nil {
 			if !ignoreFail {
@@ -34,15 +35,15 @@ func RunFile(filename string, ignoreFail bool) error {
 }
 
 func RunLabel(filename string, label string) error {
-	config, requests, _, err := file.Parse(filename)
+	rest, err := file.Parse(filename)
 	if err != nil {
 		return err
 	}
-	client, err := request.NewClient(config)
+	client, err := request.NewClient(rest.Config)
 	if err != nil {
 		return err
 	}
-	req, ok := requests[label]
+	req, ok := rest.Requests[label]
 	if !ok {
 		return fmt.Errorf("request label not found")
 	}
@@ -57,17 +58,17 @@ func RunLabel(filename string, label string) error {
 }
 
 func RunBlock(filename string, block int) error {
-	config, requests, _, err := file.Parse(filename)
+	rest, err := file.Parse(filename)
 	if err != nil {
 		return err
 	}
-	client, err := request.NewClient(config)
+	client, err := request.NewClient(rest.Config)
 	if err != nil {
 		return err
 	}
 
 	var todo request.Request
-	for _, req := range requests {
+	for _, req := range rest.Requests {
 		if req.BlockIndex == block {
 			todo = req
 			break
@@ -88,18 +89,18 @@ func RunBlock(filename string, block int) error {
 }
 
 func RunSocket(socketArg string, filename string) error {
-	config, _, socket, err := file.Parse(filename)
+	rest, err := file.Parse(filename)
 	if err != nil {
 		return err
 	}
-	if socket == nil {
+	if len(rest.Socket.Playbook) == 0 {
 		return fmt.Errorf("no socket in file")
 	}
-	client, err := request.NewClient(config)
+	client, err := request.NewClient(rest.Config)
 	if err != nil {
 		return err
 	}
-	if err := client.DoSocket(socketArg, socket); err != nil {
+	if err := client.DoSocket(socketArg, rest.Socket); err != nil {
 		return err
 	}
 	return nil
@@ -113,7 +114,7 @@ func ExportFile(filename, export string, client bool) error {
 		return nil
 	}
 
-	config, requests, _, err := file.Parse(filename)
+	rest, err := file.Parse(filename)
 	if err != nil {
 		return err
 	}
@@ -122,12 +123,12 @@ func ExportFile(filename, export string, client bool) error {
 		return fmt.Errorf(" exporting language (%s) not supported", export)
 	}
 	treqs := []templates.Request{}
-	for _, req := range requests {
+	for _, req := range rest.Requests {
 		body := req.Body
 		if body == "null" {
 			body = ""
 		}
-		ua := config.UserAgent
+		ua := rest.Config.UserAgent
 		if ua == request.DefaultConfig().UserAgent {
 			ua = ""
 		}
@@ -155,7 +156,7 @@ func ExportFile(filename, export string, client bool) error {
 			return err
 		}
 		fmt.Printf("\n")
-		if i < len(requests)-1 {
+		if i < len(rest.Requests)-1 {
 			fmt.Printf("\n")
 		}
 	}

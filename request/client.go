@@ -1,3 +1,4 @@
+// Package request provides a client for making HTTP requests.
 package request
 
 import (
@@ -14,14 +15,14 @@ import (
 	"github.com/taybart/log"
 )
 
-type RequestClient struct {
+type Client struct {
 	client *http.Client
 	ws     *websocket.Conn
 	Config Config
 	// Requests map[string]Request
 }
 
-func NewClient(config Config) (*RequestClient, error) {
+func NewClient(config Config) (*Client, error) {
 
 	client := http.Client{}
 	if !config.NoCookies {
@@ -31,13 +32,13 @@ func NewClient(config Config) (*RequestClient, error) {
 		}
 		client.Jar = jar
 	}
-	return &RequestClient{
+	return &Client{
 		client: &client,
 		Config: config,
 	}, nil
 }
 
-func (c *RequestClient) Do(r Request) (string, error) {
+func (c *Client) Do(r Request) (string, error) {
 
 	if r.Delay != "" {
 		delay, err := time.ParseDuration(r.Delay)
@@ -85,7 +86,7 @@ func (c *RequestClient) Do(r Request) (string, error) {
 	}
 	return string(dumped), nil
 }
-func (c *RequestClient) DoSocket(socketArg string, s *Socket) error {
+func (c *Client) DoSocket(socketArg string, s Socket) error {
 
 	dialer, action, err := s.Build(socketArg, c.Config)
 	if err != nil {

@@ -1,3 +1,4 @@
+// Package server provides a simple http server for handling/dumping requests
 package server
 
 import (

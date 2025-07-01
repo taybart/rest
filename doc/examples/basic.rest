@@ -1,6 +1,6 @@
-# start a server with `rest -s -a :8080`
+# start a server with `rest -s -a :18080`
 request "basic" {
-  url = "https://localhost:8080/hello-world"
+  url = "http://localhost:18080/hello-world"
   method = "POST"
   headers = {
     "Content-Type" = "application/json"

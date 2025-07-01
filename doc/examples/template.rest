@@ -1,0 +1,17 @@
+locals {
+  body = <<JSON
+  {
+    "myName": "{{NAME}}"
+  }
+  JSON
+}
+
+
+request "template" {
+  url = "http://localhost:18080/hello-world"
+  method = "POST"
+  headers = {
+    "Content-Type" = "application/json"
+  }
+  body = json(tmpl(locals.body, { NAME = "foobah" }))
+}

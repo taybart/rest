@@ -1,3 +1,4 @@
+// Package file provides a parser for the hcl configuration file format.
 package file
 
 import (
@@ -13,6 +14,12 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 )
+
+type Rest struct {
+	Config   request.Config
+	Socket   request.Socket
+	Requests map[string]request.Request
+}
 
 type Root struct {
 	Imports *[]string `hcl:"imports"`
@@ -77,19 +84,23 @@ func read(filename string, root *Root) (*hcl.File, hcl.Diagnostics) {
 
 }
 
-func Parse(filename string) (request.Config, map[string]request.Request, *request.Socket, error) {
-	config := request.DefaultConfig()
+func Parse(filename string) (Rest, error) {
+	ret := Rest{
+		Config: request.DefaultConfig(),
+	}
 
 	root := &Root{}
 	file, diags := read(filename, root)
 	if diags.HasErrors() {
-		return config, nil, nil, diags
+		return ret, diags
 	}
 
-	for _, i := range *root.Imports {
-		newFile := &Root{}
-		file, _ = read(path.Join(path.Dir(filename), i), newFile)
-		root.Add(newFile)
+	if root.Imports != nil {
+		for _, i := range *root.Imports {
+			newFile := &Root{}
+			file, _ = read(path.Join(path.Dir(filename), i), newFile)
+			root.Add(newFile)
+		}
 	}
 
 	locals, _ := decodeLocals(root)
@@ -97,21 +108,18 @@ func Parse(filename string) (request.Config, map[string]request.Request, *reques
 	ctx := makeContext(locals)
 
 	if root.Config != nil {
-		if diags = gohcl.DecodeBody(root.Config.Body, ctx, &config); diags.HasErrors() {
+		if diags = gohcl.DecodeBody(root.Config.Body, ctx, &ret.Config); diags.HasErrors() {
 			writeDiags(map[string]*hcl.File{filename: file}, diags)
-			return config, nil, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
+			return ret, fmt.Errorf("error decoding HCL configuration: %w", diags)
 		}
 	}
-	var socket *request.Socket // allow nil value for later
 	if root.Socket != nil {
-		// move to concrete pointer, to ensure decode doesn't panic
-		socket = &request.Socket{}
-		if diags = gohcl.DecodeBody(root.Socket.Body, ctx, socket); diags.HasErrors() {
+		if diags = gohcl.DecodeBody(root.Socket.Body, ctx, &ret.Socket); diags.HasErrors() {
 			writeDiags(map[string]*hcl.File{filename: file}, diags)
-			return config, nil, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
+			return ret, fmt.Errorf("error decoding HCL configuration: %w", diags)
 		}
-		if err := socket.ParseExtras(ctx); err != nil {
-			return config, nil, nil, err
+		if err := ret.Socket.ParseExtras(ctx); err != nil {
+			return ret, err
 		}
 	}
 
@@ -121,18 +129,18 @@ func Parse(filename string) (request.Config, map[string]request.Request, *reques
 		req := request.Request{Label: block.Label}
 		if diags = gohcl.DecodeBody(block.Body, ctx, &req); diags.HasErrors() {
 			writeDiags(map[string]*hcl.File{filename: file}, diags)
-			return config, nil, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
+			return ret, fmt.Errorf("error decoding HCL configuration: %w", diags)
 		}
 		for _, l := range labels {
 			if l == req.Label {
-				return config, nil, nil, fmt.Errorf("labels must be unique: %s", l)
+				return ret, fmt.Errorf("labels must be unique: %s", l)
 			}
 		}
 		if err := req.ParseBody(ctx); err != nil {
-			return config, nil, nil, err
+			return ret, err
 		}
 		if err := req.SetDefaults(ctx); err != nil {
-			return config, nil, nil, err
+			return ret, err
 		}
 		req.BlockIndex = i
 		requests[req.Label] = req
@@ -142,17 +150,19 @@ func Parse(filename string) (request.Config, map[string]request.Request, *reques
 	for label, req := range requests {
 		if requests[label].CopyFrom != "" {
 			if _, ok := requests[req.CopyFrom]; !ok {
-				return config, nil, nil, fmt.Errorf("request copy_from not found: %s", req.CopyFrom)
+				return ret, fmt.Errorf("request copy_from not found: %s", req.CopyFrom)
 			}
 			req.CombineFrom(requests[req.CopyFrom])
 			requests[label] = req
 		}
 		// check that required fields are set
 		if requests[label].URL == "" {
-			return config, nil, nil, fmt.Errorf("url is required for request: %s", req.Label)
+			return ret, fmt.Errorf("url is required for request: %s", req.Label)
 		}
 	}
-	return config, requests, socket, nil
+	ret.Requests = requests
+
+	return ret, nil
 }
 
 func makeContext(vars map[string]cty.Value) *hcl.EvalContext {

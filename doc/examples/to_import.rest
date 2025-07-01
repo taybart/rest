@@ -1,0 +1,11 @@
+locals {
+  imported_header = "success"
+}
+
+
+request "imported" {
+  url = "http://localhost:18080/"
+  headers = {
+    "X-imported-header" = "success"
+  }
+}
