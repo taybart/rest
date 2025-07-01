@@ -15,18 +15,18 @@ type Local struct {
 	DeclRange hcl.Range
 }
 
-func decodeLocals(root Root) (map[string]cty.Value, hcl.Diagnostics) {
-	// var diags hcl.Diagnostics
+func decodeLocals(root *Root) (map[string]cty.Value, hcl.Diagnostics) {
+	var diags hcl.Diagnostics
 	locals := make(map[string]cty.Value)
 	ctx := makeContext(nil)
 	for _, l := range root.Locals {
-		tmp, _ := decodeLocalsBlock(ctx, l.Body)
-		// if diag.HasErrors() {
-		// 		diags = append(diags, diag...)
-		// }
+		tmp, diag := decodeLocalsBlock(ctx, l.Body)
+		if diag.HasErrors() {
+			diags = append(diags, diag...)
+		}
 		maps.Copy(locals, tmp)
 	}
-	return locals, nil
+	return locals, diags
 }
 
 func decodeLocalsBlock(ctx *hcl.EvalContext, block hcl.Body) (map[string]cty.Value, hcl.Diagnostics) {

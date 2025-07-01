@@ -7,21 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
-
-func writeDiags(files map[string]*hcl.File, diags hcl.Diagnostics) {
-	wr := hcl.NewDiagnosticTextWriter(
-		os.Stdout,
-		files, // the parser's file cache, for source snippets
-		78,    // wrapping width
-		false, // generate colored/highlighted output
-	)
-	wr.WriteDiagnostics(diags)
-}
 
 /*** Functions ***/
 
@@ -198,18 +187,4 @@ func replaceNamedPlaceholders(template string, values cty.Value) (cty.Value, err
 	})
 
 	return cty.StringVal(strings.TrimSpace(result)), nil
-}
-
-func makeContext(vars map[string]cty.Value) *hcl.EvalContext {
-	return &hcl.EvalContext{
-		Variables: map[string]cty.Value{
-			"locals": cty.ObjectVal(vars),
-		},
-		Functions: map[string]function.Function{
-			"env":  makeEnvFunc(),
-			"read": makeFileReadFunc(),
-			"json": makeJSONFunc(),
-			"tmpl": makeTemplateFunc(),
-		},
-	}
 }

@@ -3,18 +3,19 @@ package file
 import (
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/taybart/log"
 	"github.com/taybart/rest/request"
+	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 type Root struct {
-	// Imports []*struct {
-	// 	Body hcl.Body `hcl:",remain"`
-	// } `hcl:"imports,block"`
+	Imports *[]string `hcl:"imports"`
 
 	Locals []*struct {
 		Body hcl.Body `hcl:",remain"`
@@ -34,7 +35,12 @@ type Root struct {
 	} `hcl:"socket,block"`
 }
 
-func read(filename string) (*hcl.File, hcl.Diagnostics) {
+func (r *Root) Add(root *Root) {
+	r.Locals = append(r.Locals, root.Locals...)
+	r.Requests = append(r.Requests, root.Requests...)
+}
+
+func read(filename string, root *Root) (*hcl.File, hcl.Diagnostics) {
 	src, err := os.ReadFile(filename)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -54,35 +60,39 @@ func read(filename string) (*hcl.File, hcl.Diagnostics) {
 			},
 		}
 	}
-	return hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
+	file, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		log.Infoln("decode")
+		writeDiags(map[string]*hcl.File{filename: file}, diags)
+		return nil, diags
+	}
+
+	diags = gohcl.DecodeBody(file.Body, nil, root)
+	if diags.HasErrors() {
+		log.Infoln("decode")
+		writeDiags(map[string]*hcl.File{filename: file}, diags)
+		return nil, diags
+	}
+	return file, diags
 
 }
 
 func Parse(filename string) (request.Config, map[string]request.Request, *request.Socket, error) {
 	config := request.DefaultConfig()
 
-	file, diags := read(filename)
+	root := &Root{}
+	file, diags := read(filename, root)
 	if diags.HasErrors() {
-		writeDiags(map[string]*hcl.File{filename: file}, diags)
 		return config, nil, nil, diags
 	}
 
-	var root Root
-	diags = gohcl.DecodeBody(file.Body, nil, &root)
-	if diags.HasErrors() {
-		log.Infoln("decode")
-		writeDiags(map[string]*hcl.File{filename: file}, diags)
-		return config, nil, nil, diags
+	for _, i := range *root.Imports {
+		newFile := &Root{}
+		file, _ = read(path.Join(path.Dir(filename), i), newFile)
+		root.Add(newFile)
 	}
 
-	// if err := importFiles(root); err != nil {
-	// 	return config, nil, nil, err
-	// }
-
-	locals, err := decodeLocals(root)
-	if err != nil {
-		return config, nil, nil, err
-	}
+	locals, _ := decodeLocals(root)
 
 	ctx := makeContext(locals)
 
@@ -143,4 +153,28 @@ func Parse(filename string) (request.Config, map[string]request.Request, *reques
 		}
 	}
 	return config, requests, socket, nil
+}
+
+func makeContext(vars map[string]cty.Value) *hcl.EvalContext {
+	return &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"locals": cty.ObjectVal(vars),
+		},
+		Functions: map[string]function.Function{
+			"env":  makeEnvFunc(),
+			"read": makeFileReadFunc(),
+			"json": makeJSONFunc(),
+			"tmpl": makeTemplateFunc(),
+		},
+	}
+}
+
+func writeDiags(files map[string]*hcl.File, diags hcl.Diagnostics) {
+	wr := hcl.NewDiagnosticTextWriter(
+		os.Stdout,
+		files, // the parser's file cache, for source snippets
+		78,    // wrapping width
+		false, // generate colored/highlighted output
+	)
+	wr.WriteDiagnostics(diags)
 }

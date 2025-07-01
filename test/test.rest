@@ -1,3 +1,5 @@
+imports = [ "./import.rest" ]
+
 locals {
   gameID = "ZAYwdDgXyaTIAdd"
   player1ID = "player1ID"
@@ -40,12 +42,11 @@ request "header test" {
   LUA
 }
 request "copy test" {
-  copy_from = "header test"
-  bearer_token = "hi"
+  copy_from = "base"
   body = {
     "type": "copy",
     "from": "header test",
-    "to": "test"
+    "to": "${locals.imported}"
   }
 }
 
