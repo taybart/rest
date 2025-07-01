@@ -12,7 +12,7 @@ require (
 	github.com/yuin/gopher-lua v1.1.1
 	github.com/zclconf/go-cty v1.16.3
 	golang.org/x/term v0.32.0
-	golang.org/x/text v0.11.0
+	golang.org/x/text v0.26.0
 )
 
 require (

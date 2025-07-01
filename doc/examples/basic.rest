@@ -1,0 +1,11 @@
+# start a server with `rest -s -a :8080`
+request "basic" {
+  url = "https://localhost:8080/hello-world"
+  method = "POST"
+  headers = {
+    "Content-Type" = "application/json"
+  }
+  body = {
+    data: "hello world"
+  }
+}

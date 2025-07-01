@@ -18,6 +18,7 @@ type RequestClient struct {
 	client *http.Client
 	ws     *websocket.Conn
 	Config Config
+	// Requests map[string]Request
 }
 
 func NewRequestClient(config Config) (*RequestClient, error) {

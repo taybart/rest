@@ -1,0 +1,41 @@
+# start a server with `rest -s -a :8080`
+
+request "basic auth" {
+  url = "https://localhost:8080/hello-world"
+  method = "POST"
+  basic_auth = "user:password"
+  headers = {
+    "Content-Type" = "application/json"
+  }
+  body = {
+    data: "hello world"
+  }
+}
+
+locals {
+  token = "ey..."
+}
+
+request "bearer token" {
+  url = "https://localhost:8080/hello-world"
+  method = "POST"
+  bearer_token = locals.token
+  headers = {
+    "Content-Type" = "application/json"
+  }
+  body = {
+    data: "hello world"
+  }
+}
+
+request "bearer token as header" {
+  url = "https://localhost:8080/hello-world"
+  method = "POST"
+  headers = {
+    "Authorization" = "Bearer ${locals.token}"
+    "Content-Type" = "application/json"
+  }
+  body = {
+    data: "hello world"
+  }
+}

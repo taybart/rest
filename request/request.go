@@ -3,6 +3,7 @@ package request
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,33 +14,39 @@ import (
 )
 
 type Request struct {
-	URL       string            `hcl:"url"`
-	Method    string            `hcl:"method,optional"`
-	Body      hcl.Expression    `hcl:"body,optional"`
-	BasicAuth string            `hcl:"basic_auth,optional"`
-	BodyRaw   string            `hcl:"body_raw,optional"`
-	Headers   []string          `hcl:"headers,optional"`
-	Cookies   map[string]string `hcl:"cookies,optional"`
-	Query     map[string]string `hcl:"query,optional"`
-	PostHook  string            `hcl:"post_hook,optional"`
-	CopyFrom  string            `hcl:"copy_from,optional"`
-	UserAgent string
+	// hcl
+	Label string `hcl:"label,label"`
+	// block body
+	URL         string            `hcl:"url,optional"`
+	Method      string            `hcl:"method,optional"`
+	BodyHCL     hcl.Expression    `hcl:"body,optional"`
+	BasicAuth   string            `hcl:"basic_auth,optional"`
+	BearerToken string            `hcl:"bearer_token,optional"`
+	Headers     map[string]string `hcl:"headers,optional"`
+	Cookies     map[string]string `hcl:"cookies,optional"`
+	Query       map[string]string `hcl:"query,optional"`
+	PostHook    string            `hcl:"post_hook,optional"`
+	CopyFrom    string            `hcl:"copy_from,optional"`
 	// extras
-	Label  string `hcl:"label,label"`
 	Delay  string `hcl:"delay,optional"`
 	Expect int    `hcl:"expect,optional"`
 
+	// ...rest
 	Remain hcl.Expression `hcl:"remain,optional"`
+
+	// parsed values
+	UserAgent  string
+	Body       string
+	BlockIndex int
 }
 
 func (r *Request) Build() (*http.Request, error) {
-	req, err := http.NewRequest(r.Method, r.URL, strings.NewReader(r.BodyRaw))
+	req, err := http.NewRequest(r.Method, r.URL, strings.NewReader(r.Body))
 	if err != nil {
 		return nil, err
 	}
-	for _, h := range r.Headers {
-		hdrs := strings.Split(h, ":")
-		req.Header.Add(hdrs[0], strings.TrimSpace(strings.TrimPrefix(h, hdrs[0]+":")))
+	for k, v := range r.Headers {
+		req.Header.Add(k, v)
 	}
 	if r.BasicAuth != "" {
 		ba := strings.Split(r.BasicAuth, ":")
@@ -48,6 +55,11 @@ func (r *Request) Build() (*http.Request, error) {
 		}
 		req.SetBasicAuth(ba[0], ba[1])
 	}
+
+	if r.BearerToken != "" {
+		req.Header.Add("Authorization", "Bearer "+r.BearerToken)
+	}
+
 	for n, c := range r.Cookies {
 		req.AddCookie(&http.Cookie{
 			Name:  n,
@@ -73,7 +85,7 @@ func (r *Request) SetDefaults(ctx *hcl.EvalContext) error {
 }
 
 func (r *Request) ParseBody(ctx *hcl.EvalContext) error {
-	bodyVal, diags := r.Body.Value(ctx)
+	bodyVal, diags := r.BodyHCL.Value(ctx)
 	if diags.HasErrors() {
 		return fmt.Errorf("%+v", diags.Errs())
 	}
@@ -83,11 +95,11 @@ func (r *Request) ParseBody(ctx *hcl.EvalContext) error {
 	case cty.String:
 		body := bodyVal.AsString()
 		if json.Valid([]byte(body)) {
-			r.BodyRaw = body
+			r.Body = body
 			return nil
 		}
 		// Not valid JSON, treat as plain string and marshal it
-		r.BodyRaw = body
+		r.Body = body
 		return nil
 
 	case cty.DynamicPseudoType:
@@ -101,7 +113,7 @@ func (r *Request) ParseBody(ctx *hcl.EvalContext) error {
 		if bodyVal.Type().IsPrimitiveType() && bodyVal.Type().FriendlyName() == "string" {
 			strVal := bodyVal.AsString()
 			if json.Valid([]byte(strVal)) {
-				r.BodyRaw = strVal
+				r.Body = strVal
 				return nil
 			}
 		}
@@ -114,7 +126,7 @@ func (r *Request) ParseBody(ctx *hcl.EvalContext) error {
 	}
 
 	if string(jsonBytes) != "null" {
-		r.BodyRaw = string(jsonBytes)
+		r.Body = string(jsonBytes)
 	}
 
 	return nil
@@ -126,5 +138,48 @@ func (r Request) String() string {
 		headers += fmt.Sprintf("%s\n", h)
 	}
 
-	return fmt.Sprintf("%s %s\n%s\n%s", r.Method, r.URL, headers, r.BodyRaw)
+	return fmt.Sprintf("%s %s\n%s\n%s", r.Method, r.URL, headers, r.Body)
+}
+
+func (r *Request) CombineFrom(from Request) {
+	if r.Method == "GET" {
+		r.Method = from.Method
+	}
+	if r.URL == "" {
+		r.URL = from.URL
+	}
+	if r.Body == "" {
+		r.Body = from.Body
+	}
+
+	r.Headers = combineMap(from.Headers, r.Headers)
+	r.Cookies = combineMap(from.Cookies, r.Cookies)
+	r.Query = combineMap(from.Query, r.Query)
+
+	if r.BearerToken == "" {
+		r.BearerToken = from.BearerToken
+	}
+	if r.BasicAuth == "" {
+		r.BasicAuth = from.BasicAuth
+	}
+	if r.UserAgent == "" {
+		r.UserAgent = from.UserAgent
+	}
+	if r.PostHook == "" {
+		r.PostHook = from.PostHook
+	}
+	if r.Expect == 0 {
+		r.Expect = from.Expect
+	}
+}
+
+// combineMap: combines in a weird way for the CombineFrom method
+// we want to overwrite second with first values if they exist
+func combineMap(first, second map[string]string) map[string]string {
+	if second == nil {
+		return first
+	}
+	dst := maps.Clone(second)
+	maps.Copy(dst, first)
+	return dst
 }

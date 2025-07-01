@@ -24,7 +24,7 @@ type Client struct { }
 	if err != nil {
 		return nil, err
 	}
-	{{range .Headers}}req.Header.Set("{{split . ":" 0}}", "{{split . ":" 1}}"){{end}}
+	{{range $key, $value := .Headers}}req.Header.Set("{{$key}}", "{{$value}}"){{end}}
 	{{ if .Cookies }}
 	{{range $key, $value := .Cookies}}
 	req.AddCookie(&http.Cookie{

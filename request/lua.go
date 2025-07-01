@@ -73,7 +73,7 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 		"method":  lua.LString(res.Request.Method),
 		"query":   makeLTableFromMap(l, res.Request.URL.Query()),
 		"headers": makeLTableFromMap(l, res.Request.Header),
-		"body":    lua.LString(req.BodyRaw),
+		"body":    lua.LString(req.Body),
 	}
 	if req.Expect != 0 {
 		reqMap["expect"] = lua.LNumber(req.Expect)

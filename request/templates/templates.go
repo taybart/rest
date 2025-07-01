@@ -25,7 +25,7 @@ type Request struct {
 	URL       string
 	Method    string
 	Body      string
-	Headers   []string
+	Headers   map[string]string
 	Cookies   map[string]string
 	Query     map[string]string
 	PostHook  string

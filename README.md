@@ -86,6 +86,7 @@ Client:
 
 ### TODO
 
-- [ ] request.copy_from = "label"
+- [ ] ns.import brings labels into file
+- [x] request.copy_from = "label"
 - [ ] decode locals in blocks so they can be used as they are parsed
 - [ ] proxy requests to add headers or basic auth

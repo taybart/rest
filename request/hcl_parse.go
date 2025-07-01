@@ -9,6 +9,10 @@ import (
 )
 
 type Root struct {
+	// Imports []*struct {
+	// 	Body hcl.Body `hcl:",remain"`
+	// } `hcl:"imports,block"`
+
 	Locals []*struct {
 		Body hcl.Body `hcl:",remain"`
 	} `hcl:"locals,block"`
@@ -27,7 +31,7 @@ type Root struct {
 	} `hcl:"socket,block"`
 }
 
-func parseFile(filename string) (Config, []Request, *Socket, error) {
+func parseFile(filename string) (Config, map[string]Request, *Socket, error) {
 	config := DefaultConfig()
 
 	file, diags := readFile(filename)
@@ -43,6 +47,10 @@ func parseFile(filename string) (Config, []Request, *Socket, error) {
 		writeDiags(map[string]*hcl.File{filename: file}, diags)
 		return config, nil, nil, diags
 	}
+
+	// if err := importFiles(root); err != nil {
+	// 	return config, nil, nil, err
+	// }
 
 	locals, err := decodeLocals(root)
 	if err != nil {
@@ -70,9 +78,9 @@ func parseFile(filename string) (Config, []Request, *Socket, error) {
 		}
 	}
 
-	requests := []Request{}
+	requests := map[string]Request{}
 	labels := []string{}
-	for _, block := range root.Requests {
+	for i, block := range root.Requests {
 		req := Request{Label: block.Label}
 		if diags = gohcl.DecodeBody(block.Body, ctx, &req); diags.HasErrors() {
 			writeDiags(map[string]*hcl.File{filename: file}, diags)
@@ -89,9 +97,23 @@ func parseFile(filename string) (Config, []Request, *Socket, error) {
 		if err := req.SetDefaults(ctx); err != nil {
 			return config, nil, nil, err
 		}
-
-		requests = append(requests, req)
+		req.BlockIndex = i
+		requests[req.Label] = req
 		labels = append(labels, req.Label)
+	}
+	// process copy_froms
+	for label, req := range requests {
+		if requests[label].CopyFrom != "" {
+			if _, ok := requests[req.CopyFrom]; !ok {
+				return config, nil, nil, fmt.Errorf("request copy_from not found: %s", req.CopyFrom)
+			}
+			req.CombineFrom(requests[req.CopyFrom])
+			requests[label] = req
+		}
+		// check that required fields are set
+		if requests[label].URL == "" {
+			return config, nil, nil, fmt.Errorf("url is required for request: %s", req.Label)
+		}
 	}
 	return config, requests, socket, nil
 }

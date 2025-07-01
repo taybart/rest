@@ -15,7 +15,7 @@ var Javascript = RequestTemplate{
   method: '{{.Method}}',
 {{- if .Headers}}
   headers: {
-{{range .Headers}}'{{split . ":" 0}}', '{{split . ":" 1}}',{{end}}
+	{{range $key, $value := .Headers}}'{{$key}}', '{{$value}}',{{end}}
 },{{- end}}
 {{- if .Body}}
   body: JSON.stringify({{.Body}}),

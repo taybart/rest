@@ -40,20 +40,18 @@ func RunLabel(filename string, label string) error {
 	if err != nil {
 		return err
 	}
-	for _, req := range requests {
-		if req.Label == label {
-			res, err := client.Do(req)
-			if err != nil {
-				return err
-			}
-			if res != "" {
-				fmt.Println(res)
-			}
-			return nil
-		}
+	req, ok := requests[label]
+	if !ok {
+		return fmt.Errorf("request label not found")
 	}
-
-	return fmt.Errorf("request label not found")
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	if res != "" {
+		fmt.Println(res)
+	}
+	return nil
 }
 
 func RunBlock(filename string, block int) error {
@@ -65,7 +63,19 @@ func RunBlock(filename string, block int) error {
 	if err != nil {
 		return err
 	}
-	res, err := client.Do(requests[block])
+
+	var request Request
+	for _, req := range requests {
+		if req.BlockIndex == block {
+			request = req
+			break
+		}
+	}
+	if request.Label == "" {
+		return fmt.Errorf("request block not found")
+	}
+
+	res, err := client.Do(request)
 	if err != nil {
 		return err
 	}
@@ -111,7 +121,7 @@ func ExportFile(filename, export string, client bool) error {
 	}
 	treqs := []templates.Request{}
 	for _, req := range requests {
-		body := req.BodyRaw
+		body := req.Body
 		if body == "null" {
 			body = ""
 		}
