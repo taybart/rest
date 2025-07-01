@@ -1,11 +1,14 @@
-package request
+package file
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/taybart/log"
+	"github.com/taybart/rest/request"
 )
 
 type Root struct {
@@ -31,10 +34,34 @@ type Root struct {
 	} `hcl:"socket,block"`
 }
 
-func parseFile(filename string) (Config, map[string]Request, *Socket, error) {
-	config := DefaultConfig()
+func read(filename string) (*hcl.File, hcl.Diagnostics) {
+	src, err := os.ReadFile(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, hcl.Diagnostics{
+				{
+					Severity: hcl.DiagError,
+					Summary:  "Configuration file not found",
+					Detail:   fmt.Sprintf("The configuration file %s does not exist.", filename),
+				},
+			}
+		}
+		return nil, hcl.Diagnostics{
+			{
+				Severity: hcl.DiagError,
+				Summary:  "Failed to read configuration",
+				Detail:   fmt.Sprintf("Can't read %s: %s.", filename, err),
+			},
+		}
+	}
+	return hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 
-	file, diags := readFile(filename)
+}
+
+func Parse(filename string) (request.Config, map[string]request.Request, *request.Socket, error) {
+	config := request.DefaultConfig()
+
+	file, diags := read(filename)
 	if diags.HasErrors() {
 		writeDiags(map[string]*hcl.File{filename: file}, diags)
 		return config, nil, nil, diags
@@ -65,10 +92,10 @@ func parseFile(filename string) (Config, map[string]Request, *Socket, error) {
 			return config, nil, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
 		}
 	}
-	var socket *Socket // allow nil value for later
+	var socket *request.Socket // allow nil value for later
 	if root.Socket != nil {
 		// move to concrete pointer, to ensure decode doesn't panic
-		socket = &Socket{}
+		socket = &request.Socket{}
 		if diags = gohcl.DecodeBody(root.Socket.Body, ctx, socket); diags.HasErrors() {
 			writeDiags(map[string]*hcl.File{filename: file}, diags)
 			return config, nil, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)
@@ -78,10 +105,10 @@ func parseFile(filename string) (Config, map[string]Request, *Socket, error) {
 		}
 	}
 
-	requests := map[string]Request{}
+	requests := map[string]request.Request{}
 	labels := []string{}
 	for i, block := range root.Requests {
-		req := Request{Label: block.Label}
+		req := request.Request{Label: block.Label}
 		if diags = gohcl.DecodeBody(block.Body, ctx, &req); diags.HasErrors() {
 			writeDiags(map[string]*hcl.File{filename: file}, diags)
 			return config, nil, nil, fmt.Errorf("error decoding HCL configuration: %w", diags)

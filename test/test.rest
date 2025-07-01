@@ -1,0 +1,93 @@
+locals {
+  gameID = "ZAYwdDgXyaTIAdd"
+  player1ID = "player1ID"
+  player2ID = "player2ID"
+
+  boringMsg = <<JSON
+    {
+      "type": "boring", "data": {
+        "action": "{{action}}",
+        "gameID": "ZAYwdDgXyaTIAdd",
+        "playerID": "{{playerID}}",
+        "metadata": { 
+          "name": "{{name}}",
+          "race": "human", "class": "warrior",
+          "ac": 14, "hp": 11, "pro": 2, "lvl": 1
+        }
+      }
+    }
+  JSON
+  test = <<JSON
+    {
+      "msg": "{{msg}}"{{extra}}
+    }
+    JSON
+  add = <<JSON
+  ,"{{$0}}": "{{$1}}"
+  JSON
+  channel = "#general"
+}
+
+request "header test" {
+  url = "http://localhost:8500"
+  headers = {
+    "Content-Type" = "application/json",
+    "Authorization" = "bearer hi",
+    "X-Other-Header" = "other"
+  }
+  post_hook = <<LUA
+    print(inspect(rest.res.body))
+  LUA
+}
+request "copy test" {
+  copy_from = "header test"
+  bearer_token = "hi"
+  body = {
+    "type": "copy",
+    "from": "header test",
+    "to": "test"
+  }
+}
+
+socket {
+  url = "ws://localhost:8500/__ws__"
+  # no_special_cmds = true
+  run = {
+    delay = "1s"
+    order = ["join","leave","noop"]
+  }
+  playbook = {
+    ping = {type: "ping"}
+    test = {msg: "sub", channel: locals.channel }
+    # test = tmpl(locals.test, { 
+    #   msg = "hi" 
+    #   extra = "${tmpl(locals.test2, ["channel", "subscribe"])}" 
+    # })
+
+    join = tmpl(locals.boringMsg, {
+      playerID = locals.player1ID,
+      action = "join", 
+      name = "Player1"
+    })
+    leave = tmpl(locals.boringMsg,{
+      action = "leave", 
+      playerID = locals.player1ID,
+      name = "Player1"
+    })
+    join = tmpl(locals.boringMsg, {
+      playerID = locals.player1ID,
+      action = "join", 
+      name = "Player1"
+    })
+    leave = tmpl(locals.boringMsg,{
+      action = "leave", 
+      name = "Player1"
+    })
+    #   type: "boring", data: {
+    #     action: "leave",
+    #     gameID: "${locals.gameID}",
+    #     playerID: "${locals.player1ID}",
+    #   }
+    # }
+  }
+}

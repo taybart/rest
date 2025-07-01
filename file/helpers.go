@@ -1,4 +1,4 @@
-package request
+package file
 
 import (
 	"fmt"
@@ -8,35 +8,10 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
-
-func readFile(filename string) (*hcl.File, hcl.Diagnostics) {
-	src, err := os.ReadFile(filename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, hcl.Diagnostics{
-				{
-					Severity: hcl.DiagError,
-					Summary:  "Configuration file not found",
-					Detail:   fmt.Sprintf("The configuration file %s does not exist.", filename),
-				},
-			}
-		}
-		return nil, hcl.Diagnostics{
-			{
-				Severity: hcl.DiagError,
-				Summary:  "Failed to read configuration",
-				Detail:   fmt.Sprintf("Can't read %s: %s.", filename, err),
-			},
-		}
-	}
-	return hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
-
-}
 
 func writeDiags(files map[string]*hcl.File, diags hcl.Diagnostics) {
 	wr := hcl.NewDiagnosticTextWriter(

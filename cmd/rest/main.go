@@ -9,7 +9,7 @@ import (
 
 	"github.com/taybart/args"
 	"github.com/taybart/log"
-	"github.com/taybart/rest/request"
+	"github.com/taybart/rest"
 	"github.com/taybart/rest/server"
 )
 
@@ -225,22 +225,22 @@ func run() error {
 
 	if c.Export != "" {
 		log.Debugf("exporting file %s to %s (client: %t)\n", c.File, c.Export, c.Client)
-		return request.ExportFile(c.File, c.Export, c.Client)
+		return rest.ExportFile(c.File, c.Export, c.Client)
 	}
 
 	if a.Args["socket"].Provided {
 		log.Debug("running socket block on file", c.File)
-		return request.RunSocket(c.Socket, c.File)
+		return rest.RunSocket(c.Socket, c.File)
 	}
 
 	if c.Block >= 0 {
 		log.Debug("running block", c.Block, "on file", c.File)
-		return request.RunBlock(c.File, c.Block)
+		return rest.RunBlock(c.File, c.Block)
 	} else if c.Label != "" {
 		log.Debug("running request", c.Label, "on file", c.File)
-		return request.RunLabel(c.File, c.Label)
+		return rest.RunLabel(c.File, c.Label)
 	} else {
 		log.Debug("running file", c.File)
-		return request.RunFile(c.File, c.IgnoreFail)
+		return rest.RunFile(c.File, c.IgnoreFail)
 	}
 }

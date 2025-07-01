@@ -21,7 +21,7 @@ type RequestClient struct {
 	// Requests map[string]Request
 }
 
-func NewRequestClient(config Config) (*RequestClient, error) {
+func NewClient(config Config) (*RequestClient, error) {
 
 	client := http.Client{}
 	if !config.NoCookies {

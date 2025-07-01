@@ -1,4 +1,4 @@
-package request
+package file
 
 import (
 	"maps"
@@ -8,19 +8,19 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-type Local struct {
+type Import struct {
 	Name string
 	Expr hcl.Expression
 
 	DeclRange hcl.Range
 }
 
-func decodeLocals(root Root) (map[string]cty.Value, hcl.Diagnostics) {
+func DecodeImports(root Root) (map[string]cty.Value, hcl.Diagnostics) {
 	// var diags hcl.Diagnostics
 	locals := make(map[string]cty.Value)
 	ctx := makeContext(nil)
 	for _, l := range root.Locals {
-		tmp, _ := decodeLocalsBlock(ctx, l.Body)
+		tmp, _ := decodeImportBlock(ctx, l.Body)
 		// if diag.HasErrors() {
 		// 		diags = append(diags, diag...)
 		// }
@@ -29,7 +29,7 @@ func decodeLocals(root Root) (map[string]cty.Value, hcl.Diagnostics) {
 	return locals, nil
 }
 
-func decodeLocalsBlock(ctx *hcl.EvalContext, block hcl.Body) (map[string]cty.Value, hcl.Diagnostics) {
+func decodeImportBlock(ctx *hcl.EvalContext, block hcl.Body) (map[string]cty.Value, hcl.Diagnostics) {
 	attrs, diags := block.JustAttributes()
 	if len(attrs) == 0 {
 		return nil, diags

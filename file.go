@@ -1,18 +1,20 @@
-package request
+package rest
 
 import (
 	"fmt"
 	"os"
 
+	"github.com/taybart/rest/file"
+	"github.com/taybart/rest/request"
 	"github.com/taybart/rest/request/templates"
 )
 
 func RunFile(filename string, ignoreFail bool) error {
-	config, requests, _, err := parseFile(filename)
+	config, requests, _, err := file.Parse(filename)
 	if err != nil {
 		return err
 	}
-	client, err := NewRequestClient(config)
+	client, err := request.NewClient(config)
 	if err != nil {
 		return err
 	}
@@ -32,11 +34,11 @@ func RunFile(filename string, ignoreFail bool) error {
 }
 
 func RunLabel(filename string, label string) error {
-	config, requests, _, err := parseFile(filename)
+	config, requests, _, err := file.Parse(filename)
 	if err != nil {
 		return err
 	}
-	client, err := NewRequestClient(config)
+	client, err := request.NewClient(config)
 	if err != nil {
 		return err
 	}
@@ -55,27 +57,27 @@ func RunLabel(filename string, label string) error {
 }
 
 func RunBlock(filename string, block int) error {
-	config, requests, _, err := parseFile(filename)
+	config, requests, _, err := file.Parse(filename)
 	if err != nil {
 		return err
 	}
-	client, err := NewRequestClient(config)
+	client, err := request.NewClient(config)
 	if err != nil {
 		return err
 	}
 
-	var request Request
+	var todo request.Request
 	for _, req := range requests {
 		if req.BlockIndex == block {
-			request = req
+			todo = req
 			break
 		}
 	}
-	if request.Label == "" {
+	if todo.Label == "" {
 		return fmt.Errorf("request block not found")
 	}
 
-	res, err := client.Do(request)
+	res, err := client.Do(todo)
 	if err != nil {
 		return err
 	}
@@ -86,14 +88,14 @@ func RunBlock(filename string, block int) error {
 }
 
 func RunSocket(socketArg string, filename string) error {
-	config, _, socket, err := parseFile(filename)
+	config, _, socket, err := file.Parse(filename)
 	if err != nil {
 		return err
 	}
 	if socket == nil {
 		return fmt.Errorf("no socket in file")
 	}
-	client, err := NewRequestClient(config)
+	client, err := request.NewClient(config)
 	if err != nil {
 		return err
 	}
@@ -111,7 +113,7 @@ func ExportFile(filename, export string, client bool) error {
 		return nil
 	}
 
-	config, requests, _, err := parseFile(filename)
+	config, requests, _, err := file.Parse(filename)
 	if err != nil {
 		return err
 	}
@@ -126,7 +128,7 @@ func ExportFile(filename, export string, client bool) error {
 			body = ""
 		}
 		ua := config.UserAgent
-		if ua == DefaultConfig().UserAgent {
+		if ua == request.DefaultConfig().UserAgent {
 			ua = ""
 		}
 		treqs = append(treqs, templates.Request{

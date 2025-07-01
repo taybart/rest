@@ -56,6 +56,10 @@ func (s *Server) routes(server *http.Server) {
 			server.Shutdown(context.Background())
 		}()
 	}))
+
+	// s.router.Handle("/__ws__", websocket.Handler(func(ws *websocket.Conn) {
+	// 	io.Copy(ws, ws)
+	// }))
 	if s.c.Dir != "" {
 		d, err := filepath.Abs(s.c.Dir)
 		if err != nil {
