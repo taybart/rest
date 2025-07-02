@@ -2,6 +2,8 @@
 package file
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -159,6 +161,17 @@ func Parse(filename string) (Rest, error) {
 		if requests[label].URL == "" {
 			return ret, fmt.Errorf("url is required for request: %s", req.Label)
 		}
+
+		// make body look nice if its json
+		if json.Valid([]byte(req.Body)) {
+			var buf bytes.Buffer
+			err := json.Compact(&buf, []byte(req.Body))
+			if err != nil {
+				return ret, err
+			}
+			req.Body = buf.String()
+			requests[label] = req
+		}
 	}
 	ret.Requests = requests
 
@@ -171,10 +184,11 @@ func makeContext(vars map[string]cty.Value) *hcl.EvalContext {
 			"locals": cty.ObjectVal(vars),
 		},
 		Functions: map[string]function.Function{
-			"env":  makeEnvFunc(),
-			"read": makeFileReadFunc(),
-			"json": makeJSONFunc(),
-			"tmpl": makeTemplateFunc(),
+			"env":   makeEnvFunc(),
+			"read":  makeFileReadFunc(),
+			"json":  makeJSONFunc(),
+			"btmpl": makeTemplateFunc(),
+			"tmpl":  makeGoTemplateFunc(),
 		},
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
@@ -123,6 +124,48 @@ func makeTemplateFunc() function.Function {
 			default:
 				return cty.NilVal, fmt.Errorf("values must be a list or map, got %s", valuesArg.Type().FriendlyName())
 			}
+		},
+	})
+}
+func makeGoTemplateFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name: "template",
+				Type: cty.String,
+			},
+			{
+				Name:             "values",
+				Type:             cty.DynamicPseudoType,
+				AllowDynamicType: true,
+			},
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			tmpl := args[0].AsString()
+			valuesArg := args[1]
+
+			if valuesArg.Type().IsMapType() || valuesArg.Type().IsObjectType() {
+				valuesMap := valuesArg.AsValueMap()
+				values := make(map[string]any)
+				for k, v := range valuesMap {
+					values[k] = v.AsString()
+				}
+
+				t, err := template.New("tmpl").Parse(tmpl)
+				if err != nil {
+					return cty.NilVal, err
+				}
+				var ret strings.Builder
+				if err := t.Execute(&ret, values); err != nil {
+					return cty.NilVal, err
+				}
+				return cty.StringVal(ret.String()), nil
+			}
+
+			// default:
+			return cty.NilVal, fmt.Errorf("values must be a list or map, got %s", valuesArg.Type().FriendlyName())
+			// }
 		},
 	})
 }

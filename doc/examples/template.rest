@@ -1,7 +1,7 @@
 locals {
   body = <<JSON
   {
-    "myName": "{{NAME}}"
+    "myName": "{{.NAME}}"
   }
   JSON
 }

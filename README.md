@@ -86,7 +86,9 @@ Client:
 
 ### TODO
 
-- [ ] ns.import brings labels into file
-- [x] request.copy_from = "label"
+- [ ] format body according to content-type
 - [ ] decode locals in blocks so they can be used as they are parsed
 - [ ] proxy requests to add headers or basic auth
+- [x] ns.import brings labels into file
+- [x] request.copy_from = "label"
+- [x] move tmpl to golang template

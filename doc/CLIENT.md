@@ -110,9 +110,10 @@ There are a few functions that can be used in a rest file:
 - `env("VALUE")` - grab an environment variable
 - `read("./filepath")` - read a file into the rest file, this will just be read into a string so it can be used anywhere (ex. request body,
 - `json("{\"string\": \"json\"}")` - turn string value into a json object, there are some caveats with this function
-- `tmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a template replacing named or indexed values if second argument is an array
+- `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
+- `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map (currently only map[string]strings are supported)
 
-For example:
+For example (more examples in [examples](doc/examples)):
 
 ```hcl
 locals {
@@ -213,7 +214,7 @@ locals {
     {
         "msg": "post",
         "channel": "#general",
-        "content": "{{content}}"
+        "content": "{{.content}}"
     }
     JSON
 }
@@ -225,9 +226,9 @@ socket {
     order = ["ping", "subscribe", "post", "noop"] # noop can be used to wait for an answer
   }
   playbook = {
-    ping = tmpl(locals.msg, ["ping"]) // {"msg": "ping"}
+    ping = btmpl(locals.msg, ["ping"]) // {"msg": "ping"}
     subscribe = {msg: "sub", channel: locals.channel }
-    post = tmpl(locals.post, { msg = "hello everyone!" }) // { "msg": "post", "channel": "#general", "content": "hello everyone!" }
+    post = tmpl(locals.post, { content = "hello everyone!" }) // { "msg": "post", "channel": "#general", "content": "hello everyone!" }
     }
   }
 }

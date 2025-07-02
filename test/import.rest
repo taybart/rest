@@ -1,9 +1,15 @@
 locals {
   imported = "HELLO"
+  testTmpl = <<JSON
+  {
+    "hello": "{{.WORLD}}"
+  }
+  JSON
 }
 
 request "base" {
   url = "http://localhost:8500"
   method = "POST"
   bearer_token = "test"
+  body = tmpl(locals.testTmpl, {WORLD = "world"})
 }

@@ -1,6 +1,7 @@
 package request
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -46,7 +47,16 @@ func (r *Request) Build() (*http.Request, error) {
 	if r.Built != nil {
 		return r.Built, nil
 	}
-	req, err := http.NewRequest(r.Method, r.URL, strings.NewReader(r.Body))
+	body := r.Body
+	if r.Headers["Content-Type"] == "application/json" {
+		var buf bytes.Buffer
+		err := json.Compact(&buf, []byte(r.Body))
+		if err != nil {
+			return nil, err
+		}
+		body = buf.String()
+	}
+	req, err := http.NewRequest(r.Method, r.URL, strings.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
