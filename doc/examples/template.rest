@@ -13,5 +13,5 @@ request "template" {
   headers = {
     "Content-Type" = "application/json"
   }
-  body = json(tmpl(locals.body, { NAME = "foobah" }))
+  body = tmpl(locals.body, { NAME = "foobah" })
 }
