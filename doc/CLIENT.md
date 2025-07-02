@@ -119,7 +119,7 @@ There are a few functions that can be used in a rest file:
 - `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
 - `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map (currently only map[string]strings are supported)
 
-For example (more examples in [examples](doc/examples)):
+For example (more examples in [examples](examples)):
 
 ```hcl
 locals {
