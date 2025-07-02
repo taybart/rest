@@ -2,6 +2,7 @@ package file
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -161,6 +162,35 @@ func makeGoTemplateFunc() function.Function {
 					return cty.NilVal, err
 				}
 				return cty.StringVal(ret.String()), nil
+			}
+
+			// default:
+			return cty.NilVal, fmt.Errorf("values must be a list or map, got %s", valuesArg.Type().FriendlyName())
+			// }
+		},
+	})
+}
+func makeFormFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name:             "values",
+				Type:             cty.DynamicPseudoType,
+				AllowDynamicType: true,
+			},
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			valuesArg := args[0]
+
+			if valuesArg.Type().IsMapType() || valuesArg.Type().IsObjectType() {
+				valuesMap := valuesArg.AsValueMap()
+				data := url.Values{}
+				for k, v := range valuesMap {
+					data.Set(k, v.AsString())
+				}
+
+				return cty.StringVal(data.Encode()), nil
 			}
 
 			// default:

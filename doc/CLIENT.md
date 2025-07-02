@@ -77,8 +77,14 @@ request "my request" {
   # if not specified, defaults to GET
   method = "GET"
 
-  # array of strings, they are directly included so ensure they are formatted correctly
-  headers = [ "X-Test: test" ]
+  # there are convenience keys to set auth headers
+  # basic auth can be set
+  basic_auth = "username:password"
+  # or a bearer token can be used
+  bearer_token = "token"
+
+  # map of headers
+  headers = { "X-Test" = "test" }
 
   # only single level query params are allowed so maps must be explicitly defined
   query = {
@@ -86,7 +92,7 @@ request "my request" {
     "config[key]" = "value"
   }
 
-  # body can look like a json object or a regular hcl map
+  # body can look like a json object or a regular hcl map or a string
   body = { test: "body" } # or body = { test = "body" }
 
   # cookies can be set for a single request
@@ -96,9 +102,8 @@ request "my request" {
   # and fail if it doesn't match (ie return 1)
   expect = 200
 
-  # is a string, heredoc (<<IDENT ... IDENT) is a good way to set it,
-  # if you are using treesitter, using LUA as your ident will highlight
-  #the hook well
+  # is a string, heredoc (<<IDENT ... IDENT) is a good way to set it
+  # using LUA as the ident can make some editors highlight the code better
   post_hook = "see hooks below"
 }
 ```
@@ -110,6 +115,7 @@ There are a few functions that can be used in a rest file:
 - `env("VALUE")` - grab an environment variable
 - `read("./filepath")` - read a file into the rest file, this will just be read into a string so it can be used anywhere (ex. request body,
 - `json("{\"string\": \"json\"}")` - turn string value into a json object, there are some caveats with this function
+- `form({key = "value"}")` - turn map value into a url-encoded form string
 - `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
 - `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map (currently only map[string]strings are supported)
 
@@ -124,7 +130,7 @@ locals {
 request "my request" {
   url = "http://localhost:8080/"
   headers = [
-    "Authorization: Bearer ${env("token")}"
+    "Authorization" = "Bearer ${env("token")}"
   ]
   # will be {"test": {"hello": "from a file"}}
   body = {
@@ -132,6 +138,8 @@ request "my request" {
   }
   # or just used directly
   body = json(locals.partial_body)
+  # or url encoded form string
+  body = form({ hello = "world" })
 }
 ```
 

@@ -8,11 +8,11 @@ locals {
   boringMsg = <<JSON
     {
       "type": "boring", "data": {
-        "action": "{{action}}",
+        "action": "{{.action}}",
         "gameID": "ZAYwdDgXyaTIAdd",
-        "playerID": "{{playerID}}",
+        "playerID": "{{.playerID}}",
         "metadata": { 
-          "name": "{{name}}",
+          "name": "{{.name}}",
           "race": "human", "class": "warrior",
           "ac": 14, "hp": 11, "pro": 2, "lvl": 1
         }
@@ -21,7 +21,7 @@ locals {
   JSON
   test = <<JSON
     {
-      "msg": "{{msg}}"{{extra}}
+      "msg": "{{.msg}}"{{.extra}}
     }
     JSON
   add = <<JSON
@@ -48,6 +48,16 @@ request "copy test" {
     "from": "header test",
     "to": "${locals.imported}"
   }
+}
+
+request "form test" {
+  copy_from = "base"
+  headers = {
+    "Content-Type" = "application/x-www-form-urlencoded"
+  }
+  body = form({
+    test= "values[]"
+  })
 }
 
 socket {

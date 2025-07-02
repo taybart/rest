@@ -189,6 +189,7 @@ func makeContext(vars map[string]cty.Value) *hcl.EvalContext {
 			"json":  makeJSONFunc(),
 			"btmpl": makeTemplateFunc(),
 			"tmpl":  makeGoTemplateFunc(),
+			"form":  makeFormFunc(),
 		},
 	}
 }
