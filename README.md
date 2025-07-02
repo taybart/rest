@@ -2,7 +2,7 @@
 
 Goes well with [rest.nvim](https://github.com/taybart/rest.nvim)
 
-Example:
+Example (see [doc](doc/CLIENT.md) for more info):
 
 ```hcl
 locals {
@@ -22,7 +22,7 @@ request "hell_yeah" {
 request "httpbin post" {
   method = "POST"
   url = "https://httpbin.org/post"
-  headers = [ "Content-Type: application/json" ]
+  headers = { "Content-Type" = "application/json" }
 
   body = {
     hello: "${locals.name}"
