@@ -129,9 +129,9 @@ locals {
 
 request "my request" {
   url = "http://localhost:8080/"
-  headers = [
+  headers = {
     "Authorization" = "Bearer ${env("token")}"
-  ]
+  }
   # will be {"test": {"hello": "from a file"}}
   body = {
     test: json("${locals.partial_body}")
