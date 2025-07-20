@@ -14,9 +14,9 @@ locals {
 request "hell_yeah" {
   url = "${locals.url}/get"
   method = "GET"
-  headers = [
-    "X-TEST: you:😄",
-  ]
+  headers = {
+    "X-TEST" = "you:😄"
+  }
 }
 
 request "httpbin post" {
