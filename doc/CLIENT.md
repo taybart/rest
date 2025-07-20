@@ -71,6 +71,10 @@ Requests are defined in the `request` block (duh), they require some kind of lab
 
 ```hcl
 request "my request" {
+  # skip request, this is useful when creating a base request
+  # skip is not copied over and not used when comparing requests
+  skip = false
+
   # url must include protocol (http(s) for now)
   url = "http://localhost:8080/"
 
