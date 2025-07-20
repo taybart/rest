@@ -33,6 +33,10 @@ func RunFile(filename string, ignoreFail bool) error {
 	})
 	for _, label := range order {
 		req := rest.Requests[label]
+		if req.Skip {
+			fmt.Println("skipping", req.Label)
+			continue
+		}
 		res, err := client.Do(req)
 		if err != nil {
 			if !ignoreFail {
@@ -59,6 +63,10 @@ func RunLabel(filename string, label string) error {
 	req, ok := rest.Requests[label]
 	if !ok {
 		return fmt.Errorf("request label not found")
+	}
+	if req.Skip {
+		fmt.Println("skipping", req.Label)
+		return nil
 	}
 	res, err := client.Do(req)
 	if err != nil {
@@ -89,6 +97,10 @@ func RunBlock(filename string, block int) error {
 	}
 	if todo.Label == "" {
 		return fmt.Errorf("request block not found")
+	}
+	if todo.Skip {
+		fmt.Println("skipping", todo.Label)
+		return nil
 	}
 
 	res, err := client.Do(todo)

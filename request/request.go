@@ -31,6 +31,7 @@ type Request struct {
 	// extras
 	Delay  string `hcl:"delay,optional"`
 	Expect int    `hcl:"expect,optional"`
+	Skip   bool   `hcl:"skip,optional"`
 
 	// ...rest
 	Remain hcl.Expression `hcl:"remain,optional"`
