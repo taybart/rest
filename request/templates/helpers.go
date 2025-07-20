@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"regexp"
-	"slices"
 	"strings"
 	"text/template"
 
@@ -27,14 +26,8 @@ var stdFns = template.FuncMap{
 		}
 		return s
 	},
-	"json": func(headers []string, body string) string {
-		isJson := slices.ContainsFunc(headers, func(h string) bool {
-			if strings.HasPrefix(h, "Content-Type") {
-				return strings.Contains(h, "application/json")
-			}
-			return false
-		})
-		if isJson {
+	"json": func(headers map[string]string, body string) string {
+		if headers["Content-Type"] == "application/json" {
 			var b bytes.Buffer
 			err := json.Compact(&b, []byte(body))
 			if err != nil {

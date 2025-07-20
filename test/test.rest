@@ -56,7 +56,7 @@ request "form test" {
     "Content-Type" = "application/x-www-form-urlencoded"
   }
   body = form({
-    test= "values[]"
+    test= "[0,1,2]"
   })
 }
 

@@ -35,6 +35,9 @@ type Request struct {
 	Label  string
 	Delay  string
 	Expect int
+
+	// metadata
+	BlockIndex int
 }
 
 //	func (r *Request) Build() error {
@@ -87,10 +90,10 @@ func (r *RequestTemplate) Build() *RequestTemplate {
 	return r
 }
 
-func (r *RequestTemplate) ExecuteClient(wr io.Writer, reqs []Request) error {
+func (r *RequestTemplate) ExecuteClient(wr io.Writer, reqs map[string]Request) error {
 	// req.Build()
 	var code bytes.Buffer
-	for _, req := range reqs {
+	for label, req := range reqs {
 		var reqBuf bytes.Buffer
 		err := r.Execute(&reqBuf, req)
 		if err != nil {
@@ -98,7 +101,7 @@ func (r *RequestTemplate) ExecuteClient(wr io.Writer, reqs []Request) error {
 		}
 		r.Function.Execute(&code, map[string]any{
 			"Code":  strings.TrimSpace(reqBuf.String() + "\n"),
-			"Label": req.Label,
+			"Label": label,
 		})
 	}
 

@@ -2,6 +2,7 @@
 package rest
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -106,7 +107,7 @@ func RunSocket(socketArg string, filename string) error {
 	return nil
 }
 
-func ExportFile(filename, export string, client bool) error {
+func ExportFile(filename, export, label string, block int, client bool) error {
 	if export == "?" || export == "ls" || export == "list" {
 		for _, e := range templates.Exports() {
 			fmt.Println(e)
@@ -122,7 +123,7 @@ func ExportFile(filename, export string, client bool) error {
 	if t == nil {
 		return fmt.Errorf(" exporting language (%s) not supported", export)
 	}
-	treqs := []templates.Request{}
+	treqs := map[string]templates.Request{}
 	for _, req := range rest.Requests {
 		body := req.Body
 		if body == "null" {
@@ -132,33 +133,51 @@ func ExportFile(filename, export string, client bool) error {
 		if ua == request.DefaultConfig().UserAgent {
 			ua = ""
 		}
-		treqs = append(treqs, templates.Request{
-			Method:   req.Method,
-			URL:      req.URL,
-			Headers:  req.Headers,
-			Body:     body,
-			Query:    req.Query,
-			Cookies:  req.Cookies,
-			PostHook: req.PostHook,
-			Label:    req.Label,
-			Delay:    req.Delay,
-			Expect:   req.Expect,
+		treqs[req.Label] = templates.Request{
+			Method:     req.Method,
+			URL:        req.URL,
+			Headers:    req.Headers,
+			Body:       body,
+			Query:      req.Query,
+			Cookies:    req.Cookies,
+			PostHook:   req.PostHook,
+			Label:      req.Label,
+			Delay:      req.Delay,
+			Expect:     req.Expect,
+			BlockIndex: req.BlockIndex,
 			// config
 			UserAgent: ua,
-		})
+		}
 	}
 	if client {
 		return t.ExecuteClient(os.Stdout, treqs)
 	}
-	for i, req := range treqs {
+	if label != "" {
+		req, ok := treqs[label]
+		if !ok {
+			return fmt.Errorf("request label not found")
+		}
+		return t.Execute(os.Stdout, req)
+	}
+	if block >= 0 {
+		for _, req := range treqs {
+			if req.BlockIndex == block {
+				return t.Execute(os.Stdout, req)
+			}
+		}
+		return errors.New("request block not found")
+	}
+	count := 0
+	for _, req := range treqs {
 		err := t.Execute(os.Stdout, req)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("\n")
-		if i < len(rest.Requests)-1 {
+		if count < len(rest.Requests)-1 {
 			fmt.Printf("\n")
 		}
+		count += 1
 	}
 
 	return nil
