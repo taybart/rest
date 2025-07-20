@@ -4,6 +4,7 @@ locals {
 
 
 request "imported" {
+  skip = true
   url = "http://localhost:18080/"
   headers = {
     "X-imported-header" = "success"
