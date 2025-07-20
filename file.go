@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/taybart/rest/file"
 	"github.com/taybart/rest/request"
@@ -20,7 +21,18 @@ func RunFile(filename string, ignoreFail bool) error {
 	if err != nil {
 		return err
 	}
-	for _, req := range rest.Requests {
+	// make sure to run blocks in order of appearance
+	order := make([]string, 0, len(rest.Requests))
+	for k := range rest.Requests {
+		order = append(order, k)
+	}
+
+	// Sort keys by BlockIndex
+	sort.Slice(order, func(i, j int) bool {
+		return rest.Requests[order[i]].BlockIndex < rest.Requests[order[j]].BlockIndex
+	})
+	for _, label := range order {
+		req := rest.Requests[label]
 		res, err := client.Do(req)
 		if err != nil {
 			if !ignoreFail {

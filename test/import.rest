@@ -12,4 +12,7 @@ request "base" {
   method = "POST"
   bearer_token = "test"
   body = tmpl(locals.testTmpl, {WORLD = "world"})
+  post_hook = <<LUA
+    print('label: '..rest.label)
+  LUA
 }

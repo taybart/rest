@@ -37,8 +37,13 @@ request "header test" {
     "Authorization" = "bearer hi",
     "X-Other-Header" = "other"
   }
+  body = {}
   post_hook = <<LUA
-    print(inspect(rest.res.body))
+    print('\nlabel: '..rest.label)
+    print('setting shared.test => hi')
+    rest.shared.test = 'hi'
+    -- print(inspect(rest.res.body))
+    print('\n')
   LUA
 }
 request "copy test" {
@@ -48,6 +53,12 @@ request "copy test" {
     "from": "header test",
     "to": "${locals.imported}"
   }
+  post_hook = <<LUA
+    print('\nlabel: '..rest.label)
+    print('shared => '.. rest.shared.test)
+    rest.shared.test = json.decode(rest.res.body).status
+    print('\n')
+  LUA
 }
 
 request "form test" {
@@ -58,6 +69,11 @@ request "form test" {
   body = form({
     test= "[0,1,2]"
   })
+  post_hook = <<LUA
+    print('label: '..rest.label)
+    print('shared => '.. rest.shared.test)
+    print('\n')
+  LUA
 }
 
 socket {

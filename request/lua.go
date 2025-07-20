@@ -14,6 +14,8 @@ import (
 //go:embed lua/*
 var library embed.FS
 
+var sharedState *lua.LTable
+
 func loadModule(l *lua.LState, name, filename string) error {
 	code, err := library.ReadFile("lua/" + filename)
 	if err != nil {
@@ -98,9 +100,15 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 		"cookies": makeLTable(l, cookieMap),
 	})
 
+	if sharedState == nil {
+		sharedState = l.NewTable()
+	}
+
 	table := makeLTable(l, map[string]lua.LValue{
-		"req": reqTbl,
-		"res": resTbl,
+		"label":  lua.LString(req.Label),
+		"req":    reqTbl,
+		"res":    resTbl,
+		"shared": sharedState,
 	})
 	l.SetGlobal("rest", table)
 	return nil

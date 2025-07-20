@@ -155,6 +155,8 @@ There are a couple of global libraries available to you:
 
 Hooks are also passed a `rest` table that contains the following:
 
+`rest.label` - the label of the request block
+
 `req` - the request object
 
 ```lua
@@ -176,6 +178,23 @@ Hooks are also passed a `rest` table that contains the following:
   cookies = {}, -- cookies that were set during the request
   headers = {}, -- headers table returned by the server
   status = 200 -- status code returned by the server
+}
+```
+
+`shared` - a table that is shared between requests
+
+```hcl
+request "one" {
+    // ...
+    post_hook = <<LUA
+        rest.shared.one_res = json.decode(rest.res.body).status
+    LUA
+}
+request "two" {
+    // ...
+    post_hook = <<LUA
+        print(rest.shared.one_res == json.decode(rest.res.body).status)
+    LUA
 }
 ```
 
