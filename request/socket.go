@@ -1,6 +1,7 @@
 package request
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -135,6 +136,9 @@ func (s *Socket) Build(arg string, config Config) (*websocket.Dialer, SocketActi
 		Proxy:            http.ProxyFromEnvironment,
 		HandshakeTimeout: 45 * time.Second,
 		Jar:              jar,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: config.InsecureNoVerifyTLS,
+		},
 	}
 	switch arg {
 	case "run":

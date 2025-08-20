@@ -153,7 +153,14 @@ func makeGoTemplateFunc() function.Function {
 					values[k] = v.AsString()
 				}
 
-				t, err := template.New("tmpl").Parse(tmpl)
+				t, err := template.New("tmpl").Funcs(template.FuncMap{
+					"default": func(a, b string) string {
+						if a != "" {
+							return a
+						}
+						return b
+					},
+				}).Parse(tmpl)
 				if err != nil {
 					return cty.NilVal, err
 				}
