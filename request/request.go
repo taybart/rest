@@ -42,6 +42,8 @@ type Request struct {
 	BlockIndex int
 
 	Built *http.Request
+
+	Block *hcl.Body
 }
 
 func (r *Request) Build() (*http.Request, error) {

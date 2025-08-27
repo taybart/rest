@@ -1,9 +1,12 @@
+# start server with rest -s -a :18080
 socket {
-  url = "ws://localhost:18080/ws"
+  url = "ws://localhost:18080/__ws__"
   run = {
-    order = ["ping", "ping", "noop"]
+    order = ["hi", "ping", "ping", "noop"]
   }
   playbook = {
     ping = {msg: "ping"}
+    hi = {msg: "hi"}
+    test = {msg: "test"}
   }
 }

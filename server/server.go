@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/taybart/log"
 )
 
@@ -57,10 +58,28 @@ func (s *Server) routes(server *http.Server) {
 			server.Shutdown(context.Background())
 		}()
 	}))
-
-	// s.router.Handle("/__ws__", websocket.Handler(func(ws *websocket.Conn) {
-	// 	io.Copy(ws, ws)
-	// }))
+	s.router.HandleFunc("/__ws__", func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		}
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		for {
+			messageType, p, err := conn.ReadMessage()
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			if err := conn.WriteMessage(messageType, p); err != nil {
+				log.Error(err)
+				return
+			}
+		}
+	})
 	if s.c.Dir != "" {
 		d, err := filepath.Abs(s.c.Dir)
 		if err != nil {

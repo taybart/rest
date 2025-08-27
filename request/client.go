@@ -173,15 +173,27 @@ func (c *Client) DoSocket(socketArg string, s Socket) error {
 	case SocketREPL:
 		r := NewREPL(s.NoSpecialCmds)
 		go r.Loop(func(cmd string) error {
-			pb, ok := s.Playbook[cmd]
-			if !ok {
-				return fmt.Errorf("no such playbook entry: %s", cmd)
+			switch cmd {
+			case "ls":
+				if !r.NoSpecialCmds {
+					fmt.Print("\n\r")
+					for k := range s.Playbook {
+						fmt.Printf("%s ", k)
+					}
+					return nil
+				}
+				fallthrough
+			default:
+				pb, ok := s.Playbook[cmd]
+				if !ok {
+					return fmt.Errorf("no such playbook entry: %s", cmd)
+				}
+				err := conn.WriteMessage(websocket.TextMessage, []byte(pb))
+				if err != nil {
+					return fmt.Errorf("ws write: %w", err)
+				}
+				fmt.Printf("\n\r%ssent(%s)%s", log.BoldGreen, cmd, log.Reset)
 			}
-			err := conn.WriteMessage(websocket.TextMessage, []byte(pb))
-			if err != nil {
-				return fmt.Errorf("ws write: %w", err)
-			}
-			fmt.Printf("\n\r%ssent(%s)%s", log.BoldGreen, cmd, log.Reset)
 			return nil
 		}, done)
 	}

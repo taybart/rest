@@ -128,7 +128,7 @@ func Parse(filename string) (Rest, error) {
 	requests := map[string]request.Request{}
 	labels := []string{}
 	for i, block := range root.Requests {
-		req := request.Request{Label: block.Label}
+		req := request.Request{Label: block.Label, Block: &block.Body}
 		if diags = gohcl.DecodeBody(block.Body, ctx, &req); diags.HasErrors() {
 			writeDiags(map[string]*hcl.File{filename: file}, diags)
 			return ret, fmt.Errorf("error decoding HCL configuration: %w", diags)
