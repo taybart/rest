@@ -54,6 +54,7 @@ func loadModule(l *lua.LState, name, filename string) error {
 func registerModules(l *lua.LState) error {
 	libs := map[string]string{
 		"base64":  "base64.lua",
+		"colors":  "colors.lua",
 		"json":    "json.lua",
 		"inspect": "inspect.lua",
 	}
@@ -153,8 +154,8 @@ func (r *Request) RunPostHook(res *http.Response, jar http.CookieJar) (string, e
 		return "", err
 	}
 
-	table := ltableToMap(exportsTable)
-	fmt.Println(table)
+	// table := ltableToMap(exportsTable)
+	// fmt.Println(table)
 	if ret := l.Get(-1); ret.String() != "nil" {
 		return ret.String(), nil
 	}
