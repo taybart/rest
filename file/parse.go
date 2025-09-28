@@ -186,6 +186,7 @@ func makeContext(vars map[string]cty.Value) *hcl.EvalContext {
 		Functions: map[string]function.Function{
 			"env":   makeEnvFunc(),
 			"read":  makeFileReadFunc(),
+			"trim":  makeTrimFunc(),
 			"json":  makeJSONFunc(),
 			"btmpl": makeTemplateFunc(),
 			"tmpl":  makeGoTemplateFunc(),

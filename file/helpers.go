@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,12 +28,33 @@ func makeFileReadFunc() function.Function {
 		},
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			path, _ := args[0].Unmark()
-			val, err := os.ReadFile(path.AsString())
+			pathArg, _ := args[0].Unmark()
+			path := pathArg.AsString()
+			if strings.HasPrefix(path, "~/") {
+				home, _ := os.UserHomeDir()
+				path = filepath.Join(home, path[2:])
+			}
+			val, err := os.ReadFile(path)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
 			return cty.StringVal(string(val)), nil
+		},
+	})
+}
+func makeTrimFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name:        "messy",
+				Type:        cty.String,
+				AllowMarked: true,
+			},
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			messy, _ := args[0].Unmark()
+			return cty.StringVal(strings.TrimSpace(messy.AsString())), nil
 		},
 	})
 }
