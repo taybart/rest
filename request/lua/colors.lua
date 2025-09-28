@@ -64,7 +64,16 @@ local colors = {
 }
 
 function colors.f(co, text)
-  return co .. text .. colors.reset
+  if type(co) == 'string' then
+    return co .. text .. colors.reset
+  end
+  if type(co) == 'table' then
+    local out = ''
+    for _, v in pairs(co) do
+      out = out .. v
+    end
+    return out .. text .. colors.reset
+  end
 end
 
 function colors.hyperlink(url, text, color)
