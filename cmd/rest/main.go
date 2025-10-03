@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/taybart/args"
 	"github.com/taybart/log"
 	"github.com/taybart/rest"
+	"github.com/taybart/rest/file"
 	"github.com/taybart/rest/server"
 )
 
@@ -18,7 +20,7 @@ func usage(u args.Usage) {
 		"no-color",
 	}
 	server := []string{
-		"addr", "serve", "dir",
+		"addr", "serve", "dir", "file",
 		"origins", "tls", "quiet",
 	}
 	client := []string{
@@ -82,6 +84,10 @@ var (
 				Help:    "Directory to serve",
 				Default: "",
 			},
+			"response": {
+				Short: "r",
+				Help:  `Response to send, json file path or inline in the format {"status": 200, "body": {"hello": "world"}}`,
+			},
 			"origins": {
 				Short:   "o",
 				Help:    "Add Access-Control-Allow-Origin header value\n\tex: -o * or -o 'http://localhost:8080 http://localhost:3000' ",
@@ -141,6 +147,7 @@ var (
 		Addr    string `arg:"addr"`
 		Serve   bool   `arg:"serve"`
 		Dir     string `arg:"dir"`
+		Res     string `arg:"response"`
 		Origins string `arg:"origins"`
 		TLS     string `arg:"tls"`
 
@@ -187,17 +194,46 @@ func run() error {
 	 * SERVER *
 	 **********/
 	if c.Serve {
-		headers := map[string]string{}
-		if c.Origins != "" {
-			headers["Access-Control-Allow-Origin"] = c.Origins
+		var s *http.Server
+		if a.UserSet("file") {
+			rest, err := file.Parse(c.File)
+			if err != nil {
+				return err
+			}
+			servConf := rest.Server
+			if servConf.Addr == "" {
+				return errors.New("missing required server block")
+			}
+
+			c.TLS = servConf.TLS
+			s = server.New(servConf)
+		} else {
+			headers := map[string]string{}
+			if c.Origins != "" {
+				headers["Access-Control-Allow-Origin"] = c.Origins
+			}
+			var res *server.Response
+			if a.UserSet("response") {
+				// check if c.Res is a file or inline
+				if _, err := os.Stat(c.Res); err == nil {
+					f, err := os.ReadFile(c.Res)
+					if err != nil {
+						return err
+					}
+					if err := json.Unmarshal(f, res); err != nil {
+						return err
+					}
+				}
+			}
+			s = server.New(server.Config{
+				Addr:     c.Addr,
+				Dir:      c.Dir,
+				Quiet:    c.Quiet,
+				Response: res,
+				Headers:  headers,
+			})
 		}
-		s := server.New(server.Config{
-			Addr:    c.Addr,
-			Dir:     c.Dir,
-			Dump:    c.Quiet,
-			Headers: headers,
-		})
-		log.Infof("listening to %s...\n", c.Addr)
+		log.Infof("listening to %s...\n", s.Addr)
 		if c.TLS != "" {
 			crt := fmt.Sprintf("%s.crt", c.TLS)
 			key := fmt.Sprintf("%s.key", c.TLS)
@@ -228,7 +264,7 @@ func run() error {
 		return rest.ExportFile(c.File, c.Export, c.Label, c.Block, c.Client)
 	}
 
-	if a.Args["socket"].Provided {
+	if a.Get("socket").Provided {
 		log.Debug("running socket block on file", c.File)
 		return rest.RunSocket(c.Socket, c.File)
 	}

@@ -7,8 +7,8 @@ toolchain go1.24.3
 require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/hcl/v2 v2.11.1
-	github.com/taybart/args v0.0.7
-	github.com/taybart/log v1.6.6
+	github.com/taybart/args v0.0.9
+	github.com/taybart/log v1.6.7
 	github.com/yuin/gopher-lua v1.1.1
 	github.com/zclconf/go-cty v1.16.3
 	golang.org/x/term v0.32.0

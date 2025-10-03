@@ -1,0 +1,17 @@
+// todo: add snippets to rest.nvim
+server {
+  address = "localhost:18080"
+  # tls = "test/keys/example.com"
+  # quiet = true
+  origins = ["*"]
+  headers = {"x-custom-header": env("HEADER_VALUE")}
+  # serve a directory 
+  # directory = "./test" # directory will override response
+  # not required, override the default response if needed
+  response {
+    status = 200
+    body = {
+      "hello": "world"
+    }
+  }
+}

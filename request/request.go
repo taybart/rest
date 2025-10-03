@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/zclconf/go-cty/cty"
-	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
 type Request struct {
@@ -100,54 +98,6 @@ func (r *Request) SetDefaults(ctx *hcl.EvalContext) error {
 	if r.Method == "" {
 		r.Method = "GET"
 	}
-	return nil
-}
-
-func (r *Request) ParseBody(ctx *hcl.EvalContext) error {
-	bodyVal, diags := r.BodyHCL.Value(ctx)
-	if diags.HasErrors() {
-		return fmt.Errorf("%+v", diags.Errs())
-	}
-
-	// Handle different value types
-	switch bodyVal.Type() {
-	case cty.String:
-		body := bodyVal.AsString()
-		if json.Valid([]byte(body)) {
-			r.Body = body
-			return nil
-		}
-		// Not valid JSON, treat as plain string and marshal it
-		r.Body = body
-		return nil
-
-	case cty.DynamicPseudoType:
-		if bodyVal.IsNull() {
-			return nil
-		}
-
-	default:
-		// For objects, lists, maps, etc.
-		// Check if it's already been converted to a JSON string somehow
-		if bodyVal.Type().IsPrimitiveType() && bodyVal.Type().FriendlyName() == "string" {
-			strVal := bodyVal.AsString()
-			if json.Valid([]byte(strVal)) {
-				r.Body = strVal
-				return nil
-			}
-		}
-	}
-
-	simple := ctyjson.SimpleJSONValue{Value: bodyVal}
-	jsonBytes, err := simple.MarshalJSON()
-	if err != nil {
-		return err
-	}
-
-	if string(jsonBytes) != "null" {
-		r.Body = string(jsonBytes)
-	}
-
 	return nil
 }
 

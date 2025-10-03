@@ -1,6 +1,7 @@
 package file
 
 import (
+	"errors"
 	"maps"
 
 	"github.com/hashicorp/hcl/v2"
@@ -15,30 +16,36 @@ type Local struct {
 	DeclRange hcl.Range
 }
 
-func decodeLocals(root *Root) (map[string]cty.Value, hcl.Diagnostics) {
+func (p *Parser) decodeLocals() error {
+	// reset locals and remake context
+	p.Locals = map[string]cty.Value{}
+	p.makeContext()
+
 	var diags hcl.Diagnostics
-	locals := make(map[string]cty.Value)
-	ctx := makeContext(nil)
-	for _, l := range root.Locals {
-		tmp, diag := decodeLocalsBlock(ctx, l.Body)
+	for _, l := range p.Root.Locals {
+		tmp, diag := p.decodeLocalsBlock(l.Body)
 		if diag.HasErrors() {
 			diags = append(diags, diag...)
 		}
-		maps.Copy(locals, tmp)
+		maps.Copy(p.Locals, tmp)
 	}
-	return locals, diags
+	if len(diags) != 0 {
+		p.writeDiags(diags)
+		return errors.New("failed to decode locals")
+	}
+	return nil
 }
 
-func decodeLocalsBlock(ctx *hcl.EvalContext, block hcl.Body) (map[string]cty.Value, hcl.Diagnostics) {
+func (p *Parser) decodeLocalsBlock(block hcl.Body) (map[string]cty.Value, hcl.Diagnostics) {
 	attrs, diags := block.JustAttributes()
 	if len(attrs) == 0 {
-		return nil, diags
+		return nil, nil
 	}
 
 	locals := map[string]cty.Value{}
 	for name, attr := range attrs {
 		var val cty.Value
-		val, diags = attr.Expr.Value(ctx)
+		val, diags = attr.Expr.Value(p.Ctx)
 		if !hclsyntax.ValidIdentifier(name) {
 			diags = append(diags, &hcl.Diagnostic{
 				Severity: hcl.DiagError,

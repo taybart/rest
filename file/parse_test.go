@@ -64,10 +64,10 @@ func TestImportParse(t *testing.T) {
 }
 func TestSocketParse(t *testing.T) {
 	rest := parse(t, "../doc/examples/socket.rest", 0)
-	if len(rest.Socket.Playbook) != 1 {
-		t.Fatal("expected 1 socket plays, got", len(rest.Socket.Playbook))
+	if len(rest.Socket.Playbook) != 3 {
+		t.Fatal("expected 3 socket plays, got", len(rest.Socket.Playbook))
 	}
-	if len(rest.Socket.Run.Order) != 3 {
-		t.Fatal("expected 3 socket calls in run, got", len(rest.Socket.Run.Order))
+	if len(rest.Socket.Run.Order) != 4 {
+		t.Fatal("expected 4 socket calls in run, got", len(rest.Socket.Run.Order))
 	}
 }
