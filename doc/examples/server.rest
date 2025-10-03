@@ -11,7 +11,7 @@ server {
   response {
     status = 200
     body = {
-      "hello": "world"
+      "custom": "response"
     }
   }
 }

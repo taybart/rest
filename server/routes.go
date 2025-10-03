@@ -14,8 +14,21 @@ import (
 	"github.com/taybart/log"
 )
 
-func (s *Server) routes(server *http.Server) {
-	s.router.HandleFunc("/__quit__", gzipHandler(func(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) Routes(server *http.Server) {
+	s.Router.HandleFunc("/__quit__", s.HandleQuit(server))
+
+	if s.C.Dir != "" {
+		s.Router.HandleFunc("/", gzipHandler(s.HandleDir()))
+		return
+	}
+
+	s.Router.HandleFunc("/__ws__", s.HandleWSEcho())
+	s.Router.HandleFunc("/__echo__", log.Middleware(gzipHandler(s.HandleEcho())))
+	s.Router.HandleFunc("/", log.Middleware(gzipHandler(s.HandleRoot())))
+}
+
+func (s *Server) HandleQuit(server *http.Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		log.Warn("got signal on __quit__, stopping...")
 		w.WriteHeader(http.StatusOK)
 
@@ -23,8 +36,11 @@ func (s *Server) routes(server *http.Server) {
 			time.Sleep(500 * time.Millisecond)
 			server.Shutdown(context.Background())
 		}()
-	}))
-	s.router.HandleFunc("/__ws__", func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+func (s *Server) HandleWSEcho() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -45,28 +61,30 @@ func (s *Server) routes(server *http.Server) {
 				return
 			}
 		}
-	})
-	if s.c.Dir != "" {
-		d, err := filepath.Abs(s.c.Dir)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fs := http.FileServer(http.Dir(d))
-		s.router.HandleFunc("/", gzipHandler(func(w http.ResponseWriter, r *http.Request) {
-			s.cors(w, r)
-			for k, v := range s.c.Headers {
-				w.Header().Add(k, v)
-			}
-			if _, err := os.Stat(fmt.Sprintf("%s%s", d, r.URL)); os.IsNotExist(err) {
-				http.ServeFile(w, r, fmt.Sprintf("%s/index.html", d))
-				return
-			}
-			fs.ServeHTTP(w, r)
-		}))
-		return
 	}
+}
 
-	s.router.HandleFunc("/__echo__", log.Middleware(gzipHandler(func(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandleDir() http.HandlerFunc {
+	d, err := filepath.Abs(s.C.Dir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fs := http.FileServer(http.Dir(d))
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.cors(w, r)
+		for k, v := range s.C.Headers {
+			w.Header().Add(k, v)
+		}
+		if _, err := os.Stat(fmt.Sprintf("%s%s", d, r.URL)); os.IsNotExist(err) {
+			http.ServeFile(w, r, fmt.Sprintf("%s/index.html", d))
+			return
+		}
+		fs.ServeHTTP(w, r)
+	}
+}
+
+func (s *Server) HandleEcho() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -75,9 +93,12 @@ func (s *Server) routes(server *http.Server) {
 
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, string(body))
-	})))
-	s.router.HandleFunc("/", log.Middleware(gzipHandler(func(w http.ResponseWriter, r *http.Request) {
-		if !s.c.Quiet {
+	}
+}
+
+func (s *Server) HandleRoot() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !s.C.Quiet {
 			dump, err := httputil.DumpRequest(r, true)
 			if err != nil {
 				http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
@@ -87,7 +108,7 @@ func (s *Server) routes(server *http.Server) {
 		}
 
 		s.cors(w, r)
-		for k, v := range s.c.Headers {
+		for k, v := range s.C.Headers {
 			w.Header().Add(k, v)
 		}
 
@@ -95,7 +116,7 @@ func (s *Server) routes(server *http.Server) {
 		status := http.StatusOK
 		body := `{"status": "ok"}`
 		// overrides
-		if res := s.c.Response; res != nil {
+		if res := s.C.Response; res != nil {
 			if res.Status != 0 {
 				status = res.Status
 			}
@@ -105,5 +126,5 @@ func (s *Server) routes(server *http.Server) {
 		}
 		w.WriteHeader(status)
 		fmt.Fprint(w, body)
-	})))
+	}
 }

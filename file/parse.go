@@ -145,10 +145,11 @@ func Parse(filename string) (Rest, error) {
 		if err := p.decode(p.Root.Server.Body, &ret.Server); err != nil {
 			return ret, errors.New("error decoding server block")
 		}
-		ret.Server.Response.Body, err = p.marshalBody(ret.Server.Response.BodyHCL)
+		b, err := p.marshalBody(ret.Server.Response.BodyHCL)
 		if err != nil {
 			return ret, err
 		}
+		ret.Server.Response.Body = json.RawMessage(b)
 	}
 
 	ret.Requests, err = p.parseRequests()
@@ -180,6 +181,16 @@ func (p *Parser) parseRequests() (map[string]request.Request, error) {
 			return requests, err
 		}
 		req.BlockIndex = i
+		// make body look nice if its json
+		if json.Valid([]byte(req.Body)) {
+			var buf bytes.Buffer
+			err := json.Compact(&buf, []byte(req.Body))
+			if err != nil {
+				return requests, err
+			}
+			req.Body = buf.String()
+			// requests[label] = req
+		}
 		requests[req.Label] = req
 		labels = append(labels, req.Label)
 	}
@@ -195,17 +206,6 @@ func (p *Parser) parseRequests() (map[string]request.Request, error) {
 		// check that required fields are set
 		if requests[label].URL == "" {
 			return requests, fmt.Errorf("url is required for request: %s", req.Label)
-		}
-
-		// make body look nice if its json
-		if json.Valid([]byte(req.Body)) {
-			var buf bytes.Buffer
-			err := json.Compact(&buf, []byte(req.Body))
-			if err != nil {
-				return requests, err
-			}
-			req.Body = buf.String()
-			requests[label] = req
 		}
 	}
 	return requests, nil

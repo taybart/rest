@@ -2,6 +2,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"slices"
 	"time"
@@ -14,14 +15,14 @@ const (
 )
 
 type Response struct {
-	Status  int            `json:"status" hcl:"status"`
-	Body    string         `json:"body"`
-	BodyHCL hcl.Expression `hcl:"body,optional"`
+	Status  int             `json:"status" hcl:"status"`
+	Body    json.RawMessage `json:"body"`
+	BodyHCL hcl.Expression  `hcl:"body,optional"`
 }
 
 type Server struct {
-	router *http.ServeMux
-	c      Config
+	Router *http.ServeMux
+	C      Config
 }
 
 type Config struct {
@@ -37,8 +38,8 @@ type Config struct {
 func New(c Config) *http.Server {
 
 	s := Server{
-		router: http.NewServeMux(),
-		c:      c,
+		Router: http.NewServeMux(),
+		C:      c,
 	}
 
 	server := &http.Server{
@@ -47,23 +48,23 @@ func New(c Config) *http.Server {
 		ReadTimeout:  httpTimeout,
 	}
 	// weird thing for shutdown route
-	s.routes(server)
-	server.Handler = s.router
+	s.Routes(server)
+	server.Handler = s.Router
 	return server
 }
 
 // FIXME: this doesn't do the cors stuff
 func (s *Server) cors(w http.ResponseWriter, r *http.Request) {
-	if len(s.c.Origins) == 0 {
+	if len(s.C.Origins) == 0 {
 		return
 	}
 
-	if slices.Contains(s.c.Origins, "*") {
+	if slices.Contains(s.C.Origins, "*") {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		return
 	}
 	origin := r.Header.Get("Origin")
-	if slices.Contains(s.c.Origins, origin) {
+	if slices.Contains(s.C.Origins, origin) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 	}
 
