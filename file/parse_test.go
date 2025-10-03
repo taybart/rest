@@ -34,6 +34,7 @@ func TestBasicParse(t *testing.T) {
 	}
 
 }
+
 func TestTemplateParse(t *testing.T) {
 	rest := parse(t, "../doc/examples/template.rest", 1)
 
@@ -69,5 +70,19 @@ func TestSocketParse(t *testing.T) {
 	}
 	if len(rest.Socket.Run.Order) != 4 {
 		t.Fatal("expected 4 socket calls in run, got", len(rest.Socket.Run.Order))
+	}
+}
+
+func TestServerParse(t *testing.T) {
+	// TODO: test all fields
+	rest := parse(t, "../doc/examples/server.rest", 0)
+	if rest.Server.Addr != "localhost:18080" {
+		t.Fatal("expected address localhost:18080, got", rest.Server.Addr)
+	}
+	if rest.Server.Response.Status != 200 {
+		t.Fatal("expected response statuscode to be", 200, "got", rest.Server.Response.Status)
+	}
+	if string(rest.Server.Response.Body) != `{"custom":"response"}` {
+		t.Fatal("expected body to be", `{"custom":"response"}`, "got", string(rest.Server.Response.Body))
 	}
 }
