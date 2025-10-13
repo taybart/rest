@@ -21,7 +21,7 @@ func usage(u args.Usage) {
 	}
 	server := []string{
 		"addr", "serve", "dir", "file",
-		"origins", "tls", "quiet",
+		"cors", "response", "tls", "quiet",
 	}
 	client := []string{
 		"file", "block", "label", "socket",
@@ -88,10 +88,9 @@ var (
 				Short: "r",
 				Help:  `Response to send, json file path or inline in the format {"status": 200, "body": {"hello": "world"}}`,
 			},
-			"origins": {
-				Short:   "o",
-				Help:    "Add Access-Control-Allow-Origin header value\n\tex: -o * or -o 'http://localhost:8080 http://localhost:3000' ",
-				Default: "",
+			"cors": {
+				Help:    "Add cors headers",
+				Default: false,
 			},
 			"tls": {
 				Short:   "t",
@@ -144,12 +143,12 @@ var (
 		Verbose bool `arg:"verbose"`
 
 		// server
-		Addr    string `arg:"addr"`
-		Serve   bool   `arg:"serve"`
-		Dir     string `arg:"dir"`
-		Res     string `arg:"response"`
-		Origins string `arg:"origins"`
-		TLS     string `arg:"tls"`
+		Addr     string `arg:"addr"`
+		Serve    bool   `arg:"serve"`
+		Dir      string `arg:"dir"`
+		Response string `arg:"response"`
+		Cors     bool   `arg:"cors"`
+		TLS      string `arg:"tls"`
 
 		// client
 		File       string `arg:"file"`
@@ -208,11 +207,11 @@ func run() error {
 			c.TLS = servConf.TLS
 			s = server.New(servConf)
 		} else {
-			var res *server.Response
+			res := &server.Response{}
 			if a.UserSet("response") {
 				// check if c.Res is a file or inline
-				if _, err := os.Stat(c.Res); err == nil {
-					f, err := os.ReadFile(c.Res)
+				if _, err := os.Stat(c.Response); err == nil {
+					f, err := os.ReadFile(c.Response)
 					if err != nil {
 						return err
 					}
@@ -220,11 +219,17 @@ func run() error {
 						return err
 					}
 				}
+				if err := json.Unmarshal([]byte(c.Response), res); err != nil {
+					return fmt.Errorf(
+						"could not unmarshal inline response: %s %w",
+						[]byte(c.Response), err)
+				}
 			}
 			s = server.New(server.Config{
 				Addr:     c.Addr,
 				Dir:      c.Dir,
 				Quiet:    c.Quiet,
+				Cors:     c.Cors,
 				Response: res,
 			})
 		}

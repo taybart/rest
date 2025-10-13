@@ -19,7 +19,7 @@ type Response struct {
 	Status int `json:"status" hcl:"status"`
 	// Path    string          `json:"path" hcl:"path,optional"`
 	// Method  string          `json:"method" hcl:"method,optional"`
-	Headers map[string]string `hcl:"headers,optional"`
+	Headers map[string]string `json:"headers" hcl:"headers,optional"`
 	Body    json.RawMessage   `json:"body"`
 	BodyHCL hcl.Expression    `hcl:"body,optional"`
 }

@@ -227,15 +227,15 @@ func (p *Parser) makeContext() {
 			"locals": cty.ObjectVal(p.Locals),
 		},
 		Functions: map[string]function.Function{
+			"btmpl":  makeTemplateFunc(),
 			"env":    makeEnvFunc(),
-			"uuid":   makeUUIDFunc(),
+			"form":   makeFormFunc(),
+			"json":   makeJSONFunc(),
 			"nanoid": makeNanoIDFunc(),
 			"read":   makeFileReadFunc(),
-			"trim":   makeTrimFunc(),
-			"json":   makeJSONFunc(),
-			"btmpl":  makeTemplateFunc(),
 			"tmpl":   makeGoTemplateFunc(),
-			"form":   makeFormFunc(),
+			"trim":   makeTrimFunc(),
+			"uuid":   makeUUIDFunc(),
 		},
 	}
 }
