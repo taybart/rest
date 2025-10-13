@@ -10,8 +10,11 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/google/uuid"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
@@ -46,14 +49,16 @@ func makeTrimFunc() function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
 			{
-				Name:        "messy",
-				Type:        cty.String,
-				AllowMarked: true,
+				Name: "messy",
+				Type: cty.String,
 			},
 		},
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			messy, _ := args[0].Unmark()
+			if len(args) == 0 {
+				return cty.StringVal(""), nil
+			}
+			messy := args[0]
 			return cty.StringVal(strings.TrimSpace(messy.AsString())), nil
 		},
 	})
@@ -118,6 +123,163 @@ func makeJSONFunc() function.Function {
 	})
 }
 
+func makeFormFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name:             "values",
+				Type:             cty.DynamicPseudoType,
+				AllowDynamicType: true,
+			},
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			valuesArg := args[0]
+
+			if valuesArg.Type().IsMapType() || valuesArg.Type().IsObjectType() {
+				valuesMap := valuesArg.AsValueMap()
+				data := url.Values{}
+				for k, v := range valuesMap {
+					data.Set(k, v.AsString())
+				}
+
+				return cty.StringVal(data.Encode()), nil
+			}
+
+			return cty.NilVal, fmt.Errorf("values must be a list or map, got %s", valuesArg.Type().FriendlyName())
+		},
+	})
+}
+
+func makeUUIDFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{},
+		Type:   function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			return cty.StringVal(uuid.NewString()), nil
+		},
+	})
+}
+
+func makeNanoIDFunc() function.Function {
+	return function.New(&function.Spec{
+		VarParam: &function.Parameter{
+			Name: "args",
+			Type: cty.DynamicPseudoType,
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			// Default values
+			lengthInt := 21
+			var alphabet string
+
+			// Handle optional size argument
+			if len(args) > 0 && !args[0].IsNull() {
+				err := gocty.FromCtyValue(args[0], &lengthInt)
+				if err != nil {
+					return cty.NilVal, err
+				}
+			}
+
+			// Handle optional alphabet argument
+			if len(args) > 1 && !args[1].IsNull() {
+				alphabet = args[1].AsString()
+			}
+
+			// Generate the ID
+			if alphabet != "" {
+				id, err := gonanoid.Generate(alphabet, lengthInt)
+				if err != nil {
+					return cty.NilVal, err
+				}
+				return cty.StringVal(id), nil
+			}
+
+			id, err := gonanoid.New(lengthInt)
+			if err != nil {
+				return cty.NilVal, err
+			}
+			return cty.StringVal(id), nil
+		},
+	})
+}
+
+func makeGoTemplateFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name: "template",
+				Type: cty.String,
+			},
+			{
+				Name:             "values",
+				Type:             cty.DynamicPseudoType,
+				AllowDynamicType: true,
+			},
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			tmpl := args[0].AsString()
+			valuesArg := args[1]
+
+			if valuesArg.Type().IsMapType() || valuesArg.Type().IsObjectType() {
+				valuesMap := valuesArg.AsValueMap()
+				values := make(map[string]any)
+				for k, v := range valuesMap {
+					values[k] = v.AsString()
+				}
+
+				t, err := template.New("tmpl").
+					Funcs(template.FuncMap{
+						"get": func(key string) string {
+							if val, ok := values[key]; ok && val != nil {
+								return fmt.Sprintf("%v", val)
+							}
+							return fmt.Sprintf("{{.%s}}", key)
+						},
+						"uuid": func() string {
+							return uuid.NewString()
+						},
+						"nanoid": func(args ...any) string {
+							length := 21
+							alphabet := ""
+
+							if len(args) >= 1 {
+								switch v := args[0].(type) {
+								case int:
+									length = v
+								case string:
+									if l, err := strconv.Atoi(v); err == nil {
+										length = l
+									}
+								}
+							}
+							if len(args) >= 2 {
+								if str, ok := args[1].(string); ok {
+									alphabet = str
+								}
+							}
+							if alphabet != "" {
+								return gonanoid.MustGenerate(alphabet, length)
+							}
+							return gonanoid.Must(length)
+						},
+					}).Parse(tmpl)
+				if err != nil {
+					return cty.StringVal(""), err
+				}
+				var ret strings.Builder
+				if err := t.Execute(&ret, values); err != nil {
+					return cty.StringVal(""), err
+				}
+				return cty.StringVal(ret.String()), nil
+			}
+
+			return cty.StringVal(""), fmt.Errorf("values must be a list or map, got %s", valuesArg.Type().FriendlyName())
+		},
+	})
+}
+
 func makeTemplateFunc() function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
@@ -147,84 +309,6 @@ func makeTemplateFunc() function.Function {
 			default:
 				return cty.NilVal, fmt.Errorf("values must be a list or map, got %s", valuesArg.Type().FriendlyName())
 			}
-		},
-	})
-}
-func makeGoTemplateFunc() function.Function {
-	return function.New(&function.Spec{
-		Params: []function.Parameter{
-			{
-				Name: "template",
-				Type: cty.String,
-			},
-			{
-				Name:             "values",
-				Type:             cty.DynamicPseudoType,
-				AllowDynamicType: true,
-			},
-		},
-		Type: function.StaticReturnType(cty.String),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			tmpl := args[0].AsString()
-			valuesArg := args[1]
-
-			if valuesArg.Type().IsMapType() || valuesArg.Type().IsObjectType() {
-				valuesMap := valuesArg.AsValueMap()
-				values := make(map[string]any)
-				for k, v := range valuesMap {
-					values[k] = v.AsString()
-				}
-
-				t, err := template.New("tmpl").Funcs(template.FuncMap{
-					"default": func(a, b string) string {
-						if a != "" {
-							return a
-						}
-						return b
-					},
-				}).Parse(tmpl)
-				if err != nil {
-					return cty.NilVal, err
-				}
-				var ret strings.Builder
-				if err := t.Execute(&ret, values); err != nil {
-					return cty.NilVal, err
-				}
-				return cty.StringVal(ret.String()), nil
-			}
-
-			// default:
-			return cty.NilVal, fmt.Errorf("values must be a list or map, got %s", valuesArg.Type().FriendlyName())
-			// }
-		},
-	})
-}
-func makeFormFunc() function.Function {
-	return function.New(&function.Spec{
-		Params: []function.Parameter{
-			{
-				Name:             "values",
-				Type:             cty.DynamicPseudoType,
-				AllowDynamicType: true,
-			},
-		},
-		Type: function.StaticReturnType(cty.String),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			valuesArg := args[0]
-
-			if valuesArg.Type().IsMapType() || valuesArg.Type().IsObjectType() {
-				valuesMap := valuesArg.AsValueMap()
-				data := url.Values{}
-				for k, v := range valuesMap {
-					data.Set(k, v.AsString())
-				}
-
-				return cty.StringVal(data.Encode()), nil
-			}
-
-			// default:
-			return cty.NilVal, fmt.Errorf("values must be a list or map, got %s", valuesArg.Type().FriendlyName())
-			// }
 		},
 	})
 }
@@ -267,14 +351,14 @@ func replaceNamedPlaceholders(template string, values cty.Value) (cty.Value, err
 	// Use regex to find all named placeholders
 	// TODO: test if whitespace in regex is too loose
 	// re := regexp.MustCompile(`\{\{([a-zA-Z_]\w*)\}\}`)
-	re := regexp.MustCompile(`\{\{([a-zA-Z_]*)\}\}`)
+	re := regexp.MustCompile(`\{\{([\.a-zA-Z_]*)\}\}`)
 
 	result = re.ReplaceAllStringFunc(result, func(match string) string {
 		name := re.FindStringSubmatch(match)[1]
 
 		val, exists := valuesMap[name]
+		// Keep placeholder if not found
 		if !exists {
-			// Keep placeholder if not found
 			return match
 		}
 
@@ -288,5 +372,6 @@ func replaceNamedPlaceholders(template string, values cty.Value) (cty.Value, err
 		return string(jsonBytes)
 	})
 
-	return cty.StringVal(strings.TrimSpace(result)), nil
+	// fmt.Println(result)
+	return cty.StringVal(result), nil
 }

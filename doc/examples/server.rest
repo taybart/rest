@@ -1,15 +1,13 @@
 // todo: add snippets to rest.nvim
 server {
   address = "localhost:18080"
-  # tls = "test/keys/example.com"
-  # quiet = true
-  origins = ["*"]
-  headers = {"x-custom-header": env("HEADER_VALUE")}
-  # serve a directory 
-  # directory = "./test" # directory will override response
-  # not required, override the default response if needed
+  cors = true
   response {
     status = 200
+    headers = {
+      "x-custom-header": "custom-header",
+      "x-env-header": env("HEADER_VALUE")
+    }
     body = {
       "custom": "response"
     }

@@ -71,10 +71,7 @@ func (s *Server) HandleDir() http.HandlerFunc {
 	}
 	fs := http.FileServer(http.Dir(d))
 	return func(w http.ResponseWriter, r *http.Request) {
-		s.cors(w, r)
-		for k, v := range s.C.Headers {
-			w.Header().Add(k, v)
-		}
+		// s.cors(w, r)
 		if _, err := os.Stat(fmt.Sprintf("%s%s", d, r.URL)); os.IsNotExist(err) {
 			http.ServeFile(w, r, fmt.Sprintf("%s/index.html", d))
 			return
@@ -107,8 +104,8 @@ func (s *Server) HandleRoot() http.HandlerFunc {
 			fmt.Printf("%s%s%s\n", log.Yellow, string(dump), log.Rtd)
 		}
 
-		s.cors(w, r)
-		for k, v := range s.C.Headers {
+		// s.cors(w, r)
+		for k, v := range s.C.Response.Headers {
 			w.Header().Add(k, v)
 		}
 

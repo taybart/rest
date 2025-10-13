@@ -4,6 +4,7 @@ package request
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httputil"
@@ -75,13 +76,48 @@ func (c *Client) Do(r Request) (string, error) {
 		return r.RunPostHook(res, c.client.Jar)
 	}
 
+	return c.CheckExpectation(r, res)
+}
+func (c *Client) CheckExpectation(r Request, res *http.Response) (string, error) {
 	dumped, err := httputil.DumpResponse(res, true)
 	if err != nil {
 		return "", err
 	}
-	if r.Expect != 0 {
-		if res.StatusCode != r.Expect {
-			return string(dumped), fmt.Errorf("unexpected response code %d != %d", r.Expect, res.StatusCode)
+	if r.Expect != nil {
+		if r.Expect.Status != 0 {
+			if res.StatusCode != r.Expect.Status {
+				return string(dumped), fmt.Errorf(
+					`request "%s": unexpected response code %d != %d`,
+					r.Label, r.Expect.Status, res.StatusCode)
+			}
+		}
+		if len(r.Expect.Body) != 0 {
+			body, err := io.ReadAll(res.Body)
+			if err != nil {
+				return "", err
+			}
+			defer res.Body.Close()
+
+			if r.Expect.Body != string(body) {
+				return string(dumped), fmt.Errorf(
+					`request "%s": unexpected response body %s != %s`,
+					r.Label, r.Expect.Body, string(body))
+			}
+		}
+		if len(r.Expect.Headers) != 0 {
+			for k, v := range r.Expect.Headers {
+				if resh := res.Header.Get(k); resh != v {
+					return string(dumped), fmt.Errorf(
+						`request "%s": unexpected response header [%s] %s != %s`,
+						r.Label, k, v, resh)
+				}
+			}
+		}
+	} else if r.ExpectStatus != 0 {
+		if res.StatusCode != r.ExpectStatus {
+			return string(dumped), fmt.Errorf(
+				`request "%s": unexpected response code %d != %d`,
+				r.Label, r.ExpectStatus, res.StatusCode)
 		}
 	}
 	return string(dumped), nil

@@ -1,0 +1,29 @@
+locals {
+  test = "hello"
+}
+
+locals {
+  other = "${locals.test} world"
+}
+
+locals{
+  tmpl = trim(
+  <<GOTMPL
+    ${locals.other} {{nanoid}}
+    {{get "test"}}
+  GOTMPL
+  )
+}
+
+locals {
+  final = tmpl(locals.tmpl, {})
+}
+
+request "first pass" {
+  url = "http://localhost:18080/__echo__"
+  body = tmpl(locals.tmpl, {test="first"})
+}
+request "derived template" {
+  url = "http://localhost:18080/__echo__"
+  body = tmpl(locals.final, {test="second"})
+}

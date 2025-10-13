@@ -1,0 +1,35 @@
+locals {
+  nanoidAlphabet = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+}
+
+locals {
+  gameID = nanoid(5, locals.nanoidAlphabet)
+}
+
+locals {
+  boring = <<GOTMPL
+    { "data": {
+        "op": "{{.op}}",
+        "gameID": "${locals.gameID}", 
+        "playerID": "{{or .playerID (nanoid 5 "${locals.nanoidAlphabet}") }}"
+        {{if .metadata}},"metadata": {{ .metadata }}{{end}}
+    }}
+  GOTMPL
+}
+
+locals {
+  join = btmpl(locals.boring, { ".op" = "join" })
+}
+
+request "test" {
+  url = "http://localhost:18080/__echo__"
+  method = "GET"
+  body = tmpl(locals.join, { 
+    # playerID: "player1ID", 
+    metadata: <<JSON
+      {
+        "asdf": "asdf"
+      } 
+    JSON 
+  })
+}

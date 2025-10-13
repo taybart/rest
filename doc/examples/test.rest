@@ -1,0 +1,16 @@
+# start a server with `rest -s -a :18080`
+
+request "test echo" {
+  url = "http://localhost:18080/__echo__"
+  method = "POST"
+  headers = {
+    "Content-Type" = "application/json"
+  }
+  body = {
+    data: "hello world"
+  }
+  expect {
+    status = 200
+    body = { data: "hello world" }
+  }
+}

@@ -3,11 +3,12 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/rs/cors"
 )
 
 const (
@@ -15,9 +16,12 @@ const (
 )
 
 type Response struct {
-	Status  int             `json:"status" hcl:"status"`
-	Body    json.RawMessage `json:"body"`
-	BodyHCL hcl.Expression  `hcl:"body,optional"`
+	Status int `json:"status" hcl:"status"`
+	// Path    string          `json:"path" hcl:"path,optional"`
+	// Method  string          `json:"method" hcl:"method,optional"`
+	Headers map[string]string `hcl:"headers,optional"`
+	Body    json.RawMessage   `json:"body"`
+	BodyHCL hcl.Expression    `hcl:"body,optional"`
 }
 
 type Server struct {
@@ -26,13 +30,13 @@ type Server struct {
 }
 
 type Config struct {
-	Addr     string            `hcl:"address"`
-	Dir      string            `hcl:"directory,optional"`
-	Quiet    bool              `hcl:"quiet,optional"`
-	Response *Response         `hcl:"response,block"`
-	Headers  map[string]string `hcl:"headers,optional"`
-	Origins  []string          `hcl:"origins,optional"`
-	TLS      string            `hcl:"tls,optional"`
+	Addr     string    `hcl:"address"`
+	Dir      string    `hcl:"directory,optional"`
+	Quiet    bool      `hcl:"quiet,optional"`
+	Response *Response `hcl:"response,block"`
+	Origins  []string  `hcl:"origins,optional"`
+	Cors     bool      `hcl:"cors,optional"`
+	TLS      string    `hcl:"tls,optional"`
 }
 
 func New(c Config) *http.Server {
@@ -50,26 +54,9 @@ func New(c Config) *http.Server {
 	// weird thing for shutdown route
 	s.Routes(server)
 	server.Handler = s.Router
+	if c.Cors {
+		fmt.Println("adding default cors handler")
+		server.Handler = cors.Default().Handler(s.Router)
+	}
 	return server
-}
-
-// FIXME: this doesn't do the cors stuff
-func (s *Server) cors(w http.ResponseWriter, r *http.Request) {
-	if len(s.C.Origins) == 0 {
-		return
-	}
-
-	if slices.Contains(s.C.Origins, "*") {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		return
-	}
-	origin := r.Header.Get("Origin")
-	if slices.Contains(s.C.Origins, origin) {
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-	}
-
-	w.Header().Set(
-		"Access-Control-Allow-Methods",
-		"GET, POST, PUT, DELETE, OPTIONS",
-	)
 }

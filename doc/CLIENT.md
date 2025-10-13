@@ -102,9 +102,20 @@ request "my request" {
   # cookies can be set for a single request
   cookies = { a = "1" }
 
-  # if a hook is not defined response code will be checked agains this value
-  # and fail if it doesn't match (ie return 1)
+  # if you only want to check the status code
   expect = 200
+  # otherwise, use the expect block, this will take priority over the expect status above
+  # if a hook is not defined response code will be checked agains this value and fail if it
+  # doesn't match (ie return 1), fields are optional (you can just check one or more of them)
+  expect {
+    status = 200 # response must have status code
+    headers = { # response must contain these headers (only checks provided headers)
+      "x-custom-header" = "custom-header"
+    }
+    body = { # response must have this body
+      "test": "response"
+    }
+  }
 
   # is a string, heredoc (<<IDENT ... IDENT) is a good way to set it
   # using LUA as the ident can make some editors highlight the code better
@@ -149,7 +160,7 @@ request "my request" {
 
 ## Hooks
 
-Hooks are defined in the `post_hook` block. They are lua functions that are executed after the response is received. They can be used to do fancy lua stuff.
+Hooks are defined in the `post_hook` field. They are lua functions that are executed after the response is received. They can be used to do fancy lua stuff.
 
 There are a couple of global libraries available to you:
 

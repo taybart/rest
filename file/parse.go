@@ -59,8 +59,8 @@ type Parser struct {
 }
 
 func (r *Root) Add(root *Root) {
-	r.Locals = append(r.Locals, root.Locals...)
 	// TODO: namespace labels AND mark added to not be executed
+	r.Locals = append(r.Locals, root.Locals...)
 	r.Requests = append(r.Requests, root.Requests...)
 }
 
@@ -89,8 +89,9 @@ func (p *Parser) read(filename string, root *Root) error {
 
 func newParser(filename string) (Parser, error) {
 	p := Parser{
-		Root:  &Root{},
-		Files: map[string]*hcl.File{},
+		Root:   &Root{},
+		Files:  map[string]*hcl.File{},
+		Locals: map[string]cty.Value{},
 	}
 
 	var root Root
@@ -177,6 +178,12 @@ func (p *Parser) parseRequests() (map[string]request.Request, error) {
 		if err != nil {
 			return requests, err
 		}
+		if req.Expect != nil {
+			req.Expect.Body, err = p.marshalBody(req.Expect.BodyHCL)
+			if err != nil {
+				return requests, err
+			}
+		}
 		if err := req.SetDefaults(p.Ctx); err != nil {
 			return requests, err
 		}
@@ -211,19 +218,24 @@ func (p *Parser) parseRequests() (map[string]request.Request, error) {
 	return requests, nil
 }
 
+func (p *Parser) updateLocalsContext() {
+	p.Ctx.Variables["locals"] = cty.ObjectVal(p.Locals)
+}
 func (p *Parser) makeContext() {
 	p.Ctx = &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			"locals": cty.ObjectVal(p.Locals),
 		},
 		Functions: map[string]function.Function{
-			"env":   makeEnvFunc(),
-			"read":  makeFileReadFunc(),
-			"trim":  makeTrimFunc(),
-			"json":  makeJSONFunc(),
-			"btmpl": makeTemplateFunc(),
-			"tmpl":  makeGoTemplateFunc(),
-			"form":  makeFormFunc(),
+			"env":    makeEnvFunc(),
+			"uuid":   makeUUIDFunc(),
+			"nanoid": makeNanoIDFunc(),
+			"read":   makeFileReadFunc(),
+			"trim":   makeTrimFunc(),
+			"json":   makeJSONFunc(),
+			"btmpl":  makeTemplateFunc(),
+			"tmpl":   makeGoTemplateFunc(),
+			"form":   makeFormFunc(),
 		},
 	}
 }

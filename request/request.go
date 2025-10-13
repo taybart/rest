@@ -12,6 +12,13 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
+type Expect struct {
+	Status  int               `hcl:"status,optional"`
+	Headers map[string]string `hcl:"headers,optional"`
+	Body    string
+	BodyHCL hcl.Expression `hcl:"body,optional"`
+}
+
 type Request struct {
 	// hcl
 	Label string `hcl:"label,label"`
@@ -27,9 +34,10 @@ type Request struct {
 	PostHook    string            `hcl:"post_hook,optional"`
 	CopyFrom    string            `hcl:"copy_from,optional"`
 	// extras
-	Delay  string `hcl:"delay,optional"`
-	Expect int    `hcl:"expect,optional"`
-	Skip   bool   `hcl:"skip,optional"`
+	Expect       *Expect `hcl:"expect,block"`
+	ExpectStatus int     `hcl:"expect,optional"`
+	Delay        string  `hcl:"delay,optional"`
+	Skip         bool    `hcl:"skip,optional"`
 
 	// ...rest
 	Remain hcl.Expression `hcl:"remain,optional"`
@@ -191,8 +199,18 @@ func (r *Request) CombineFrom(from Request) {
 	if r.PostHook == "" {
 		r.PostHook = from.PostHook
 	}
-	if r.Expect == 0 {
-		r.Expect = from.Expect
+	if from.Expect != nil {
+		if r.Expect == nil {
+			r.Expect = &Expect{}
+		}
+		if r.Expect.Status == 0 {
+			r.Expect.Status = from.Expect.Status
+			r.Expect.Body = from.Expect.Body
+			r.Expect.Headers = from.Expect.Headers
+		}
+	}
+	if r.ExpectStatus == 0 {
+		r.ExpectStatus = from.ExpectStatus
 	}
 }
 

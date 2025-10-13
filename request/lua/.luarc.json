@@ -1,0 +1,10 @@
+{
+  "diagnostics.globals": {
+    "rest": {
+      "type": "table"
+    },
+    "fail": {
+      "type": "function"
+    }
+  }
+}

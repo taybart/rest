@@ -1,3 +1,4 @@
+// Package templates is used for generating clients from requests
 package templates
 
 import (
@@ -21,6 +22,12 @@ func NewVanilla(tmpl string) *template.Template {
 	return template.Must(template.New("Client").Funcs(stdFns).Parse(tmpl))
 }
 
+type Expect struct {
+	Status  int
+	Headers map[string]string
+	Body    string
+}
+
 type Request struct {
 	URL       string
 	Method    string
@@ -34,7 +41,7 @@ type Request struct {
 	// extras
 	Label  string
 	Delay  string
-	Expect int
+	Expect Expect
 
 	// metadata
 	BlockIndex int

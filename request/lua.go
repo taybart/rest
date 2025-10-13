@@ -57,6 +57,7 @@ func registerModules(l *lua.LState) error {
 		"colors":  "colors.lua",
 		"json":    "json.lua",
 		"inspect": "inspect.lua",
+		"tools":   "tools.lua",
 	}
 	for name, filename := range libs {
 		if err := loadModule(l, name, filename); err != nil {
@@ -76,12 +77,20 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 	reqMap := map[string]lua.LValue{
 		"url":     lua.LString(res.Request.URL.String()),
 		"method":  lua.LString(res.Request.Method),
-		"query":   makeLTableFromMap(l, res.Request.URL.Query()),
-		"headers": makeLTableFromMap(l, res.Request.Header),
+		"query":   makeLTableFromMapOfArr(l, res.Request.URL.Query()),
+		"headers": makeLTableFromMapOfArr(l, res.Request.Header),
 		"body":    lua.LString(req.Body),
 	}
-	if req.Expect != 0 {
-		reqMap["expect"] = lua.LNumber(req.Expect)
+	if req.Expect != nil {
+		reqMap["expect"] = makeLTable(l, map[string]lua.LValue{
+			"status":  lua.LNumber(req.Expect.Status),
+			"body":    lua.LString(req.Expect.Body),
+			"headers": makeLTableFromMap(l, req.Expect.Headers),
+		})
+	} else if req.ExpectStatus != 0 {
+		reqMap["expect"] = makeLTable(l, map[string]lua.LValue{
+			"status": lua.LNumber(req.ExpectStatus),
+		})
 	}
 	reqTbl := makeLTable(l, reqMap)
 
@@ -98,7 +107,7 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 
 	resTbl := makeLTable(l, map[string]lua.LValue{
 		"status":  lua.LNumber(res.StatusCode),
-		"headers": makeLTableFromMap(l, res.Header),
+		"headers": makeLTableFromMapOfArr(l, res.Header),
 		"body":    lua.LString(string(body)),
 		"cookies": makeLTable(l, cookieMap),
 	})
@@ -188,9 +197,23 @@ func ltableToMap(table *lua.LTable) map[string]any {
 
 	return result
 }
-func makeLTableFromMap[M ~map[string][]string](l *lua.LState, inMap M) *lua.LTable {
+func makeLTableFromMap(l *lua.LState, inMap map[string]string) *lua.LTable {
 	tbl := l.NewTable()
 	for k, v := range inMap {
+		l.SetField(tbl, k, lua.LString(v))
+	}
+	return tbl
+}
+func makeLTableFromMapOfArr(l *lua.LState, inMap map[string][]string) *lua.LTable {
+	tbl := l.NewTable()
+	for k, v := range inMap {
+		// TODO: should we be good boys and actually include all headers?
+		// toMap := map[string]string{}
+		// for i, v := range v {
+		// 	index := strconv.Itoa(i + 1) // because lua stuff
+		// 	toMap[index] = v
+		// }
+		// l.SetField(tbl, k, makeLTableFromMap(l, toMap))
 		l.SetField(tbl, k, lua.LString(v[0]))
 	}
 	return tbl

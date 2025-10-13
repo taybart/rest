@@ -5,8 +5,11 @@ go 1.23.0
 toolchain go1.24.3
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/hcl/v2 v2.11.1
+	github.com/matoous/go-nanoid/v2 v2.1.0
+	github.com/rs/cors v1.11.1
 	github.com/taybart/args v0.0.9
 	github.com/taybart/log v1.6.7
 	github.com/yuin/gopher-lua v1.1.1

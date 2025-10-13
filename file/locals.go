@@ -2,7 +2,6 @@ package file
 
 import (
 	"errors"
-	"maps"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -23,11 +22,9 @@ func (p *Parser) decodeLocals() error {
 
 	var diags hcl.Diagnostics
 	for _, l := range p.Root.Locals {
-		tmp, diag := p.decodeLocalsBlock(l.Body)
-		if diag.HasErrors() {
+		if diag := p.decodeLocalsBlock(l.Body); diag.HasErrors() {
 			diags = append(diags, diag...)
 		}
-		maps.Copy(p.Locals, tmp)
 	}
 	if len(diags) != 0 {
 		p.writeDiags(diags)
@@ -36,13 +33,12 @@ func (p *Parser) decodeLocals() error {
 	return nil
 }
 
-func (p *Parser) decodeLocalsBlock(block hcl.Body) (map[string]cty.Value, hcl.Diagnostics) {
+func (p *Parser) decodeLocalsBlock(block hcl.Body) hcl.Diagnostics {
 	attrs, diags := block.JustAttributes()
 	if len(attrs) == 0 {
-		return nil, nil
+		return nil
 	}
 
-	locals := map[string]cty.Value{}
 	for name, attr := range attrs {
 		var val cty.Value
 		val, diags = attr.Expr.Value(p.Ctx)
@@ -54,8 +50,11 @@ func (p *Parser) decodeLocalsBlock(block hcl.Body) (map[string]cty.Value, hcl.Di
 				Subject:  &attr.NameRange,
 			})
 		}
-		locals[name] = val
+		if diags.HasErrors() {
+			return diags
+		}
+		p.Locals[name] = val
+		p.updateLocalsContext()
 	}
-
-	return locals, diags
+	return diags
 }

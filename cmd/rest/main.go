@@ -208,10 +208,6 @@ func run() error {
 			c.TLS = servConf.TLS
 			s = server.New(servConf)
 		} else {
-			headers := map[string]string{}
-			if c.Origins != "" {
-				headers["Access-Control-Allow-Origin"] = c.Origins
-			}
 			var res *server.Response
 			if a.UserSet("response") {
 				// check if c.Res is a file or inline
@@ -230,7 +226,6 @@ func run() error {
 				Dir:      c.Dir,
 				Quiet:    c.Quiet,
 				Response: res,
-				Headers:  headers,
 			})
 		}
 		log.Infof("listening to %s...\n", s.Addr)

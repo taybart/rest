@@ -3,6 +3,7 @@
 request "basic auth" {
   url = "https://localhost:8080/hello-world"
   method = "POST"
+  # TODO: make this a block OR string
   basic_auth = "user:password"
   headers = {
     "Content-Type" = "application/json"
@@ -21,7 +22,7 @@ request "bearer token" {
   method = "POST"
   bearer_token = locals.token
   headers = {
-    "Content-Type" = "application/json"
+    "X-Custom-Header" = "custom-header"
   }
   body = {
     data: "hello world"

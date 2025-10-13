@@ -158,16 +158,20 @@ func ExportFile(filename, export, label string, block int, client bool) error {
 			ua = ""
 		}
 		treqs[req.Label] = templates.Request{
-			Method:     req.Method,
-			URL:        req.URL,
-			Headers:    req.Headers,
-			Body:       body,
-			Query:      req.Query,
-			Cookies:    req.Cookies,
-			PostHook:   req.PostHook,
-			Label:      req.Label,
-			Delay:      req.Delay,
-			Expect:     req.Expect,
+			Method:   req.Method,
+			URL:      req.URL,
+			Headers:  req.Headers,
+			Body:     body,
+			Query:    req.Query,
+			Cookies:  req.Cookies,
+			PostHook: req.PostHook,
+			Label:    req.Label,
+			Delay:    req.Delay,
+			Expect: templates.Expect{
+				Status:  req.Expect.Status,
+				Body:    req.Expect.Body,
+				Headers: req.Expect.Headers,
+			},
 			BlockIndex: req.BlockIndex,
 			// config
 			UserAgent: ua,
