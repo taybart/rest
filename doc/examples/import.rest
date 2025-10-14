@@ -1,7 +1,7 @@
 imports = ["./to_import.rest"]
 
 request "test" {
-  copy_from = "imported"
+  copy_from = "to_import::basic"
   headers = {
     "X-imported-local" = "${locals.imported_header}"
   }

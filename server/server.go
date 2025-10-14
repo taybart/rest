@@ -3,11 +3,14 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/rs/cors"
+	"github.com/taybart/log"
 )
 
 const (
@@ -24,8 +27,9 @@ type Response struct {
 }
 
 type Server struct {
+	Server *http.Server
 	Router *http.ServeMux
-	C      Config
+	Config Config
 }
 
 type Config struct {
@@ -38,11 +42,11 @@ type Config struct {
 	TLS      string    `hcl:"tls,optional"`
 }
 
-func New(c Config) *http.Server {
+func New(c Config) Server {
 
 	s := Server{
 		Router: http.NewServeMux(),
-		C:      c,
+		Config: c,
 	}
 
 	server := &http.Server{
@@ -50,11 +54,32 @@ func New(c Config) *http.Server {
 		WriteTimeout: httpTimeout,
 		ReadTimeout:  httpTimeout,
 	}
-	// weird thing for shutdown route
+	// weird thing: pass server in for shutdown route
 	s.Routes(server)
 	server.Handler = s.Router
 	if c.Cors {
 		server.Handler = cors.AllowAll().Handler(s.Router)
 	}
-	return server
+	s.Server = server
+	return s
+}
+func (s *Server) Serve() error {
+
+	log.Infof("listening to %s...\n", s.Config.Addr)
+	if s.Config.TLS != "" {
+		crt := fmt.Sprintf("%s.crt", s.Config.TLS)
+		key := fmt.Sprintf("%s.key", s.Config.TLS)
+		if err := s.Server.ListenAndServeTLS(crt, key); err != nil {
+			if !errors.Is(err, http.ErrServerClosed) {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := s.Server.ListenAndServe(); err != nil {
+		if !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+	}
+	return nil
 }

@@ -38,6 +38,10 @@ config {
   user_agent = "rest-client/2.0"
   # don't verify tls certs
   insecure_no_verify_tls = false
+  # add filename prefix to imported requests label -> filename::label
+  namespace_imports = true
+  # don't execute requests that were imported (library creation)
+  skip_imported = false
 }
 ```
 
@@ -165,8 +169,10 @@ Hooks are defined in the `post_hook` field. They are lua functions that are exec
 There are a couple of global libraries available to you:
 
 - `json` - encode and decode json
+- `colors` - adds terminal color escape codes and formatting functions for extra points
 - `inspect` - used to inspect lua values
 - `base64` - encode and decode base64
+- `tools` - various helper functions, check out the [tools](https://github.com/taybart/rest/blob/main/request/lua/tools.lua) module for commented functions 
 
 Hooks are also passed a `rest` table that contains the following:
 
@@ -217,18 +223,7 @@ It is possible to return a string from a hook, this will be returned to the clie
 
 There is also a special `fail` function that can be used to fail the request. It takes a string argument and returns an error. This is different than a lua `error` and will just return the error to the client.
 
-## Export to a different language
-
-Rest files can be exported to a different language using the cli, either a single block or the whole file (as a "client").
-
-```sh
-$ rest -f api.rest -e ls # list supported languages
-curl
-go
-js
-$ rest -f api.rest -e curl
-curl -X ...
-```
+An example of using hooks can be found [here](https://github.com/taybart/search)
 
 ## Sockets
 
@@ -275,3 +270,17 @@ socket {
   }
 }
 ```
+
+## Export to a different language
+
+Rest files can be exported to a different language using the cli, either a single block or the whole file (as a "client").
+
+```sh
+$ rest -f api.rest -e ls # list supported languages
+curl
+go
+js
+$ rest -f api.rest -e curl
+curl -X ...
+```
+

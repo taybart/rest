@@ -17,7 +17,7 @@ import (
 func (s *Server) Routes(server *http.Server) {
 	s.Router.HandleFunc("/__quit__", s.HandleQuit(server))
 
-	if s.C.Dir != "" {
+	if s.Config.Dir != "" {
 		s.Router.HandleFunc("/", gzipHandler(s.HandleDir()))
 		return
 	}
@@ -65,13 +65,17 @@ func (s *Server) HandleWSEcho() http.HandlerFunc {
 }
 
 func (s *Server) HandleDir() http.HandlerFunc {
-	d, err := filepath.Abs(s.C.Dir)
+	d, err := filepath.Abs(s.Config.Dir)
 	if err != nil {
 		log.Fatal(err)
 	}
 	fs := http.FileServer(http.Dir(d))
 	return func(w http.ResponseWriter, r *http.Request) {
-		// s.cors(w, r)
+		if s.Config.Response != nil {
+			for k, v := range s.Config.Response.Headers {
+				w.Header().Add(k, v)
+			}
+		}
 		if _, err := os.Stat(fmt.Sprintf("%s%s", d, r.URL)); os.IsNotExist(err) {
 			http.ServeFile(w, r, fmt.Sprintf("%s/index.html", d))
 			return
@@ -95,7 +99,7 @@ func (s *Server) HandleEcho() http.HandlerFunc {
 
 func (s *Server) HandleRoot() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.C.Quiet {
+		if !s.Config.Quiet {
 			dump, err := httputil.DumpRequest(r, true)
 			if err != nil {
 				http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
@@ -104,9 +108,8 @@ func (s *Server) HandleRoot() http.HandlerFunc {
 			fmt.Printf("%s%s%s\n", log.Yellow, string(dump), log.Rtd)
 		}
 
-		// s.cors(w, r)
-		if s.C.Response != nil {
-			for k, v := range s.C.Response.Headers {
+		if s.Config.Response != nil {
+			for k, v := range s.Config.Response.Headers {
 				w.Header().Add(k, v)
 			}
 		}
@@ -115,7 +118,7 @@ func (s *Server) HandleRoot() http.HandlerFunc {
 		status := http.StatusOK
 		body := `{"status": "ok"}`
 		// overrides
-		if res := s.C.Response; res != nil {
+		if res := s.Config.Response; res != nil {
 			if res.Status != 0 {
 				status = res.Status
 			}

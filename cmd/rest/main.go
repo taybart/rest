@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 
@@ -193,7 +192,7 @@ func run() error {
 	 * SERVER *
 	 **********/
 	if c.Serve {
-		var s *http.Server
+		var s server.Server
 		if a.UserSet("file") {
 			rest, err := file.Parse(c.File)
 			if err != nil {
@@ -233,21 +232,8 @@ func run() error {
 				Response: res,
 			})
 		}
-		log.Infof("listening to %s...\n", s.Addr)
-		if c.TLS != "" {
-			crt := fmt.Sprintf("%s.crt", c.TLS)
-			key := fmt.Sprintf("%s.key", c.TLS)
-			if err := s.ListenAndServeTLS(crt, key); err != nil {
-				if !errors.Is(err, http.ErrServerClosed) {
-					log.Fatal(err)
-				}
-			}
-			return nil
-		}
-		if err := s.ListenAndServe(); err != nil {
-			if !errors.Is(err, http.ErrServerClosed) {
-				log.Fatal(err)
-			}
+		if err := s.Serve(); err != nil {
+			log.Fatal(err)
 		}
 		return nil
 	}

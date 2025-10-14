@@ -38,7 +38,7 @@ func checkResponse(t *testing.T, req *http.Request, expected Response) {
 func newServer(config server.Config) *httptest.Server {
 	s := server.Server{
 		Router: http.NewServeMux(),
-		C:      config,
+		Config: config,
 	}
 	s.Routes(&http.Server{})
 	ts := httptest.NewServer(s.Router)

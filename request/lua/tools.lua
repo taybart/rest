@@ -1,5 +1,13 @@
 local M = {}
 
+--[[
+ Checks wether the response matches the expect block, returns boolean
+ This will call fail on its own so should be used like:
+ if not tools.is_expected_response() then
+  return
+ end
+ So that the error is correctly printed
+--]]
 function M.is_expected_response()
   local expect = rest.req.expect
   if expect == nil then
@@ -10,7 +18,7 @@ function M.is_expected_response()
     fail(('unexpected status code %d != %d'):format(expect.status, res.status))
     return false
   end
-  if expect.body ~= '' and expect.body ~= res.body then
+  if expect.body ~= nil and expect.body ~= '' and expect.body ~= res.body then
     fail(('body does not match expectation %s != %s'):format(expect.body, res.body))
     return false
   end
@@ -37,6 +45,10 @@ function M.is_expected_response()
   return true
 end
 
+--[[
+  returns the key that matched and the first value of the header
+  will check for multiple keys to see if the header has weird capitalization
+--]]
 function M.get_header(_key)
   local key, header = M.get_header_values(_key)
   if header == nil then
@@ -45,6 +57,10 @@ function M.get_header(_key)
   return key, header[1]
 end
 
+--[[
+  returns the key that matched and all of the values of the header returned by the server
+  will check for multiple keys to see if the header has weird capitalization
+--]]
 function M.get_header_values(key)
   local headers = rest.res.headers
   if headers[key] ~= nil then

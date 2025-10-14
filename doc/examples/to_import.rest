@@ -3,7 +3,7 @@ locals {
 }
 
 
-request "imported" {
+request "basic" {
   skip = true
   url = "http://localhost:18080/"
   headers = {

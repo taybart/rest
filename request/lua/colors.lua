@@ -63,6 +63,11 @@ local colors = {
   reset = ce .. '0m',
 }
 
+--[[
+ add color escape to a string and then reset the color escape
+ print(("%s other stuff %d"):format(colors.f(colors.red, "hello"), 100) 
+    -> prints "hello (in red) other stuff 100 (in default)"
+--]]
 function colors.f(co, text)
   if type(co) == 'string' then
     return co .. text .. colors.reset
@@ -76,6 +81,9 @@ function colors.f(co, text)
   end
 end
 
+-- prints out a hyperlink using OSC 8 formatting, if supported "text" will
+-- be printed with "url" as the destination
+-- accepts a color as the last argument, i suggest colors.underlined.blue!
 function colors.hyperlink(url, text, color)
   local ret = '\27]8;;' .. url .. '\27\\' .. text .. '\27]8;;\27\\'
   if color then

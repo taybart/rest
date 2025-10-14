@@ -49,7 +49,7 @@ server {
   quiet = true
   # add cors headers (default false)
   cors = true
-  # serve a directory, this will override response if provided
+  # serve a directory, this will override response if provided (except headers)
   directory = "./test"
   # not required, override the default response if needed
   response {
