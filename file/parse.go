@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -27,6 +30,8 @@ type Rest struct {
 }
 
 type Root struct {
+	filename string
+
 	Imports *[]string `hcl:"imports"`
 
 	Locals []*struct {
@@ -38,8 +43,9 @@ type Root struct {
 	} `hcl:"config,block"`
 
 	Requests []*struct {
-		Label string   `hcl:"label,label"`
-		Body  hcl.Body `hcl:",remain"`
+		shouldSkip bool
+		Label      string   `hcl:"label,label"`
+		Body       hcl.Body `hcl:",remain"`
 	} `hcl:"request,block"`
 
 	Server *struct {
@@ -58,10 +64,23 @@ type Parser struct {
 	Locals map[string]cty.Value
 }
 
-func (r *Root) Add(root *Root) {
-	// TODO: namespace labels AND mark added to not be executed
+func (r *Root) Add(root *Root, config request.Config) {
 	r.Locals = append(r.Locals, root.Locals...)
-	r.Requests = append(r.Requests, root.Requests...)
+	for _, req := range root.Requests {
+		if config.SkipImported {
+			req.shouldSkip = true
+		}
+		if !config.NamespaceImports {
+			r.Requests = append(r.Requests, req)
+			continue
+		}
+		for _, req := range root.Requests {
+			base := filepath.Base(root.filename)
+			namespace := strings.TrimSuffix(base, filepath.Ext(base))
+			req.Label = fmt.Sprintf("%s::%s", namespace, req.Label)
+			r.Requests = append(r.Requests, req)
+		}
+	}
 }
 
 func (p *Parser) read(filename string, root *Root) error {
@@ -73,8 +92,10 @@ func (p *Parser) read(filename string, root *Root) error {
 		return fmt.Errorf("failed to read %s: %w", filename, err)
 	}
 	var diags hcl.Diagnostics
-	p.Files[filename], diags = hclsyntax.ParseConfig(src, filename,
-		hcl.Pos{Line: 1, Column: 1})
+	p.Files[filename], diags = hclsyntax.ParseConfig(
+		src, filename,
+		hcl.Pos{Line: 1, Column: 1},
+	)
 	if diags.HasErrors() {
 		p.writeDiags(diags)
 		return errors.New("failed to read rest file")
@@ -94,27 +115,11 @@ func newParser(filename string) (Parser, error) {
 		Locals: map[string]cty.Value{},
 	}
 
-	var root Root
+	root := Root{filename: filename}
 	if err := p.read(filename, &root); err != nil {
 		return p, err
 	}
 	p.Root = &root
-
-	if p.Root.Imports != nil {
-		for _, i := range *p.Root.Imports {
-			newFile := &Root{}
-			fp := path.Join(path.Dir(filename), i)
-			if err := p.read(fp, newFile); err != nil {
-				return p, err
-			}
-			p.Root.Add(newFile)
-		}
-	}
-
-	if err := p.decodeLocals(); err != nil {
-		return p, err
-	}
-	p.makeContext()
 
 	return p, nil
 }
@@ -134,6 +139,21 @@ func Parse(filename string) (Rest, error) {
 			return ret, errors.New("error decoding config block")
 		}
 	}
+
+	if p.Root.Imports != nil {
+		for _, i := range *p.Root.Imports {
+			root := &Root{filename: i}
+			fp := path.Join(path.Dir(filename), i)
+			if err := p.read(fp, root); err != nil {
+				return ret, err
+			}
+			p.Root.Add(root, ret.Config)
+		}
+	}
+	if err := p.decodeLocals(); err != nil {
+		return ret, err
+	}
+
 	if p.Root.Socket != nil {
 		if err := p.decode(p.Root.Socket.Body, &ret.Socket); err != nil {
 			return ret, errors.New("error decoding socket block")
@@ -168,11 +188,13 @@ func (p *Parser) parseRequests() (map[string]request.Request, error) {
 		if err := p.decode(block.Body, &req); err != nil {
 			return requests, fmt.Errorf("error decoding request block(%s)", block.Label)
 		}
-		for _, l := range labels {
-			if l == req.Label {
-				return requests, fmt.Errorf("labels must be unique: %s", l)
-			}
+		if block.shouldSkip {
+			req.Skip = true
 		}
+		if slices.Contains(labels, req.Label) {
+			return requests, fmt.Errorf(`labels must be unique: "%s" already exists`, req.Label)
+		}
+
 		var err error
 		req.Body, err = p.marshalBody(req.BodyHCL)
 		if err != nil {
@@ -205,7 +227,7 @@ func (p *Parser) parseRequests() (map[string]request.Request, error) {
 	for label, req := range requests {
 		if requests[label].CopyFrom != "" {
 			if _, ok := requests[req.CopyFrom]; !ok {
-				return requests, fmt.Errorf("request copy_from not found: %s", req.CopyFrom)
+				return requests, fmt.Errorf("request (%s) copy_from not found: %s", label, req.CopyFrom)
 			}
 			req.CombineFrom(requests[req.CopyFrom])
 			requests[label] = req

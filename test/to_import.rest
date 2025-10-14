@@ -8,7 +8,7 @@ locals {
 }
 
 request "base" {
-  skip = true
+  # skip = true
   url = "http://localhost:8500"
   method = "POST"
   bearer_token = "test"

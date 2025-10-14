@@ -105,8 +105,10 @@ func (s *Server) HandleRoot() http.HandlerFunc {
 		}
 
 		// s.cors(w, r)
-		for k, v := range s.C.Response.Headers {
-			w.Header().Add(k, v)
+		if s.C.Response != nil {
+			for k, v := range s.C.Response.Headers {
+				w.Header().Add(k, v)
+			}
 		}
 
 		// default

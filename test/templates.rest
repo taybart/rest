@@ -7,7 +7,7 @@ locals {
 }
 
 locals {
-  boring = <<GOTMPL
+  payload = <<GOTMPL
     { "data": {
         "op": "{{.op}}",
         "gameID": "${locals.gameID}", 
@@ -18,13 +18,13 @@ locals {
 }
 
 locals {
-  join = btmpl(locals.boring, { ".op" = "join" })
+  join_game = btmpl(locals.payload, { ".op" = "join" })
 }
 
 request "test" {
   url = "http://localhost:18080/__echo__"
   method = "GET"
-  body = tmpl(locals.join, { 
+  body = tmpl(locals.join_game, { 
     # playerID: "player1ID", 
     metadata: <<JSON
       {

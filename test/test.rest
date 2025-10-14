@@ -1,4 +1,5 @@
-imports = [ "./import.rest" ]
+config { skip_imported = true }
+imports = [ "./to_import.rest" ]
 
 locals {
   gameID = "ZAYwdDgXyaTIAdd"
@@ -31,7 +32,7 @@ locals {
 }
 
 request "header test" {
-  url = "http://localhost:8500"
+  url = "http://localhost:8500/header/test"
   headers = {
     "Content-Type" = "application/json",
     "Authorization" = "bearer hi",
@@ -47,7 +48,7 @@ request "header test" {
   LUA
 }
 request "copy test" {
-  copy_from = "base"
+  copy_from = "to_import::base"
   # bearer_token = "$${lua:exports.auth_token}"
   body = {
     "type": "copy",
@@ -70,7 +71,7 @@ request "copy test" {
 }
 
 request "form test" {
-  copy_from = "base"
+  copy_from = "to_import::base"
   headers = {
     "Content-Type" = "application/x-www-form-urlencoded"
   }

@@ -34,7 +34,8 @@ func RunFile(filename string, ignoreFail bool) error {
 	for _, label := range order {
 		req := rest.Requests[label]
 		if req.Skip {
-			fmt.Println("skipping", req.Label)
+			// TODO: what to do for usability, should probably warn user
+			// log.Warn("skipping", req.Label)
 			continue
 		}
 		res, err := client.Do(req)
