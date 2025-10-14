@@ -27,7 +27,7 @@ func build(t *testing.T, requests map[string]request.Request, label string) *htt
 	if !ok {
 		t.Fatal("expected request to be found")
 	}
-	req, err := toBuild.Build()
+	req, err := toBuild.Build(nil)
 	if err != nil {
 		t.Fatal(err)
 	}

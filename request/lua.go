@@ -148,28 +148,34 @@ func execute(l *lua.LState, code string) error {
 	return cleanError
 }
 
-func (r *Request) RunPostHook(res *http.Response, jar http.CookieJar) (string, error) {
+func (r *Request) RunPostHook(res *http.Response, jar http.CookieJar) (string, map[string]string, error) {
 
 	l := lua.NewState()
 	defer l.Close()
 
 	if err := registerModules(l); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if err := populateGlobalObject(l, r, res, jar); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	if err := execute(l, r.PostHook); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	// table := ltableToMap(exportsTable)
-	// fmt.Println(table)
-	if ret := l.Get(-1); ret.String() != "nil" {
-		return ret.String(), nil
+	table := ltableToMap(exportsTable)
+	exports := map[string]string{}
+	for k, v := range table {
+		if export, ok := v.(string); ok {
+			exports[k] = export
+		}
 	}
-	return "", nil
+
+	if ret := l.Get(-1); ret.String() != "nil" {
+		return ret.String(), exports, nil
+	}
+	return "", exports, nil
 }
 
 // Convert LTable to Go map

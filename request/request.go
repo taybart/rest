@@ -52,9 +52,25 @@ type Request struct {
 	Block *hcl.Body
 }
 
-func (r *Request) Build() (*http.Request, error) {
+// TODO: fix exports type and solid placeholder types
+func (r *Request) ApplyExports(exports map[string]string) error {
+	if len(exports) > 0 {
+		if r.BearerToken == "EXPORTS:AUTH_TOKEN" {
+			token := exports["auth_token"]
+			if token == "" {
+				return fmt.Errorf("no auth token found in exports table")
+			}
+			r.BearerToken = token
+		}
+	}
+	return nil
+}
+func (r *Request) Build(exports map[string]string) (*http.Request, error) {
 	if r.Built != nil {
 		return r.Built, nil
+	}
+	if err := r.ApplyExports(exports); err != nil {
+		return nil, err
 	}
 	body := r.Body
 	if r.Headers["Content-Type"] == "application/json" {

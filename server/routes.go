@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -39,31 +40,6 @@ func (s *Server) HandleQuit(server *http.Server) http.HandlerFunc {
 	}
 }
 
-func (s *Server) HandleWSEcho() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		upgrader := websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
-		}
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		for {
-			messageType, p, err := conn.ReadMessage()
-			if err != nil {
-				log.Error(err)
-				return
-			}
-			if err := conn.WriteMessage(messageType, p); err != nil {
-				log.Error(err)
-				return
-			}
-		}
-	}
-}
-
 func (s *Server) HandleDir() http.HandlerFunc {
 	d, err := filepath.Abs(s.Config.Dir)
 	if err != nil {
@@ -90,6 +66,10 @@ func (s *Server) HandleEcho() http.HandlerFunc {
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
+		}
+		// echo headers back
+		for k, v := range r.Header {
+			w.Header().Add(k, strings.Join(v, ","))
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -128,5 +108,30 @@ func (s *Server) HandleRoot() http.HandlerFunc {
 		}
 		w.WriteHeader(status)
 		fmt.Fprint(w, body)
+	}
+}
+
+func (s *Server) HandleWSEcho() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		}
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		for {
+			messageType, p, err := conn.ReadMessage()
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			if err := conn.WriteMessage(messageType, p); err != nil {
+				log.Error(err)
+				return
+			}
+		}
 	}
 }

@@ -33,6 +33,7 @@ type Root struct {
 	filename string
 
 	Imports *[]string `hcl:"imports"`
+	Exports *[]string `hcl:"exports"`
 
 	Locals []*struct {
 		Body hcl.Body `hcl:",remain"`
@@ -57,13 +58,6 @@ type Root struct {
 	} `hcl:"socket,block"`
 }
 
-type Parser struct {
-	Ctx    *hcl.EvalContext
-	Files  map[string]*hcl.File
-	Root   *Root
-	Locals map[string]cty.Value
-}
-
 func (r *Root) Add(root *Root, config request.Config) {
 	r.Locals = append(r.Locals, root.Locals...)
 	for _, req := range root.Requests {
@@ -81,6 +75,33 @@ func (r *Root) Add(root *Root, config request.Config) {
 			r.Requests = append(r.Requests, req)
 		}
 	}
+}
+
+type Parser struct {
+	Ctx     *hcl.EvalContext
+	Files   map[string]*hcl.File
+	Root    *Root
+	Locals  map[string]cty.Value
+	Exports map[string]cty.Value
+}
+
+func newParser(filename string) (Parser, error) {
+	p := Parser{
+		Root:   &Root{},
+		Files:  map[string]*hcl.File{},
+		Locals: map[string]cty.Value{},
+		Exports: map[string]cty.Value{
+			"auth_token": cty.StringVal("EXPORTS:AUTH_TOKEN"),
+		},
+	}
+
+	root := Root{filename: filename}
+	if err := p.read(filename, &root); err != nil {
+		return p, err
+	}
+	p.Root = &root
+
+	return p, nil
 }
 
 func (p *Parser) read(filename string, root *Root) error {
@@ -106,22 +127,6 @@ func (p *Parser) read(filename string, root *Root) error {
 		return errors.New("failed to decode rest file")
 	}
 	return nil
-}
-
-func newParser(filename string) (Parser, error) {
-	p := Parser{
-		Root:   &Root{},
-		Files:  map[string]*hcl.File{},
-		Locals: map[string]cty.Value{},
-	}
-
-	root := Root{filename: filename}
-	if err := p.read(filename, &root); err != nil {
-		return p, err
-	}
-	p.Root = &root
-
-	return p, nil
 }
 
 func Parse(filename string) (Rest, error) {
@@ -253,7 +258,8 @@ func (p *Parser) updateLocalsContext() {
 func (p *Parser) makeContext() {
 	p.Ctx = &hcl.EvalContext{
 		Variables: map[string]cty.Value{
-			"locals": cty.ObjectVal(p.Locals),
+			"locals":  cty.ObjectVal(p.Locals),
+			"exports": cty.ObjectVal(p.Exports),
 		},
 		Functions: map[string]function.Function{
 			"btmpl":  makeTemplateFunc(),

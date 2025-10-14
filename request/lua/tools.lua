@@ -24,7 +24,7 @@ function M.is_expected_response()
   end
   if expect.headers ~= nil then
     for k, v in pairs(expect.headers) do
-      local finalkey, values = M.get_header_values(k)
+      local values, finalkey = M.get_header_values(k)
       if values == nil then
         fail(('header %s does not present "%s" != "%s"'):format(finalkey))
         return false
@@ -46,15 +46,15 @@ function M.is_expected_response()
 end
 
 --[[
-  returns the key that matched and the first value of the header
+  returns the first value of the header and the key that matched 
   will check for multiple keys to see if the header has weird capitalization
 --]]
 function M.get_header(_key)
-  local key, header = M.get_header_values(_key)
+  local header, key = M.get_header_values(_key)
   if header == nil then
-    return _key, nil
+    return nil, key
   end
-  return key, header[1]
+  return header['1'], key
 end
 
 --[[
@@ -64,23 +64,23 @@ end
 function M.get_header_values(key)
   local headers = rest.res.headers
   if headers[key] ~= nil then
-    return key, headers[key]
+    return headers[key], key
   end
   local upperkey = key:upper()
   if headers[upperkey] ~= nil then
-    return upperkey, headers[upperkey]
+    return headers[upperkey], upperkey
   end
   local lowerkey = key:lower()
   if headers[lowerkey] ~= nil then
-    return lowerkey, headers[lowerkey]
+    return headers[lowerkey], lowerkey
   end
   local mixedkey = key:gsub("(%a)([%w_']*)", function(a, b)
     return string.upper(a) .. b
   end)
   if headers[mixedkey] ~= nil then
-    return mixedkey, headers[mixedkey]
+    return headers[mixedkey], mixedkey
   end
-  return key, nil
+  return nil, key
 end
 
 return M

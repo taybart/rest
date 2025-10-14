@@ -17,14 +17,13 @@ import (
 )
 
 type Client struct {
-	client *http.Client
-	ws     *websocket.Conn
-	Config Config
-	// Requests map[string]Request
+	client  *http.Client
+	ws      *websocket.Conn
+	Config  Config
+	exports map[string]string
 }
 
 func NewClient(config Config) (*Client, error) {
-
 	client := http.Client{}
 	if !config.NoCookies {
 		jar, err := cookiejar.New(nil)
@@ -50,7 +49,7 @@ func (c *Client) Do(r Request) (string, error) {
 	}
 	r.UserAgent = c.Config.UserAgent
 
-	req, err := r.Build()
+	req, err := r.Build(c.exports)
 	if err != nil {
 		return "", err
 	}
@@ -73,7 +72,11 @@ func (c *Client) Do(r Request) (string, error) {
 	}
 	// run lua code if it exists
 	if r.PostHook != "" {
-		return r.RunPostHook(res, c.client.Jar)
+		res, exports, err := r.RunPostHook(res, c.client.Jar)
+		if len(exports) > 0 {
+			c.exports = exports
+		}
+		return res, err
 	}
 
 	return c.CheckExpectation(r, res)
