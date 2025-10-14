@@ -3,7 +3,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -55,8 +54,7 @@ func New(c Config) *http.Server {
 	s.Routes(server)
 	server.Handler = s.Router
 	if c.Cors {
-		fmt.Println("adding default cors handler")
-		server.Handler = cors.Default().Handler(s.Router)
+		server.Handler = cors.AllowAll().Handler(s.Router)
 	}
 	return server
 }
