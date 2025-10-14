@@ -58,9 +58,12 @@ Server:
 	Run a server
     --dir, -d:
 	Directory to serve
-    --origins, -o:
-	Add Access-Control-Allow-Origin header value
-	ex: -o * or -o 'http://localhost:8080 http://localhost:3000'
+    --file, -f:
+	File to run
+    --cors:
+	Add cors headers
+    --response, -r:
+	Response to send, json file path or inline in the format {"status": 200, "body": {"hello": "world"}}
     --tls, -t:
 	TLS path name to be used for tls key/cert (defaults to no TLS)
 	ex: '-t ./keys/site.com' where the files ./keys/site.com.{key,crt} exist
