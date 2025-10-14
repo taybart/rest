@@ -87,6 +87,3 @@ Client:
 	More client logging
 ```
 
-### TODO
-
-- [ ] namespace imports => import "name.rest" -> copy_from "name:basic"
