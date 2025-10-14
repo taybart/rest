@@ -1,3 +1,4 @@
+config {skip_imported = true}
 locals {
   imported = "HELLO"
   testTmpl = <<JSON
@@ -9,11 +10,14 @@ locals {
 
 request "base" {
   # skip = true
-  url = "http://localhost:8500"
+  url = "http://localhost:18080"
   method = "POST"
   bearer_token = "test"
   body = tmpl(locals.testTmpl, {WORLD = "world"})
   post_hook = <<LUA
+    if rest.label == "base" then
+      error("should not have executed base")
+    end
     print('label: '..rest.label)
   LUA
 }

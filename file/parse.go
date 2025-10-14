@@ -147,7 +147,14 @@ func Parse(filename string) (Rest, error) {
 			if err := p.read(fp, root); err != nil {
 				return ret, err
 			}
-			p.Root.Add(root, ret.Config)
+			// get settings from imported file
+			config := ret.Config
+			if root.Config != nil {
+				if err := p.decode(root.Config.Body, &config); err != nil {
+					return ret, errors.New("error decoding config block")
+				}
+			}
+			p.Root.Add(root, config)
 		}
 	}
 	if err := p.decodeLocals(); err != nil {

@@ -1,4 +1,3 @@
-config { skip_imported = true }
 imports = [ "./to_import.rest" ]
 
 locals {
@@ -32,7 +31,7 @@ locals {
 }
 
 request "header test" {
-  url = "http://localhost:8500/header/test"
+  url = "http://localhost:18080/header/test"
   headers = {
     "Content-Type" = "application/json",
     "Authorization" = "bearer hi",
@@ -40,11 +39,11 @@ request "header test" {
   }
   body = {}
   post_hook = <<LUA
-    print('\nlabel: '..rest.label)
-    print('setting exports.test => hi')
-    rest.exports.test = 'hi'
+    print('label: '..rest.label)
+    -- print('setting exports.test => hi')
+    -- rest.exports.test = 'hi'
     -- print(inspect(rest.res.body))
-    print('\n')
+    -- print('\n')
   LUA
 }
 request "copy test" {
@@ -56,7 +55,7 @@ request "copy test" {
     "to": "${locals.imported}"
   }
   post_hook = <<LUA
-    print('\nlabel: '.. rest.label)
+    print('label: '.. rest.label)
     -- print('exports => '.. rest.exports.test)
     rest.exports = {
       mexico = {
@@ -66,7 +65,7 @@ request "copy test" {
     }
     -- rest.exports.mexico = "puerto vallarta"
     -- rest.exports.test = json.decode(rest.res.body).status
-    print('\n')
+    -- print('\n')
   LUA
 }
 
@@ -78,15 +77,15 @@ request "form test" {
   body = form({
     test= "[0,1,2]"
   })
-  post_hook = <<LUA
-    print('label: '..rest.label)
-    print('exports => '.. rest.exports.test)
-    print('\n')
-  LUA
+  # post_hook = <<LUA
+  #   print('label: '..rest.label)
+  #   print('exports => '.. rest.exports.test)
+  #   print('\n')
+  # LUA
 }
 
 socket {
-  url = "ws://localhost:8500/__ws__"
+  url = "ws://localhost:18080/__ws__"
   # no_special_cmds = true
   run = {
     delay = "1s"
