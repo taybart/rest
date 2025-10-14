@@ -10,29 +10,42 @@ function M.is_expected_response()
     fail(('unexpected status code %d != %d'):format(expect.status, res.status))
     return false
   end
-  if expect.body ~= nil and expect.body ~= res.body then
+  if expect.body ~= '' and expect.body ~= res.body then
     fail(('body does not match expectation %s != %s'):format(expect.body, res.body))
     return false
   end
   if expect.headers ~= nil then
     for k, v in pairs(expect.headers) do
-      local finalkey, value = M.get_header(k)
-      if v ~= value then -- FIXME: assumption
-        fail(('header %s does not match "%s" != "%s"'):format(finalkey, v, res.headers[finalkey]))
+      local finalkey, values = M.get_header_values(k)
+      if values == nil then
+        fail(('header %s does not present "%s" != "%s"'):format(finalkey))
         return false
       end
-      -- TODO: should we be good boys and actually include all headers?
-      -- if res.headers[k] ~= nil then
-      --   if v ~= res.headers[k]['1'] then -- FIXME: assumption
-      --     fail(('header %s does not match %s != %s'):format(k, v, res.headers[k]))
-      --   end
-      -- end
+      local matches = false
+      for _, value in ipairs(values) do
+        if v == value then
+          matches = true
+        end
+      end
+      if not matches then
+        -- small assumption that header is standalone for usablilty
+        fail(('header %s does not match "%s" != "%s"'):format(finalkey, v, values[1]))
+        return false
+      end
     end
   end
   return true
 end
 
-function M.get_header(key)
+function M.get_header(_key)
+  local key, header = M.get_header_values(_key)
+  if header == nil then
+    return _key, nil
+  end
+  return key, header[1]
+end
+
+function M.get_header_values(key)
   local headers = rest.res.headers
   if headers[key] ~= nil then
     return key, headers[key]

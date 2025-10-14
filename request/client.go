@@ -106,10 +106,25 @@ func (c *Client) CheckExpectation(r Request, res *http.Response) (string, error)
 		}
 		if len(r.Expect.Headers) != 0 {
 			for k, v := range r.Expect.Headers {
-				if resh := res.Header.Get(k); resh != v {
+				values := res.Header.Values(k)
+				if len(values) == 0 {
+					return string(dumped), fmt.Errorf(
+						`request "%s": required response header "%s" not present`,
+						r.Label, k)
+				}
+				matches := false
+				lastValue := ""
+				for _, value := range values {
+					lastValue = value
+					if value == v {
+						matches = true
+					}
+				}
+				if !matches {
+					// small assumption that header is standalone for usablilty
 					return string(dumped), fmt.Errorf(
 						`request "%s": unexpected response header [%s] %s != %s`,
-						r.Label, k, v, resh)
+						r.Label, k, v, lastValue)
 				}
 			}
 		}

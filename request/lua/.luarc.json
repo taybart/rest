@@ -5,6 +5,9 @@
     },
     "fail": {
       "type": "function"
+    },
+    "inspect": {
+      "type": "function"
     }
   }
 }

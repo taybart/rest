@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -207,14 +208,13 @@ func makeLTableFromMap(l *lua.LState, inMap map[string]string) *lua.LTable {
 func makeLTableFromMapOfArr(l *lua.LState, inMap map[string][]string) *lua.LTable {
 	tbl := l.NewTable()
 	for k, v := range inMap {
-		// TODO: should we be good boys and actually include all headers?
-		// toMap := map[string]string{}
-		// for i, v := range v {
-		// 	index := strconv.Itoa(i + 1) // because lua stuff
-		// 	toMap[index] = v
-		// }
-		// l.SetField(tbl, k, makeLTableFromMap(l, toMap))
-		l.SetField(tbl, k, lua.LString(v[0]))
+		toMap := map[string]string{}
+		for i, v := range v {
+			index := strconv.Itoa(i + 1) // because lua stuff
+			toMap[index] = v
+		}
+		l.SetField(tbl, k, makeLTableFromMap(l, toMap))
+		// l.SetField(tbl, k, lua.LString(v[0]))
 	}
 	return tbl
 }
