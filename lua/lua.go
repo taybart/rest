@@ -45,7 +45,7 @@ func RegisterModules(l *lua.LState) error {
 	return nil
 }
 
-func LtableToMap(table *lua.LTable) map[string]any {
+func LTableToMap(table *lua.LTable) map[string]any {
 	result := make(map[string]any)
 
 	table.ForEach(func(key, value lua.LValue) {
@@ -59,7 +59,7 @@ func LtableToMap(table *lua.LTable) map[string]any {
 			result[keyStr] = bool(v)
 		case *lua.LTable:
 			// Recursively convert nested tables
-			result[keyStr] = LtableToMap(v)
+			result[keyStr] = LTableToMap(v)
 		case *lua.LNilType:
 			result[keyStr] = nil
 		default:

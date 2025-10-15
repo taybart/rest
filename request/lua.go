@@ -138,7 +138,7 @@ func (r *Request) RunPostHook(res *http.Response, jar http.CookieJar) (string, m
 		return "", nil, err
 	}
 
-	table := restlua.LtableToMap(exportsTable)
+	table := restlua.LTableToMap(exportsTable)
 	exports := map[string]string{}
 	for k, v := range table {
 		if export, ok := v.(string); ok {
