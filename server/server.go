@@ -114,19 +114,27 @@ func (s *Server) WriteConfigResponse(w http.ResponseWriter) error {
 }
 func (s *Server) WriteResponseWithDefault(w http.ResponseWriter, res Response) error {
 
-	for k, v := range res.Headers {
-		w.Header().Add(k, v)
+	if s.Config.Response != nil {
+		for k, v := range s.Config.Response.Headers {
+			w.Header().Add(k, v)
+		}
+	} else {
+		for k, v := range res.Headers {
+			w.Header().Add(k, v)
+		}
 	}
 
-	status := http.StatusOK
-	body := `{"status": "ok"}`
-	if res.Status != 0 {
-		status = res.Status
-	}
-	if len(res.Body) != 0 {
-		body = string(res.Body)
+	status := res.Status
+	body := res.Body
+	if cres := s.Config.Response; cres != nil {
+		if cres.Status != 0 {
+			status = cres.Status
+		}
+		if len(cres.Body) != 0 {
+			body = cres.Body
+		}
 	}
 	w.WriteHeader(status)
-	fmt.Fprint(w, body)
+	fmt.Fprint(w, string(body))
 	return nil
 }

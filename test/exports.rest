@@ -61,7 +61,7 @@ server {
       return 200, json.encode({ hello =  "world" })
     LUA
   }
-  response {
-    status = 200
-  }
+  # response {
+  #   status = 200
+  # }
 }
