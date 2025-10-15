@@ -25,6 +25,12 @@ type Response struct {
 	Body    json.RawMessage   `json:"body"`
 	BodyHCL hcl.Expression    `hcl:"body,optional"`
 }
+type Handler struct {
+	Path     string    `json:"path" hcl:"path,label"`
+	Method   string    `json:"method" hcl:"method,optional"`
+	Fn       string    `json:"fn" hcl:"fn,optional"`
+	Response *Response `hcl:"response,block"`
+}
 
 type Server struct {
 	Server *http.Server
@@ -33,13 +39,14 @@ type Server struct {
 }
 
 type Config struct {
-	Addr     string    `hcl:"address"`
-	Dir      string    `hcl:"directory,optional"`
-	Quiet    bool      `hcl:"quiet,optional"`
-	Response *Response `hcl:"response,block"`
-	Origins  []string  `hcl:"origins,optional"`
-	Cors     bool      `hcl:"cors,optional"`
-	TLS      string    `hcl:"tls,optional"`
+	Addr     string     `hcl:"address"`
+	Dir      string     `hcl:"directory,optional"`
+	Quiet    bool       `hcl:"quiet,optional"`
+	Response *Response  `hcl:"response,block"`
+	Origins  []string   `hcl:"origins,optional"`
+	Cors     bool       `hcl:"cors,optional"`
+	TLS      string     `hcl:"tls,optional"`
+	Handlers []*Handler `hcl:"handler,block"`
 }
 
 func New(c Config) Server {
@@ -81,5 +88,45 @@ func (s *Server) Serve() error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (s *Server) WriteConfigResponse(w http.ResponseWriter) error {
+
+	for k, v := range s.Config.Response.Headers {
+		w.Header().Add(k, v)
+	}
+
+	status := http.StatusOK
+	body := `{"status": "ok"}`
+	// overrides
+	if res := s.Config.Response; res != nil {
+		if res.Status != 0 {
+			status = res.Status
+		}
+		if len(res.Body) != 0 {
+			body = string(res.Body)
+		}
+	}
+	w.WriteHeader(status)
+	fmt.Fprint(w, body)
+	return nil
+}
+func (s *Server) WriteResponseWithDefault(w http.ResponseWriter, res Response) error {
+
+	for k, v := range res.Headers {
+		w.Header().Add(k, v)
+	}
+
+	status := http.StatusOK
+	body := `{"status": "ok"}`
+	if res.Status != 0 {
+		status = res.Status
+	}
+	if len(res.Body) != 0 {
+		body = string(res.Body)
+	}
+	w.WriteHeader(status)
+	fmt.Fprint(w, body)
 	return nil
 }

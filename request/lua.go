@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strconv"
 
@@ -70,6 +71,14 @@ func registerModules(l *lua.LState) error {
 
 func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar http.CookieJar) error {
 	defer res.Body.Close()
+	reqdump, err := httputil.DumpRequest(res.Request, true)
+	if err != nil {
+		return err
+	}
+	resdump, err := httputil.DumpResponse(res, true)
+	if err != nil {
+		return err
+	}
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return err
@@ -81,6 +90,7 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 		"query":   makeLTableFromMapOfArr(l, res.Request.URL.Query()),
 		"headers": makeLTableFromMapOfArr(l, res.Request.Header),
 		"body":    lua.LString(req.Body),
+		"dump":    lua.LString(string(reqdump)),
 	}
 	if req.Expect != nil {
 		reqMap["expect"] = makeLTable(l, map[string]lua.LValue{
@@ -111,6 +121,7 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 		"headers": makeLTableFromMapOfArr(l, res.Header),
 		"body":    lua.LString(string(body)),
 		"cookies": makeLTable(l, cookieMap),
+		"dump":    lua.LString(string(resdump)),
 	})
 
 	if exportsTable == nil {

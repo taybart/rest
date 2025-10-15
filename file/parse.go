@@ -175,14 +175,10 @@ func Parse(filename string) (Rest, error) {
 		}
 	}
 	if p.Root.Server != nil {
-		if err := p.decode(p.Root.Server.Body, &ret.Server); err != nil {
-			return ret, errors.New("error decoding server block")
-		}
-		b, err := p.marshalBody(ret.Server.Response.BodyHCL)
+		ret.Server, err = p.parseServer()
 		if err != nil {
 			return ret, err
 		}
-		ret.Server.Response.Body = json.RawMessage(b)
 	}
 
 	ret.Requests, err = p.parseRequests()
@@ -191,6 +187,31 @@ func Parse(filename string) (Rest, error) {
 	}
 
 	return ret, nil
+}
+func (p *Parser) parseServer() (server.Config, error) {
+	var serv server.Config
+	if err := p.decode(p.Root.Server.Body, &serv); err != nil {
+		return serv, errors.New("error decoding server block")
+	}
+	if serv.Response != nil {
+		b, err := p.marshalBody(serv.Response.BodyHCL)
+		if err != nil {
+			return serv, err
+		}
+		serv.Response.Body = json.RawMessage(b)
+	}
+	if len(serv.Handlers) != 0 {
+		for k, handler := range serv.Handlers {
+			if handler.Response != nil {
+				b, err := p.marshalBody(handler.Response.BodyHCL)
+				if err != nil {
+					return serv, err
+				}
+				serv.Handlers[k].Response.Body = json.RawMessage(b)
+			}
+		}
+	}
+	return serv, nil
 }
 func (p *Parser) parseRequests() (map[string]request.Request, error) {
 	requests := map[string]request.Request{}

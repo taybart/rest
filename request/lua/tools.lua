@@ -46,11 +46,19 @@ function M.is_expected_response()
 end
 
 --[[
-  returns the first value of the header and the key that matched 
+  returns the first value of the header and the key that matched
   will check for multiple keys to see if the header has weird capitalization
 --]]
-function M.get_header(_key)
-  local header, key = M.get_header_values(_key)
+function M.get_res_header(_key)
+  return M.get_header(_key)
+end
+
+function M.get_req_header(_key)
+  return M.get_header(_key, true)
+end
+
+function M.get_header(_key, req)
+  local header, key = M.get_header_values(_key, req)
   if header == nil then
     return nil, key
   end
@@ -61,8 +69,11 @@ end
   returns the key that matched and all of the values of the header returned by the server
   will check for multiple keys to see if the header has weird capitalization
 --]]
-function M.get_header_values(key)
+function M.get_header_values(key, req)
   local headers = rest.res.headers
+  if req then
+    headers = rest.req.headers
+  end
   if headers[key] ~= nil then
     return headers[key], key
   end

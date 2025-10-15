@@ -7,25 +7,61 @@ request "get auth token" {
   }
   post_hook = <<LUA
     print('==='..rest.label..'===')
+    print(rest.res.dump)
     local body = json.decode(rest.res.body)
+    if not body.auth_token  then
+      fail('no auth_token returned')
+      return
+    end
     rest.exports.auth_token = body.auth_token
-  LUA
-}
-request "use exports" {
-  url = "http://localhost:18080/"
-  bearer_token = "${exports.auth_token}"
-  post_hook = <<LUA
-    print('\n==='..rest.label..'===')
-    print(inspect(rest.req.headers['Authorization']['1']))
+    print('got new auth_token: '..rest.exports.auth_token)
   LUA
 }
 
+request "use exports" {
+  url = "http://localhost:18080/test"
+  bearer_token = exports.auth_token
+  post_hook = <<LUA
+    print('\n==='..rest.label..'===')
+    local auth_header, other = tools.get_req_header('Authorization')
+    if  auth_header ~= "Bearer this_is_an_auth_token" then
+      print(auth_header, other)
+      fail('missing or incorrect auth_token')
+    end
+    print(inspect(json.decode(rest.res.body)))
+  LUA
+}
+
+request "unknown route" {
+  url = "http://localhost:18080/unknown"
+  post_hook = <<LUA
+    print('\n==='..rest.label..'===')
+    print(rest.res.dump)
+  LUA
+}
+
+
 server {
   address = "localhost:18080"
-  response {
-    status = 200
-    body = {
-      auth_token = "this_is_an_auth_token"
+  handler "/auth" {
+    method  = "POST"
+    response {
+      status = 200
+      headers = { "Content-Type" = "application/json" }
+      body = { auth_token:  "this_is_an_auth_token" }
     }
   }
+  handler "/test" {
+    method  = "GET"
+    fn = <<LUA
+      print(inspect(rest.req))
+      if rest.req.headers['Authorization']['1'] ~= "Bearer this_is_an_auth_token" then
+        return 
+        end
+      return 200, json.encode({ hello =  "world" })
+    LUA
+  }
+  # response {
+  #   status = 200
+  # }
 }

@@ -79,6 +79,32 @@ func (s *Server) HandleEcho() http.HandlerFunc {
 
 func (s *Server) HandleRoot() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if len(s.Config.Handlers) > 0 {
+			// FIXME: this is dumb
+			for _, handler := range s.Config.Handlers {
+				// Should use regex
+				if handler.Path == r.URL.Path && handler.Method == r.Method {
+					if handler.Fn != "" {
+						status, body, err := s.RunLuaHandler(handler.Fn, r, w)
+						if err != nil {
+							log.Error(err)
+							w.WriteHeader(http.StatusBadRequest)
+						} else {
+							w.WriteHeader(status)
+						}
+						fmt.Fprint(w, body)
+						return
+					}
+					if handler.Response != nil {
+						s.WriteResponseWithDefault(w, *handler.Response)
+						return
+					}
+				}
+			}
+			// FIXME: []byte{0} hack to prevent default body
+			s.WriteResponseWithDefault(w, Response{Status: http.StatusNotFound, Body: []byte{0}})
+			return
+		}
 		if !s.Config.Quiet {
 			dump, err := httputil.DumpRequest(r, true)
 			if err != nil {
@@ -88,26 +114,7 @@ func (s *Server) HandleRoot() http.HandlerFunc {
 			fmt.Printf("%s%s%s\n", log.Yellow, string(dump), log.Rtd)
 		}
 
-		if s.Config.Response != nil {
-			for k, v := range s.Config.Response.Headers {
-				w.Header().Add(k, v)
-			}
-		}
-
-		// default
-		status := http.StatusOK
-		body := `{"status": "ok"}`
-		// overrides
-		if res := s.Config.Response; res != nil {
-			if res.Status != 0 {
-				status = res.Status
-			}
-			if len(res.Body) != 0 {
-				body = string(res.Body)
-			}
-		}
-		w.WriteHeader(status)
-		fmt.Fprint(w, body)
+		s.WriteConfigResponse(w)
 	}
 }
 
