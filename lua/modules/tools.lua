@@ -70,9 +70,12 @@ end
   will check for multiple keys to see if the header has weird capitalization
 --]]
 function M.get_header_values(key, req)
-  local headers = rest.res.headers
+  local headers
+  -- don't access res incase we are running in the server
   if req then
     headers = rest.req.headers
+  else
+    headers = rest.res.headers
   end
   if headers[key] ~= nil then
     return headers[key], key
