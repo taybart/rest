@@ -1,4 +1,5 @@
-package request
+// Package restlua provides lua modules for doing rest stuff in the lua runtime
+package restlua
 
 import (
 	"embed"
