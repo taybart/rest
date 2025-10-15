@@ -26,8 +26,8 @@ type Response struct {
 	BodyHCL hcl.Expression    `hcl:"body,optional"`
 }
 type Handler struct {
+	Method   string    `json:"method" hcl:"method,label"`
 	Path     string    `json:"path" hcl:"path,label"`
-	Method   string    `json:"method" hcl:"method,optional"`
 	Fn       string    `json:"fn" hcl:"fn,optional"`
 	Response *Response `hcl:"response,block"`
 }

@@ -2,7 +2,7 @@
 
 Goes well with [rest.nvim](https://github.com/taybart/rest.nvim)
 
-Example (see [doc](doc/CLIENT.md) for more info):
+Example (see [doc](doc) for more info):
 
 ```hcl
 locals {

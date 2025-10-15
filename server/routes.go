@@ -102,7 +102,7 @@ func (s *Server) HandleRoot() http.HandlerFunc {
 				}
 			}
 			// FIXME: []byte{0} hack to prevent default body
-			s.WriteResponseWithDefault(w, Response{Status: http.StatusNotFound, Body: []byte{0}})
+			s.WriteResponseWithDefault(w, Response{Status: http.StatusNotFound})
 			return
 		}
 		if !s.Config.Quiet {

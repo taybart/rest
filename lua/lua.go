@@ -33,9 +33,10 @@ func RegisterModules(l *lua.LState) error {
 	libs := map[string]string{
 		"base64":  "base64.lua",
 		"colors":  "colors.lua",
-		"json":    "json.lua",
 		"inspect": "inspect.lua",
+		"json":    "json.lua",
 		"tools":   "tools.lua",
+		"uuid":    "uuid.lua",
 	}
 	for name, filename := range libs {
 		if err := loadModule(l, name, filename); err != nil {

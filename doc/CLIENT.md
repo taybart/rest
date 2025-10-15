@@ -138,7 +138,7 @@ There are a few functions that can be used in a rest file:
 - `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
 - `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map (currently only map[string]strings are supported)
 
-For example (more examples in [examples](examples)):
+For example (more examples in [examples/client](examples/client)):
 
 ```hcl
 locals {
@@ -223,7 +223,7 @@ It is possible to return a string from a hook, this will be returned to the clie
 
 There is also a special `fail` function that can be used to fail the request. It takes a string argument and returns an error. This is different than a lua `error` and will just return the error to the client.
 
-An example of using hooks can be found [here](https://github.com/taybart/search)
+An example of using more complicated hooks can be found [here](https://github.com/taybart/search)
 
 ## Sockets
 

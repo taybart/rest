@@ -1,0 +1,69 @@
+
+# Server
+server {
+  address = "localhost:18080"
+  handler "GET" "/hello" {
+    response {
+      status = 200
+      body = {
+        hello = "world"
+      }
+    }
+  }
+  handler "POST" "/login" {
+    fn = <<LUA
+      local body = json.decode(rest.req.body)
+      if body.username == "root" and body.password == "toor" then
+        return 200, json.encode({status = 200, token = uuid.newv4()})
+      end
+      return 401, json.encode({status = 401, message = "invalid credentials"})
+    LUA
+  }
+  handler "GET" "/user" {
+    fn = <<LUA
+      local auth_header = tools.get_req_header('Authorization')
+      local token = auth_header:sub(8)
+      if not uuid.is_uuidv4(token) then
+        return 401, json.encode({status = 401, message = "invalid credentials"})
+      end
+      return 200, json.encode({ hello =  "world" })
+    LUA
+
+  }
+  # normally when handlers are present, 
+  # the default response 404 when path does not match handlers
+  # this can be overridden by a response block
+  response {
+    status = 200
+  }
+}
+
+## Test Client
+request "get auth token" {
+  url = "http://localhost:18080/login"
+  method = "POST"
+  body = {
+    "username": "root",
+    "password": "toor"
+  }
+  post_hook = <<LUA
+    print('==='..rest.label..'===')
+    print(rest.res.body)
+    local body = json.decode(rest.res.body)
+    if not body.token  then
+      fail('no auth_token returned')
+      return
+    end
+    rest.exports.auth_token = body.token
+    print('got new auth_token: '..rest.exports.auth_token)
+  LUA
+}
+
+request "get user" {
+  url = "http://localhost:18080/user"
+  bearer_token = exports.auth_token
+  post_hook = <<LUA
+    print('\n==='..rest.label..'===')
+    inspect.print(json.decode(rest.res.body))
+  LUA
+}

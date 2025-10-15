@@ -1,0 +1,5 @@
+// run a server at localhost:18080 and respond with 418 
+server {
+  address = "localhost:18080"
+  response { status = 418 }
+}

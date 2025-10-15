@@ -34,8 +34,13 @@ request "use exports" {
 
 request "unknown route" {
   url = "http://localhost:18080/unknown"
+  bearer_token = exports.auth_token
+  expect = 404
   post_hook = <<LUA
     print('\n==='..rest.label..'===')
+    if not tools.is_expected_response() then
+      return
+    end
     print(rest.res.dump)
   LUA
 }
@@ -43,18 +48,18 @@ request "unknown route" {
 
 server {
   address = "localhost:18080"
-  handler "/auth" {
-    method  = "POST"
+  handler "POST" "/auth" {
+    # method  = "POST"
     response {
       status = 200
       headers = { "Content-Type" = "application/json" }
       body = { auth_token:  "this_is_an_auth_token" }
     }
   }
-  handler "/test" {
-    method  = "GET"
+  handler "GET" "/test" {
+    # method  = "GET"
     fn = <<LUA
-      print(inspect(rest.req))
+      print('auth header: '..tools.get_req_header('Authorization'))
       if tools.get_req_header('Authorization') ~= "Bearer this_is_an_auth_token" then
         return 
         end
