@@ -22,10 +22,44 @@ func (s *Server) Routes(server *http.Server) {
 		s.Router.HandleFunc("/", gzipHandler(s.HandleDir()))
 		return
 	}
+	if !s.registerHandlerFns() {
+		s.Router.HandleFunc("/__ws__", s.HandleWSEcho())
+		s.Router.HandleFunc("/__echo__", log.Middleware(gzipHandler(s.HandleEcho())))
+		s.Router.HandleFunc("/", log.Middleware(gzipHandler(s.HandleRoot())))
+	}
+}
 
-	s.Router.HandleFunc("/__ws__", s.HandleWSEcho())
-	s.Router.HandleFunc("/__echo__", log.Middleware(gzipHandler(s.HandleEcho())))
-	s.Router.HandleFunc("/", log.Middleware(gzipHandler(s.HandleRoot())))
+func (s *Server) registerHandlerFns() bool {
+	if len(s.Config.Handlers) > 0 {
+		for _, handler := range s.Config.Handlers {
+			log.Infof("registering handler %s%s%s\n", log.Blue, handler.Path, log.Reset)
+			s.Router.HandleFunc(handler.Path, log.Middleware(s.CustomHandlerFn(handler)))
+		}
+		return true
+	}
+	return false
+}
+func (s *Server) CustomHandlerFn(handler *Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if handler.Method == r.Method {
+			if handler.Fn != "" {
+				status, body, err := s.RunLuaHandler(handler.Fn, r, w)
+				if err != nil {
+					log.Error(err)
+					w.WriteHeader(http.StatusBadRequest)
+				} else {
+					w.WriteHeader(status)
+				}
+				fmt.Fprint(w, body)
+				return
+			}
+			if handler.Response != nil {
+				s.WriteResponseWithDefault(w, *handler.Response)
+				return
+			}
+		}
+		s.WriteResponseWithDefault(w, Response{Status: http.StatusNotFound})
+	}
 }
 
 func (s *Server) HandleQuit(server *http.Server) http.HandlerFunc {
@@ -101,7 +135,6 @@ func (s *Server) HandleRoot() http.HandlerFunc {
 					}
 				}
 			}
-			// FIXME: []byte{0} hack to prevent default body
 			s.WriteResponseWithDefault(w, Response{Status: http.StatusNotFound})
 			return
 		}

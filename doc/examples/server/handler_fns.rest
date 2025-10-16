@@ -1,40 +1,39 @@
-
 # Server
 server {
   address = "localhost:18080"
-  handler "GET" "/hello" {
-    response {
-      status = 200
-      body = {
-        hello = "world"
-      }
-    }
-  }
   handler "POST" "/login" {
     fn = <<LUA
       local body = json.decode(rest.req.body)
       if body.username == "root" and body.password == "toor" then
-        return 200, json.encode({token = uuid.newv4()})
+        local token = uuid.newv4()
+        kv.set('last_token', token)
+        return 200, json.encode({token = token})
       end
       return 401, json.encode({error = "invalid credentials"})
     LUA
   }
-  handler "GET" "/user" {
+  handler "GET" "/user/{id}" {
     fn = <<LUA
-      local auth_header = tools.get_req_header('Authorization')
-      local token = auth_header:sub(8)
+      local token = tools.get_req_header('Authorization')
+        :gsub('Bearer ', '')
       if not uuid.is_uuidv4(token) then
+        return 401, json.encode({error = "missing credentials"})
+      end
+      local last_token = kv.get('last_token')
+      if last_token ~= token then
         return 401, json.encode({error = "invalid credentials"})
       end
-      return 200, json.encode({ hello =  "world" })
+      -- get id from path
+      local id = s.path_value("id")
+      return 200, json.encode({ id = id, name = "Frankie Muniz" })
     LUA
-
   }
-  # normally when handlers are present, 
-  # the default response 404 when path does not match handlers
-  # this can be overridden by a response block
-  response {
-    status = 200
+  # TODO: remove since this is in the other handler example
+  handler "GET" "/" {
+    response {
+      status = 200
+      body = read("./doc/examples/server/index.html")
+    }
   }
 }
 
@@ -42,10 +41,7 @@ server {
 request "get auth token" {
   url = "http://localhost:18080/login"
   method = "POST"
-  body = {
-    "username": "root",
-    "password": "toor"
-  }
+  body = { "username": "root", "password": "toor" }
   post_hook = <<LUA
     print('==='..rest.label..'===')
     print(rest.res.body)
@@ -60,7 +56,7 @@ request "get auth token" {
 }
 
 request "get user" {
-  url = "http://localhost:18080/user"
+  url = "http://localhost:18080/user/5"
   bearer_token = exports.auth_token
   post_hook = <<LUA
     print('\n==='..rest.label..'===')

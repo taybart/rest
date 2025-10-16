@@ -43,17 +43,9 @@ func populateGlobalObject(l *lua.LState, req *http.Request) error {
 	// 	}
 	// }
 
-	// resTbl := makeLTable(l, map[string]lua.LValue{
-	// 	"status":  lua.LNumber(res.StatusCode),
-	// 	"headers": makeLTableFromMapOfArr(l, res.Header),
-	// 	"body":    lua.LString(string(body)),
-	// 	"cookies": makeLTable(l, cookieMap),
-	// })
-
 	table := restlua.MakeLTable(l, map[string]lua.LValue{
 		"path": lua.LString(req.URL.Path),
 		"req":  reqTbl,
-		// "res":     resTbl,
 	})
 	l.SetGlobal("rest", table)
 	return nil
@@ -77,6 +69,57 @@ func execute(l *lua.LState, code string) error {
 	return cleanError
 }
 
+// this is goofy and probably not necessary
+var kv map[string]lua.LValue
+
+func registerKVStore(l *lua.LState) {
+	if len(kv) == 0 {
+		kv = make(map[string]lua.LValue)
+	}
+	get := func(l *lua.LState) int {
+		key := l.ToString(1)
+		v := kv[key]
+		l.Push(v)
+		return 1
+	}
+	set := func(l *lua.LState) int {
+		key := l.ToString(1)
+		value := l.Get(2)
+		kv[key] = value
+		return 0
+	}
+	l.SetGlobal("kv", restlua.MakeLTable(l, map[string]lua.LValue{
+		"get": l.NewFunction(get),
+		"set": l.NewFunction(set),
+	}))
+}
+
+func (s *Server) luaHelpers(l *lua.LState, req *http.Request) error {
+	registerKVStore(l)
+
+	pathValue := func(l *lua.LState) int {
+		id := l.ToString(1) /* get argument */
+		v := req.PathValue(id)
+		l.Push(lua.LString(v))
+		return 1 /* number of results */
+	}
+	// writeCookie := func(l *lua.LState) int {
+	// 	key := l.ToString(1)   /* get argument */
+	// 	value := l.ToString(1) /* get argument */
+	// 	v :=
+	// // u, err := url.Parse(req.URL.String())
+	// // if err != nil {
+	// // 	return err
+	// // }
+	// 	l.Push(lua.LString(v))
+	// 	return 1 /* number of results */
+	// }
+	l.SetGlobal("s", restlua.MakeLTable(l, map[string]lua.LValue{
+		"path_value": l.NewFunction(pathValue),
+	}))
+	return nil
+}
+
 func (s *Server) RunLuaHandler(handler string, req *http.Request, w http.ResponseWriter) (int, string, error) {
 
 	l := lua.NewState()
@@ -88,16 +131,14 @@ func (s *Server) RunLuaHandler(handler string, req *http.Request, w http.Respons
 	if err := populateGlobalObject(l, req); err != nil {
 		return -1, "", err
 	}
-
+	if err := s.luaHelpers(l, req); err != nil {
+		return -1, "", err
+	}
 	if err := execute(l, handler); err != nil {
 		return -1, "", err
 	}
 
-	body := l.Get(-1)
-	// if body.String() != "nil" {
-	// fmt.Println("ret", ret, "-2", l.Get(-2))
+	body := l.ToString(-1)
 	status := lua.LVAsNumber(l.Get(-2))
-	return int(status), body.String(), nil
-	// }
-	// return -1, "", nil
+	return int(status), body, nil
 }

@@ -1,0 +1,24 @@
+server {
+  address = "localhost:18080"
+  # basic handler at /hello when hit with a GET
+  handler "GET" "/hello" {
+    response {
+      status = 200
+      body = {
+        hello = "world"
+      }
+    }
+  }
+  handler "GET" "/" {
+    response {
+      status = 200
+      body = "${read("./doc/examples/server/index.html")}"
+    }
+  }
+  # normally when handlers are present, 
+  # the default response is 404 when path does not match handlers
+  # this can be overridden by a root level response block
+  response {
+    status = 200
+  }
+}
