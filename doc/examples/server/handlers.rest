@@ -14,9 +14,9 @@ server {
     fn = <<LUA
       local body = json.decode(rest.req.body)
       if body.username == "root" and body.password == "toor" then
-        return 200, json.encode({status = 200, token = uuid.newv4()})
+        return 200, json.encode({token = uuid.newv4()})
       end
-      return 401, json.encode({status = 401, message = "invalid credentials"})
+      return 401, json.encode({error = "invalid credentials"})
     LUA
   }
   handler "GET" "/user" {
@@ -24,7 +24,7 @@ server {
       local auth_header = tools.get_req_header('Authorization')
       local token = auth_header:sub(8)
       if not uuid.is_uuidv4(token) then
-        return 401, json.encode({status = 401, message = "invalid credentials"})
+        return 401, json.encode({error = "invalid credentials"})
       end
       return 200, json.encode({ hello =  "world" })
     LUA

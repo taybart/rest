@@ -88,4 +88,21 @@ server {
 }
 ```
 
+### Handler functions
+
+The handler function has access to the same lua tools as the client post_hook. 
+The return must be in the form: `return status, body` (ex. `return 200, json.encode({msg = "hello world"})`)
+where status is an int http status code and body is a string that will be put in the body of the response.
+
+**Modules**
+
+There are some global modules available in the lua runtime.
+
+- `json` - encode and decode json
+- `colors` - adds terminal color escape codes and formatting functions for extra points
+- `inspect` - used to inspect lua values
+- `base64` - encode and decode base64
+- `tools` - various helper functions, check out the [tools](https://github.com/taybart/rest/blob/main/request/lua/tools.lua) module for commented functions 
+    - one call out is `tools.get_req_header`, but you can read the file to see the rest of the fuctions
+
 See [examples/server](./examples/server) for a more detailed examples
