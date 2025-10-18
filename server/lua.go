@@ -72,14 +72,17 @@ func execute(l *lua.LState, code string) error {
 // this is goofy and probably not necessary
 var kv map[string]lua.LValue
 
-func registerKVStore(l *lua.LState) {
+func kvCacheLoader(l *lua.LState) int {
 	if len(kv) == 0 {
 		kv = make(map[string]lua.LValue)
 	}
 	get := func(l *lua.LState) int {
 		key := l.ToString(1)
-		v := kv[key]
-		l.Push(v)
+		if v := kv[key]; v != nil {
+			l.Push(v)
+		} else {
+			l.Push(lua.LNil)
+		}
 		return 1
 	}
 	set := func(l *lua.LState) int {
@@ -92,10 +95,17 @@ func registerKVStore(l *lua.LState) {
 		"get": l.NewFunction(get),
 		"set": l.NewFunction(set),
 	}))
+	// mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
+	// 	"get": get,
+	// 	"set": set,
+	// })
+	// l.Push(mod)
+	return 1
 }
 
 func (s *Server) luaHelpers(l *lua.LState, req *http.Request) error {
-	registerKVStore(l)
+	kvCacheLoader(l)
+	// l.PreloadModule("kv", kvCacheLoader)
 
 	pathValue := func(l *lua.LState) int {
 		id := l.ToString(1) /* get argument */

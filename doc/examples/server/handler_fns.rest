@@ -6,7 +6,7 @@ server {
       local body = json.decode(rest.req.body)
       if body.username == "root" and body.password == "toor" then
         local token = uuid.newv4()
-        kv.set('last_token', token)
+        kv.set('last_token', token)  -- in memory key value cache
         return 200, json.encode({token = token})
       end
       return 401, json.encode({error = "invalid credentials"})
@@ -14,8 +14,7 @@ server {
   }
   handler "GET" "/user/{id}" {
     fn = <<LUA
-      local token = tools.get_req_header('Authorization')
-        :gsub('Bearer ', '')
+      local token = tools.get_req_bearer_token()
       if not uuid.is_uuidv4(token) then
         return 401, json.encode({error = "missing credentials"})
       end
@@ -28,14 +27,8 @@ server {
       return 200, json.encode({ id = id, name = "Frankie Muniz" })
     LUA
   }
-  # TODO: remove since this is in the other handler example
-  handler "GET" "/" {
-    response {
-      status = 200
-      body = read("./doc/examples/server/index.html")
-    }
-  }
 }
+
 
 ## Test Client
 request "get auth token" {
@@ -61,5 +54,13 @@ request "get user" {
   post_hook = <<LUA
     print('\n==='..rest.label..'===')
     inspect.print(json.decode(rest.res.body))
+  LUA
+}
+request "get unknown" {
+  url = "http://localhost:18080/idk"
+  bearer_token = exports.auth_token
+  post_hook = <<LUA
+    print('\n==='..rest.label..'===')
+    print(rest.res.dump)
   LUA
 }

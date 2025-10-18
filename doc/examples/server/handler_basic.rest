@@ -9,10 +9,12 @@ server {
       }
     }
   }
+  # you can serve individual files but if you just want to serve a directory
+  # you can use the directory option in the root (directory = "path/to/dir")
   handler "GET" "/" {
     response {
       status = 200
-      body = "${read("./doc/examples/server/index.html")}"
+      body = read("./doc/examples/server/index.html")
     }
   }
   # normally when handlers are present, 

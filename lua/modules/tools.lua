@@ -53,12 +53,21 @@ function M.get_res_header(_key)
   return M.get_header(_key)
 end
 
+-- get authorization header and remove "Bearer "
+function M.get_req_bearer_token()
+  local auth_header = M.get_header('authorization', true)
+  if auth_header == nil then
+    return nil
+  end
+  return auth_header:gsub('Bearer ', '')
+end
+
 function M.get_req_header(_key)
   return M.get_header(_key, true)
 end
 
-function M.get_header(_key, req)
-  local header, key = M.get_header_values(_key, req)
+function M.get_header(_key, use_req)
+  local header, key = M.get_header_values(_key, use_req)
   if header == nil then
     return nil, key
   end
@@ -69,10 +78,10 @@ end
   returns the key that matched and all of the values of the header returned by the server
   will check for multiple keys to see if the header has weird capitalization
 --]]
-function M.get_header_values(key, req)
+function M.get_header_values(key, use_req)
   local headers
-  -- don't access res incase we are running in the server
-  if req then
+  -- don't access res in case we are running in the server
+  if use_req then
     headers = rest.req.headers
   else
     headers = rest.res.headers

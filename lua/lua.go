@@ -12,7 +12,7 @@ import (
 //go:embed modules/*
 var library embed.FS
 
-func loadModule(l *lua.LState, name, filename string) error {
+func preloadModule(l *lua.LState, name, filename string) error {
 	code, err := library.ReadFile("modules/" + filename)
 	if err != nil {
 		return err
@@ -39,7 +39,7 @@ func RegisterModules(l *lua.LState) error {
 		"uuid":    "uuid.lua",
 	}
 	for name, filename := range libs {
-		if err := loadModule(l, name, filename); err != nil {
+		if err := preloadModule(l, name, filename); err != nil {
 			return err
 		}
 	}
