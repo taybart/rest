@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 )
 
 // URL is a struct that contains an URL in a "broken-down way".
@@ -22,6 +24,36 @@ type URL struct {
 
 // mURL is used for marshalling/unmarshalling.
 type mURL URL
+
+func MustURL(in string) *URL {
+
+	u, err := url.Parse(in)
+	if err != nil {
+		panic(err)
+	}
+	return &URL{
+		Raw:      in,
+		Protocol: u.Scheme,
+		Host:     strings.Split(u.Hostname(), "."),
+		Port:     u.Port(),
+		Path:     strings.Split(u.Path, "/"),
+	}
+}
+func NewURL(in string) (*URL, error) {
+
+	u, err := url.Parse(in)
+	if err != nil {
+		return nil, err
+	}
+
+	return &URL{
+		Raw:      in,
+		Protocol: u.Scheme,
+		Host:     strings.Split(u.Hostname(), "."),
+		Port:     u.Port(),
+		Path:     strings.Split(u.Path, "/"),
+	}, nil
+}
 
 type QueryParam struct {
 	Key         string  `json:"key"`

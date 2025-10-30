@@ -10,7 +10,7 @@ type Items struct {
 	Description             string      `json:"description,omitempty"`
 	Variables               []*Variable `json:"variable,omitempty"`
 	Events                  []*Event    `json:"event,omitempty"`
-	ProtocolProfileBehavior interface{} `json:"protocolProfileBehavior,omitempty"`
+	ProtocolProfileBehavior any         `json:"protocolProfileBehavior,omitempty"`
 	// Fields specific to Item
 	ID        string      `json:"id,omitempty"`
 	Request   *Request    `json:"request,omitempty"`
@@ -26,7 +26,7 @@ type Item struct {
 	Description             string      `json:"description,omitempty"`
 	Variables               []*Variable `json:"variable,omitempty"`
 	Events                  []*Event    `json:"event,omitempty"`
-	ProtocolProfileBehavior interface{} `json:"protocolProfileBehavior,omitempty"`
+	ProtocolProfileBehavior any         `json:"protocolProfileBehavior,omitempty"`
 	ID                      string      `json:"id,omitempty"`
 	Request                 *Request    `json:"request,omitempty"`
 	Responses               []*Response `json:"response,omitempty"`
@@ -38,7 +38,7 @@ type ItemGroup struct {
 	Description             string      `json:"description,omitempty"`
 	Variables               []*Variable `json:"variable,omitempty"`
 	Events                  []*Event    `json:"event,omitempty"`
-	ProtocolProfileBehavior interface{} `json:"protocolProfileBehavior,omitempty"`
+	ProtocolProfileBehavior any         `json:"protocolProfileBehavior,omitempty"`
 	Items                   []*Items    `json:"item"`
 	Auth                    *Auth       `json:"auth,omitempty"`
 }
@@ -72,11 +72,7 @@ func CreateItemGroup(ig ItemGroup) *Items {
 
 // IsGroup returns false as an Item is not a group.
 func (i Items) IsGroup() bool {
-	if i.Items != nil {
-		return true
-	}
-
-	return false
+	return i.Items != nil
 }
 
 // AddItem appends an item to the existing items slice.

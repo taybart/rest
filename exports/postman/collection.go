@@ -67,7 +67,7 @@ func (c *Collection) Write(w io.Writer, v version) (err error) {
 	c.Info.Schema = fmt.Sprintf("https://schema.getpostman.com/json/collection/%s/collection.json", string(v))
 	setVersionForItems(c.Items, v)
 
-	file, _ := json.MarshalIndent(c, "", "    ")
+	file, _ := json.MarshalIndent(c, "", "  ")
 
 	_, err = w.Write(file)
 
