@@ -8,11 +8,15 @@ import (
 	"text/template"
 
 	"github.com/taybart/log"
+	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
 
 var stdFns = template.FuncMap{
+	"cty": func(value cty.Value) string {
+		return value.AsString()
+	},
 	"split": func(str, sp string, idx int) string {
 		return strings.Trim(strings.Split(str, sp)[idx], " ")
 	},

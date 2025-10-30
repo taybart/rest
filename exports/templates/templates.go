@@ -97,12 +97,12 @@ func (r *RequestTemplate) Build() *RequestTemplate {
 	return r
 }
 
-func (r *RequestTemplate) ExecuteClient(wr io.Writer, reqs map[string]Request) error {
+func (r *RequestTemplate) Execute(wr io.Writer, filename string, reqs map[string]Request) error {
 	// req.Build()
 	var code bytes.Buffer
 	for label, req := range reqs {
 		var reqBuf bytes.Buffer
-		err := r.Execute(&reqBuf, req)
+		err := r.executeRequest(&reqBuf, req)
 		if err != nil {
 			return err
 		}
@@ -112,9 +112,16 @@ func (r *RequestTemplate) ExecuteClient(wr io.Writer, reqs map[string]Request) e
 		})
 	}
 
+	labels := []string{}
+	for _, req := range reqs {
+		labels = append(labels, req.Label)
+	}
+
 	var client bytes.Buffer
 	r.Client.Execute(&client, map[string]any{
-		"Code": code.String(),
+		"Filename": filename,
+		"Code":     code.String(),
+		"Labels":   labels,
 	})
 	if r.Name == "go" {
 		formatted, err := format.Source(client.Bytes())
@@ -127,7 +134,7 @@ func (r *RequestTemplate) ExecuteClient(wr io.Writer, reqs map[string]Request) e
 	_, err := wr.Write(client.Bytes())
 	return err
 }
-func (r *RequestTemplate) Execute(wr io.Writer, req Request) error {
+func (r *RequestTemplate) executeRequest(wr io.Writer, req Request) error {
 	// req.Build()
 	var buf bytes.Buffer
 	err := r.Request.Execute(&buf, req)
@@ -139,6 +146,7 @@ func (r *RequestTemplate) Execute(wr io.Writer, req Request) error {
 	return err
 }
 
+// Exports : returns a list of all available templates
 func Exports() []string {
 	ret := []string{}
 	for k := range exports {

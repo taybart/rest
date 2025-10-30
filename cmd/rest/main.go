@@ -22,8 +22,8 @@ func usage(u args.Usage) {
 		"cors", "response", "tls", "quiet",
 	}
 	client := []string{
-		"file", "block", "label", "socket",
-		"export", "client", "verbose",
+		"file", "block", "label",
+		"socket", "export", "verbose",
 	}
 
 	var usage strings.Builder
@@ -114,11 +114,6 @@ var (
 				Short: "e",
 				Help:  "Export file to specified language",
 			},
-			"client": {
-				Short:   "c",
-				Help:    "Export full client instead of individual requests",
-				Default: false,
-			},
 			"ignore-fail": {
 				Help:    "Ignore errors and run all blocks",
 				Default: false,
@@ -154,7 +149,6 @@ var (
 		Label      string `arg:"label"`
 		Socket     string `arg:"socket"`
 		Export     string `arg:"export"`
-		Client     bool   `arg:"client"`
 		IgnoreFail bool   `arg:"ignore-fail"`
 	}{}
 )
@@ -217,8 +211,8 @@ func run() error {
 	}
 
 	if c.Export != "" {
-		log.Debugf("exporting file %s to %s (client: %t)\n", c.File, c.Export, c.Client)
-		return rest.ExportFile(c.File, c.Export, c.Label, c.Block, c.Client)
+		log.Debugf("exporting file %s to %s\n", c.File, c.Export)
+		return rest.ExportFile(c.File, c.Export, c.Label, c.Block)
 	}
 
 	if a.Get("socket").Provided {

@@ -196,7 +196,7 @@ func RunSocket(socketArg string, filename string) error {
 	return nil
 }
 
-func ExportFile(filename, export, label string, block int, client bool) error {
+func ExportFile(filename, export, label string, block int) error {
 	if export == "?" || export == "ls" || export == "list" {
 		for _, e := range templates.Exports() {
 			fmt.Println(e)
@@ -225,6 +225,14 @@ func ExportFile(filename, export, label string, block int, client bool) error {
 		if ua == request.DefaultConfig().UserAgent {
 			ua = ""
 		}
+		expect := templates.Expect{}
+		if req.Expect != nil {
+			expect = templates.Expect{
+				Status:  req.Expect.Status,
+				Body:    req.Expect.Body,
+				Headers: req.Expect.Headers,
+			}
+		}
 		treqs[req.Label] = templates.Request{
 			Method:   req.Method,
 			URL:      req.URL,
@@ -235,48 +243,41 @@ func ExportFile(filename, export, label string, block int, client bool) error {
 			PostHook: req.PostHook,
 			Label:    req.Label,
 			Delay:    req.Delay,
-			Expect: templates.Expect{
-				Status:  req.Expect.Status,
-				Body:    req.Expect.Body,
-				Headers: req.Expect.Headers,
-			},
+			Expect:   expect,
 			// BlockIndex: req.BlockIndex,
 			// config
 			UserAgent: ua,
 		}
 	}
-	if client {
-		return t.ExecuteClient(os.Stdout, treqs)
-	}
-	if label != "" {
-		req, ok := treqs[label]
-		if !ok {
-			return fmt.Errorf("request label not found")
-		}
-		return t.Execute(os.Stdout, req)
-	}
-	if block >= 0 {
-		for _, req := range treqs {
-			if req.BlockIndex == block {
-				return t.Execute(os.Stdout, req)
-			}
-		}
-		return errors.New("request block not found")
-	}
-	count := 0
-	for _, req := range treqs {
-		err := t.Execute(os.Stdout, req)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("\n")
-		if count < len(rest.Requests)-1 {
-			fmt.Printf("\n")
-		}
-		count += 1
-	}
-
-	return nil
+	return t.Execute(os.Stdout, filename, treqs)
+	// if label != "" {
+	// 	req, ok := treqs[label]
+	// 	if !ok {
+	// 		return fmt.Errorf("request label not found")
+	// 	}
+	// 	return t.Execute(os.Stdout, req)
+	// }
+	// if block >= 0 {
+	// 	for _, req := range treqs {
+	// 		if req.BlockIndex == block {
+	// 			return t.Execute(os.Stdout, req)
+	// 		}
+	// 	}
+	// 	return errors.New("request block not found")
+	// }
+	// count := 0
+	// for _, req := range treqs {
+	// 	err := t.Execute(os.Stdout, req)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	fmt.Printf("\n")
+	// 	if count < len(rest.Requests)-1 {
+	// 		fmt.Printf("\n")
+	// 	}
+	// 	count += 1
+	// }
+	// return nil
 }
 
 func RunServerFile(filename string) error {

@@ -1,0 +1,20 @@
+{{- /* vim: set ft=gotmpl : */ -}}
+package main
+import (
+  "fmt"
+  "io"
+  "net/http"
+  "strings"
+)
+// Client : {{ or .Filename "rest client"}}
+type Client struct { }
+func newClient() *Client {
+  return &Client{ }
+}
+{{.Code}}
+
+func main() {
+  client := newClient()
+  {{range .Labels}} client.{{camelcase .}}()
+  {{end -}}
+}

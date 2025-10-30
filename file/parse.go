@@ -192,7 +192,7 @@ func Parse(filename string) (Rest, error) {
 		return ret, err
 	}
 
-	return ret, nil
+	return ret, err
 }
 
 func (p *Parser) ParseSocket() (request.Socket, error) {

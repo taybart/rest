@@ -1,7 +1,7 @@
-# start a server with `rest -s -a :8080`
+# start a server with `rest -s -a :18080`
 
 request "basic auth" {
-  url = "http://localhost:8080/hello-world"
+  url = "http://localhost:18080/hello-world"
   method = "POST"
   # TODO: make this a block OR string
   basic_auth = "user:password"
@@ -18,7 +18,7 @@ locals {
 }
 
 request "bearer token" {
-  url = "https://localhost:8080/hello-world"
+  url = "https://localhost:18080/hello-world"
   method = "POST"
   bearer_token = locals.token
   headers = {
@@ -31,7 +31,7 @@ request "bearer token" {
 }
 
 request "bearer token as header" {
-  url = "https://localhost:8080/hello-world"
+  url = "https://localhost:18080/hello-world"
   method = "POST"
   headers = {
     "Authorization" = "Bearer ${locals.token}"
