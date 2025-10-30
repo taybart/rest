@@ -61,7 +61,6 @@ func parseFile(filename string) (*restFile, error) {
 	})
 
 	for _, label := range order {
-		// TODO: make sure ctx works the right way here
 		req, err := rest.Request(label)
 		if err != nil {
 			return nil, err

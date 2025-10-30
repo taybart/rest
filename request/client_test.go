@@ -8,23 +8,23 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/taybart/rest/file"
+	"github.com/taybart/rest"
 	"github.com/taybart/rest/request"
 )
 
-func parse(t *testing.T, filename string, expectedReqs int) file.Rest {
-	rest, err := file.Parse(filename)
+func parse(t *testing.T, filename string, expectedReqs int) rest.Rest {
+	rest, err := rest.NewRestFile(filename)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rest.Requests) != expectedReqs {
-		t.Fatalf("expected %d request(s), got %d", expectedReqs, len(rest.Requests))
+	if len(rest.HCLRequests) != expectedReqs {
+		t.Fatalf("expected %d request(s), got %d", expectedReqs, len(rest.HCLRequests))
 	}
 	return rest
 }
-func build(t *testing.T, requests map[string]request.Request, label string) *http.Request {
-	toBuild, ok := requests[label]
-	if !ok {
+func build(t *testing.T, restfile rest.Rest, label string) *http.Request {
+	toBuild, err := restfile.Request(label)
+	if err != nil {
 		t.Fatal("expected request to be found")
 	}
 	req, err := toBuild.Build()
@@ -36,7 +36,7 @@ func build(t *testing.T, requests map[string]request.Request, label string) *htt
 
 func TestBasicRequest(t *testing.T) {
 	rest := parse(t, "../doc/examples/client/basic.rest", 1)
-	req := build(t, rest.Requests, "basic")
+	req := build(t, rest, "basic")
 	if req.URL.String() != "http://localhost:18080/hello-world" {
 		t.Fatal("expected url to be http://localhost:18080/hello-world got:", req.URL.String())
 	}
@@ -49,7 +49,7 @@ func TestBasicRequest(t *testing.T) {
 }
 func DisabledTestClientRequest(t *testing.T) {
 	rest := parse(t, "../doc/examples/client/basic.rest", 1)
-	req := build(t, rest.Requests, "basic")
+	req := build(t, rest, "basic")
 	if req.URL.String() != "http://localhost:18080/hello-world" {
 		t.Fatal("expected url to be http://localhost:18080/hello-world got:", req.URL.String())
 	}
@@ -92,12 +92,12 @@ func DisabledTestClientRequest(t *testing.T) {
 
 func TestAuthdRequest(t *testing.T) {
 	rest := parse(t, "../doc/examples/client/auth.rest", 3)
-	req := build(t, rest.Requests, "basic auth")
+	req := build(t, rest, "basic auth")
 
 	if req.Header.Get("Authorization") != "Basic dXNlcjpwYXNzd29yZA==" {
 		t.Fatal("expected auth to be basic got:", req.Header.Get("Authorization"))
 	}
-	req = build(t, rest.Requests, "bearer token")
+	req = build(t, rest, "bearer token")
 	if req.Header.Get("Authorization") != "Bearer ey..." {
 		t.Fatal("expected auth to be token got:", req.Header.Get("Authorization"))
 	}

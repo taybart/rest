@@ -83,7 +83,7 @@ func (c *Client) Do(r Request) (string, map[string]any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	// TODO
+
 	exports, err := c.GetExports(r, res)
 	if err != nil {
 		return "", nil, err

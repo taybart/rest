@@ -3,7 +3,6 @@ package postman
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -402,7 +401,7 @@ func (suite *CollectionTestSuite) TestWriteCollection() {
 
 		tc.testCollection.Write(&buf, V210)
 
-		file, err := ioutil.ReadFile(tc.expectedFile)
+		file, err := os.ReadFile(tc.expectedFile)
 
 		if err != nil {
 			suite.Errorf(err, "Could not open test file")
@@ -439,8 +438,8 @@ func (suite *CollectionTestSuite) TestSimplePOSTItem() {
 	}
 
 	pReq := Request{
-		Method: Post,
-		URL:    &pURL,
+		// Method: Post,
+		// URL:    &pURL,
 		Header: headers,
 		Body:   &pBody,
 	}

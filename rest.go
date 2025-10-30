@@ -9,65 +9,9 @@ import (
 
 	"github.com/taybart/rest/exports"
 	"github.com/taybart/rest/exports/templates"
-	"github.com/taybart/rest/file"
 	"github.com/taybart/rest/request"
 	"github.com/taybart/rest/server"
 )
-
-type RestFile struct {
-	Config      request.Config
-	Socket      request.Socket
-	Server      server.Config
-	HCLRequests map[string]*file.HCLRequest
-	Requests    map[string]request.Request
-	Parser      *file.Parser
-}
-
-func NewRestFile(filename string) (RestFile, error) {
-	parser, err := file.NewParser(filename)
-	if err != nil {
-		return RestFile{}, err
-	}
-	rest := RestFile{Parser: parser, Config: parser.Config, HCLRequests: make(map[string]*file.HCLRequest)}
-	for i, block := range parser.Root.Requests {
-		rest.HCLRequests[block.Label] = block
-		rest.HCLRequests[block.Label].BlockIndex = i
-	}
-	return rest, nil
-
-}
-
-func (rest *RestFile) RequestIndex(i int) (request.Request, error) {
-
-	var todo *file.HCLRequest
-	for _, req := range rest.HCLRequests {
-		if req.BlockIndex == i {
-			todo = req
-			break
-		}
-	}
-	if todo == nil {
-		return request.Request{}, errors.New("request not found")
-	}
-
-	req, err := rest.Parser.Request(todo)
-	if err != nil {
-		return req, err
-	}
-	return req, nil
-}
-
-func (rest *RestFile) Request(label string) (request.Request, error) {
-	hreq, ok := rest.HCLRequests[label]
-	if !ok {
-		return request.Request{}, errors.New("request label not found")
-	}
-	req, err := rest.Parser.Request(hreq)
-	if err != nil {
-		return req, err
-	}
-	return req, nil
-}
 
 func RunClientFile(filename string, ignoreFail bool) error {
 	rest, err := NewRestFile(filename)
@@ -179,21 +123,43 @@ func RunClientBlock(filename string, block int) error {
 }
 
 func RunSocket(socketArg string, filename string) error {
-	rest, err := file.Parse(filename)
+	rest, err := NewRestFile(filename)
 	if err != nil {
 		return err
 	}
-	if len(rest.Socket.Playbook) == 0 {
+	socket, err := rest.Parser.Socket()
+	if err != nil {
+		return err
+	}
+	if len(socket.Playbook) == 0 {
 		return fmt.Errorf("no socket in file")
 	}
 	client, err := request.NewClient(rest.Config)
 	if err != nil {
 		return err
 	}
-	if err := client.DoSocket(socketArg, rest.Socket); err != nil {
+	if err := client.DoSocket(socketArg, socket); err != nil {
 		return err
 	}
 	return nil
+}
+
+func RunServerFile(filename string) error {
+
+	rest, err := NewRestFile(filename)
+	if err != nil {
+		return err
+	}
+	config, err := rest.Parser.Server()
+	if err != nil {
+		return err
+	}
+	if config.Addr == "" {
+		return errors.New("missing required server block")
+	}
+
+	s := server.New(config)
+	return s.Serve()
 }
 
 func ExportFile(filename, export, label string, block int) error {
@@ -207,7 +173,7 @@ func ExportFile(filename, export, label string, block int) error {
 		return exports.ToPostmanCollection(filename, label, block)
 	}
 
-	rest, err := file.Parse(filename)
+	rest, err := NewRestFile(filename)
 	if err != nil {
 		return err
 	}
@@ -250,50 +216,4 @@ func ExportFile(filename, export, label string, block int) error {
 		}
 	}
 	return t.Execute(os.Stdout, filename, treqs)
-	// if label != "" {
-	// 	req, ok := treqs[label]
-	// 	if !ok {
-	// 		return fmt.Errorf("request label not found")
-	// 	}
-	// 	return t.Execute(os.Stdout, req)
-	// }
-	// if block >= 0 {
-	// 	for _, req := range treqs {
-	// 		if req.BlockIndex == block {
-	// 			return t.Execute(os.Stdout, req)
-	// 		}
-	// 	}
-	// 	return errors.New("request block not found")
-	// }
-	// count := 0
-	// for _, req := range treqs {
-	// 	err := t.Execute(os.Stdout, req)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	fmt.Printf("\n")
-	// 	if count < len(rest.Requests)-1 {
-	// 		fmt.Printf("\n")
-	// 	}
-	// 	count += 1
-	// }
-	// return nil
-}
-
-func RunServerFile(filename string) error {
-
-	rest, err := NewRestFile(filename)
-	if err != nil {
-		return err
-	}
-	servConf, err := rest.Parser.ParseServer()
-	if err != nil {
-		return err
-	}
-	if servConf.Addr == "" {
-		return errors.New("missing required server block")
-	}
-
-	s := server.New(servConf)
-	return s.Serve()
 }

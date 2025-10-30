@@ -23,17 +23,6 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-// TODO: if we break up parsing into small chunks and just return the parser,
-// we can move this to rest.go so (where it probably belongs) and just call
-// each bit individually so that we can reparse requests right before they are
-// needed
-type Rest struct {
-	Config   request.Config
-	Socket   request.Socket
-	Server   server.Config
-	Requests map[string]request.Request
-}
-
 type HCLRequest struct {
 	shouldSkip bool
 	Label      string   `hcl:"label,label"`
@@ -164,38 +153,38 @@ func (p *Parser) read(filename string, root *Root) error {
 	return nil
 }
 
-func Parse(filename string) (Rest, error) {
-	ret := Rest{
-		Config: request.DefaultConfig(),
-	}
+// func Parse(filename string) (Rest, error) {
+// 	ret := Rest{
+// 		Config: request.DefaultConfig(),
+// 	}
+//
+// 	p, err := NewParser(filename)
+// 	if err != nil {
+// 		return ret, err
+// 	}
+//
+// 	if p.Root.Socket != nil {
+// 		ret.Socket, err = p.ParseSocket()
+// 		if err != nil {
+// 			return ret, err
+// 		}
+// 	}
+// 	if p.Root.Server != nil {
+// 		ret.Server, err = p.ParseServer()
+// 		if err != nil {
+// 			return ret, err
+// 		}
+// 	}
+//
+// 	ret.Requests, err = p.ParseRequests()
+// 	if err != nil {
+// 		return ret, err
+// 	}
+//
+// 	return ret, err
+// }
 
-	p, err := NewParser(filename)
-	if err != nil {
-		return ret, err
-	}
-
-	if p.Root.Socket != nil {
-		ret.Socket, err = p.ParseSocket()
-		if err != nil {
-			return ret, err
-		}
-	}
-	if p.Root.Server != nil {
-		ret.Server, err = p.ParseServer()
-		if err != nil {
-			return ret, err
-		}
-	}
-
-	ret.Requests, err = p.ParseRequests()
-	if err != nil {
-		return ret, err
-	}
-
-	return ret, err
-}
-
-func (p *Parser) ParseSocket() (request.Socket, error) {
+func (p *Parser) Socket() (request.Socket, error) {
 	var sock request.Socket
 	if err := p.decode(p.Root.Socket.Body, &sock); err != nil {
 		return sock, errors.New("error decoding socket block")
@@ -206,7 +195,7 @@ func (p *Parser) ParseSocket() (request.Socket, error) {
 	return sock, nil
 }
 
-func (p *Parser) ParseServer() (server.Config, error) {
+func (p *Parser) Server() (server.Config, error) {
 	var serv server.Config
 	if err := p.decode(p.Root.Server.Body, &serv); err != nil {
 		return serv, errors.New("error decoding server block")
@@ -289,7 +278,7 @@ func (p *Parser) Request(hreq *HCLRequest) (request.Request, error) {
 	return req, nil
 }
 
-func (p *Parser) ParseRequests() (map[string]request.Request, error) {
+func (p *Parser) Requests() (map[string]request.Request, error) {
 	requests := map[string]request.Request{}
 	labels := []string{}
 
