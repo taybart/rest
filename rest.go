@@ -7,44 +7,111 @@ import (
 	"os"
 	"sort"
 
+	"github.com/taybart/rest/exports"
+	"github.com/taybart/rest/exports/templates"
 	"github.com/taybart/rest/file"
 	"github.com/taybart/rest/request"
-	"github.com/taybart/rest/request/templates"
+	"github.com/taybart/rest/server"
 )
 
-func RunFile(filename string, ignoreFail bool) error {
-	rest, err := file.Parse(filename)
+type RestFile struct {
+	Config      request.Config
+	Socket      request.Socket
+	Server      server.Config
+	HCLRequests map[string]*file.HCLRequest
+	Requests    map[string]request.Request
+	Parser      *file.Parser
+}
+
+func NewRestFile(filename string) (RestFile, error) {
+	parser, err := file.NewParser(filename)
+	if err != nil {
+		return RestFile{}, err
+	}
+	rest := RestFile{Parser: parser, Config: parser.Config, HCLRequests: make(map[string]*file.HCLRequest)}
+	for i, block := range parser.Root.Requests {
+		rest.HCLRequests[block.Label] = block
+		rest.HCLRequests[block.Label].BlockIndex = i
+	}
+	return rest, nil
+
+}
+
+func (rest *RestFile) RequestIndex(i int) (request.Request, error) {
+
+	var todo *file.HCLRequest
+	for _, req := range rest.HCLRequests {
+		if req.BlockIndex == i {
+			todo = req
+			break
+		}
+	}
+	if todo == nil {
+		return request.Request{}, errors.New("request not found")
+	}
+
+	req, err := rest.Parser.Request(todo)
+	if err != nil {
+		return req, err
+	}
+	return req, nil
+}
+
+func (rest *RestFile) Request(label string) (request.Request, error) {
+	hreq, ok := rest.HCLRequests[label]
+	if !ok {
+		return request.Request{}, errors.New("request label not found")
+	}
+	req, err := rest.Parser.Request(hreq)
+	if err != nil {
+		return req, err
+	}
+	return req, nil
+}
+
+func RunClientFile(filename string, ignoreFail bool) error {
+	rest, err := NewRestFile(filename)
 	if err != nil {
 		return err
 	}
+
 	client, err := request.NewClient(rest.Config)
 	if err != nil {
 		return err
 	}
 	// make sure to run blocks in order of appearance
-	order := make([]string, 0, len(rest.Requests))
-	for k := range rest.Requests {
+	order := make([]string, 0, len(rest.HCLRequests))
+	for k := range rest.HCLRequests {
 		order = append(order, k)
 	}
 
 	// Sort keys by BlockIndex
 	sort.Slice(order, func(i, j int) bool {
-		return rest.Requests[order[i]].BlockIndex < rest.Requests[order[j]].BlockIndex
+		return rest.HCLRequests[order[i]].BlockIndex < rest.HCLRequests[order[j]].BlockIndex
 	})
+
 	for _, label := range order {
-		req := rest.Requests[label]
+		// TODO: make sure ctx works the right way here
+		req, err := rest.Request(label)
+		if err != nil {
+			return err
+		}
+
 		if req.Skip {
 			// TODO: what to do for usability, should probably warn user
 			// log.Warn("skipping", req.Label)
 			continue
 		}
-		res, err := client.Do(req)
+
+		res, exports, err := client.Do(req)
 		if err != nil {
 			if !ignoreFail {
 				return err
 			}
 			fmt.Println(err)
 		}
+		rest.Parser.AddExportsCtx(exports)
+
 		if res != "" {
 			fmt.Println(res)
 		}
@@ -52,24 +119,25 @@ func RunFile(filename string, ignoreFail bool) error {
 	return nil
 }
 
-func RunLabel(filename string, label string) error {
-	rest, err := file.Parse(filename)
+func RunClientLabel(filename string, label string) error {
+	rest, err := NewRestFile(filename)
 	if err != nil {
 		return err
 	}
+
 	client, err := request.NewClient(rest.Config)
 	if err != nil {
 		return err
 	}
-	req, ok := rest.Requests[label]
-	if !ok {
-		return fmt.Errorf("request label not found")
+	req, err := rest.Request(label)
+	if err != nil {
+		return err
 	}
 	if req.Skip {
 		fmt.Println("skipping", req.Label)
 		return nil
 	}
-	res, err := client.Do(req)
+	res, _, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -79,32 +147,28 @@ func RunLabel(filename string, label string) error {
 	return nil
 }
 
-func RunBlock(filename string, block int) error {
-	rest, err := file.Parse(filename)
+func RunClientBlock(filename string, block int) error {
+	rest, err := NewRestFile(filename)
 	if err != nil {
 		return err
 	}
+
 	client, err := request.NewClient(rest.Config)
 	if err != nil {
 		return err
 	}
 
-	var todo request.Request
-	for _, req := range rest.Requests {
-		if req.BlockIndex == block {
-			todo = req
-			break
-		}
+	req, err := rest.RequestIndex(block)
+	if err != nil {
+		return err
 	}
-	if todo.Label == "" {
-		return fmt.Errorf("request block not found")
-	}
-	if todo.Skip {
-		fmt.Println("skipping", todo.Label)
+
+	if req.Skip {
+		fmt.Println("skipping", req.Label)
 		return nil
 	}
 
-	res, err := client.Do(todo)
+	res, _, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -138,6 +202,9 @@ func ExportFile(filename, export, label string, block int, client bool) error {
 			fmt.Println(e)
 		}
 		return nil
+	}
+	if export == "postman" {
+		return exports.ToPostmanCollection(filename, label, block)
 	}
 
 	rest, err := file.Parse(filename)
@@ -173,7 +240,7 @@ func ExportFile(filename, export, label string, block int, client bool) error {
 				Body:    req.Expect.Body,
 				Headers: req.Expect.Headers,
 			},
-			BlockIndex: req.BlockIndex,
+			// BlockIndex: req.BlockIndex,
 			// config
 			UserAgent: ua,
 		}
@@ -210,4 +277,22 @@ func ExportFile(filename, export, label string, block int, client bool) error {
 	}
 
 	return nil
+}
+
+func RunServerFile(filename string) error {
+
+	rest, err := NewRestFile(filename)
+	if err != nil {
+		return err
+	}
+	servConf, err := rest.Parser.ParseServer()
+	if err != nil {
+		return err
+	}
+	if servConf.Addr == "" {
+		return errors.New("missing required server block")
+	}
+
+	s := server.New(servConf)
+	return s.Serve()
 }

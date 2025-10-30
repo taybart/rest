@@ -10,7 +10,6 @@ import (
 	"github.com/taybart/args"
 	"github.com/taybart/log"
 	"github.com/taybart/rest"
-	"github.com/taybart/rest/file"
 	"github.com/taybart/rest/server"
 )
 
@@ -192,50 +191,22 @@ func run() error {
 	 * SERVER *
 	 **********/
 	if c.Serve {
-		var s server.Server
 		if a.UserSet("file") {
-			rest, err := file.Parse(c.File)
-			if err != nil {
-				return err
-			}
-			servConf := rest.Server
-			if servConf.Addr == "" {
-				return errors.New("missing required server block")
-			}
-
-			c.TLS = servConf.TLS
-			s = server.New(servConf)
-		} else {
-			res := &server.Response{}
-			if a.UserSet("response") {
-				// check if c.Res is a file or inline
-				if _, err := os.Stat(c.Response); err == nil {
-					f, err := os.ReadFile(c.Response)
-					if err != nil {
-						return err
-					}
-					if err := json.Unmarshal(f, res); err != nil {
-						return err
-					}
-				}
-				if err := json.Unmarshal([]byte(c.Response), res); err != nil {
-					return fmt.Errorf(
-						"could not unmarshal inline response: %s %w",
-						[]byte(c.Response), err)
-				}
-			}
-			s = server.New(server.Config{
-				Addr:     c.Addr,
-				Dir:      c.Dir,
-				Quiet:    c.Quiet,
-				Cors:     c.Cors,
-				Response: res,
-			})
+			return rest.RunServerFile(c.File)
 		}
-		if err := s.Serve(); err != nil {
-			log.Fatal(err)
+		// FIXME: idk if this works the same as before
+		res, err := parseServerResponse(c.Response)
+		if err != nil {
+			return err
 		}
-		return nil
+		s := server.New(server.Config{
+			Addr:     c.Addr,
+			Dir:      c.Dir,
+			Quiet:    c.Quiet,
+			Cors:     c.Cors,
+			Response: res,
+		})
+		return s.Serve()
 	}
 
 	/**********
@@ -257,12 +228,37 @@ func run() error {
 
 	if c.Block >= 0 {
 		log.Debug("running block", c.Block, "on file", c.File)
-		return rest.RunBlock(c.File, c.Block)
+		return rest.RunClientBlock(c.File, c.Block)
 	} else if c.Label != "" {
 		log.Debug("running request", c.Label, "on file", c.File)
-		return rest.RunLabel(c.File, c.Label)
+		return rest.RunClientLabel(c.File, c.Label)
 	} else {
 		log.Debug("running file", c.File)
-		return rest.RunFile(c.File, c.IgnoreFail)
+		return rest.RunClientFile(c.File, c.IgnoreFail)
 	}
+}
+
+func parseServerResponse(responseFlag string) (*server.Response, error) {
+	if responseFlag == "" {
+		return nil, nil
+	}
+	// check if c.Res is a file or inline
+	if _, err := os.Stat(responseFlag); err == nil {
+		f, err := os.ReadFile(responseFlag)
+		if err != nil {
+			return nil, err
+		}
+		res := &server.Response{}
+		if err := json.Unmarshal(f, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	}
+	res := &server.Response{}
+	if err := json.Unmarshal([]byte(responseFlag), res); err != nil {
+		return nil, fmt.Errorf(
+			"could not unmarshal inline response: %s %w",
+			[]byte(c.Response), err)
+	}
+	return res, nil
 }

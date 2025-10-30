@@ -12,14 +12,17 @@ request "get auth token" {
       fail('no auth_token returned')
       return
     end
-    rest.exports.auth_token = body.auth_token
-    print('got new auth_token: '..rest.exports.auth_token)
+    rest.exports.auth= {
+      token = body.auth_token
+    }
+    rest.exports.test = "AHHHH"
+    print('got new auth_token: '..rest.exports.auth.token)
   LUA
 }
 
 request "use exports" {
   url = "http://localhost:18080/test"
-  bearer_token = exports.auth_token
+  bearer_token = exports.auth.token
   post_hook = <<LUA
     print('\n==='..rest.label..'===')
     local auth_header, other = tools.get_req_header('Authorization')
@@ -34,13 +37,14 @@ request "use exports" {
 
 request "unknown route" {
   url = "http://localhost:18080/unknown"
-  bearer_token = exports.auth_token
+  bearer_token = exports.auth.token
   expect = 404
   post_hook = <<LUA
     print('\n==='..rest.label..'===')
     if not tools.is_expected_response() then
       return
     end
+    inspect.print(rest.exports)
     print(rest.res.dump)
   LUA
 }

@@ -1,6 +1,7 @@
 package file
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"os"
@@ -42,6 +43,43 @@ func makeFileReadFunc() function.Function {
 				return cty.StringVal(""), err
 			}
 			return cty.StringVal(string(val)), nil
+		},
+	})
+}
+func makeBase64EncodeFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name:        "read",
+				Type:        cty.String,
+				AllowMarked: true,
+			},
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			arg, _ := args[0].Unmark()
+			return cty.StringVal(base64.StdEncoding.EncodeToString([]byte(arg.AsString()))), nil
+		},
+	})
+}
+func makeBase64DecodeFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name:        "read",
+				Type:        cty.String,
+				AllowMarked: true,
+			},
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			arg, _ := args[0].Unmark()
+			var decoded []byte
+			_, err := base64.StdEncoding.Decode(decoded, []byte(arg.AsString()))
+			if err != nil {
+				return cty.StringVal(""), err
+			}
+			return cty.StringVal(string(decoded)), nil
 		},
 	})
 }

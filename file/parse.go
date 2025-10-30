@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"path"
 	"path/filepath"
@@ -22,11 +23,22 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
+// TODO: if we break up parsing into small chunks and just return the parser,
+// we can move this to rest.go so (where it probably belongs) and just call
+// each bit individually so that we can reparse requests right before they are
+// needed
 type Rest struct {
 	Config   request.Config
 	Socket   request.Socket
 	Server   server.Config
 	Requests map[string]request.Request
+}
+
+type HCLRequest struct {
+	shouldSkip bool
+	Label      string   `hcl:"label,label"`
+	Body       hcl.Body `hcl:",remain"`
+	BlockIndex int
 }
 
 type Root struct {
@@ -43,11 +55,7 @@ type Root struct {
 		Body hcl.Body `hcl:",remain"`
 	} `hcl:"config,block"`
 
-	Requests []*struct {
-		shouldSkip bool
-		Label      string   `hcl:"label,label"`
-		Body       hcl.Body `hcl:",remain"`
-	} `hcl:"request,block"`
+	Requests []*HCLRequest `hcl:"request,block"`
 
 	Server *struct {
 		Body hcl.Body `hcl:",remain"`
@@ -83,23 +91,50 @@ type Parser struct {
 	Root    *Root
 	Locals  map[string]cty.Value
 	Exports map[string]cty.Value
+	Config  request.Config
 }
 
-func newParser(filename string) (Parser, error) {
-	p := Parser{
-		Root:   &Root{},
-		Files:  map[string]*hcl.File{},
-		Locals: map[string]cty.Value{},
-		Exports: map[string]cty.Value{
-			"auth_token": cty.StringVal("EXPORTS:AUTH_TOKEN"),
+func NewParser(filename string) (*Parser, error) {
+	p := &Parser{
+		Root: &Root{
+			filename: filename,
 		},
+		Config:  request.DefaultConfig(),
+		Files:   map[string]*hcl.File{},
+		Locals:  map[string]cty.Value{},
+		Exports: map[string]cty.Value{},
 	}
 
-	root := Root{filename: filename}
-	if err := p.read(filename, &root); err != nil {
+	if err := p.read(filename, p.Root); err != nil {
 		return p, err
 	}
-	p.Root = &root
+
+	if p.Root.Config != nil {
+		if err := p.decode(p.Root.Config.Body, &p.Config); err != nil {
+			return p, errors.New("error decoding config block")
+		}
+	}
+
+	if p.Root.Imports != nil {
+		for _, i := range *p.Root.Imports {
+			importedRest := &Root{filename: i}
+			fp := path.Join(path.Dir(filename), i)
+			if err := p.read(fp, importedRest); err != nil {
+				return p, err
+			}
+			// get settings from imported file
+			config := p.Config
+			if importedRest.Config != nil {
+				if err := p.decode(importedRest.Config.Body, &config); err != nil {
+					return p, errors.New("error decoding config block")
+				}
+			}
+			p.Root.Add(importedRest, config)
+		}
+	}
+	if err := p.decodeLocals(); err != nil {
+		return p, err
+	}
 
 	return p, nil
 }
@@ -134,61 +169,44 @@ func Parse(filename string) (Rest, error) {
 		Config: request.DefaultConfig(),
 	}
 
-	p, err := newParser(filename)
+	p, err := NewParser(filename)
 	if err != nil {
 		return ret, err
 	}
 
-	if p.Root.Config != nil {
-		if err := p.decode(p.Root.Config.Body, &ret.Config); err != nil {
-			return ret, errors.New("error decoding config block")
-		}
-	}
-
-	if p.Root.Imports != nil {
-		for _, i := range *p.Root.Imports {
-			root := &Root{filename: i}
-			fp := path.Join(path.Dir(filename), i)
-			if err := p.read(fp, root); err != nil {
-				return ret, err
-			}
-			// get settings from imported file
-			config := ret.Config
-			if root.Config != nil {
-				if err := p.decode(root.Config.Body, &config); err != nil {
-					return ret, errors.New("error decoding config block")
-				}
-			}
-			p.Root.Add(root, config)
-		}
-	}
-	if err := p.decodeLocals(); err != nil {
-		return ret, err
-	}
-
 	if p.Root.Socket != nil {
-		if err := p.decode(p.Root.Socket.Body, &ret.Socket); err != nil {
-			return ret, errors.New("error decoding socket block")
-		}
-		if err := ret.Socket.ParseExtras(p.Ctx); err != nil {
+		ret.Socket, err = p.ParseSocket()
+		if err != nil {
 			return ret, err
 		}
 	}
 	if p.Root.Server != nil {
-		ret.Server, err = p.parseServer()
+		ret.Server, err = p.ParseServer()
 		if err != nil {
 			return ret, err
 		}
 	}
 
-	ret.Requests, err = p.parseRequests()
+	ret.Requests, err = p.ParseRequests()
 	if err != nil {
 		return ret, err
 	}
 
 	return ret, nil
 }
-func (p *Parser) parseServer() (server.Config, error) {
+
+func (p *Parser) ParseSocket() (request.Socket, error) {
+	var sock request.Socket
+	if err := p.decode(p.Root.Socket.Body, &sock); err != nil {
+		return sock, errors.New("error decoding socket block")
+	}
+	if err := sock.ParseExtras(p.Ctx); err != nil {
+		return sock, err
+	}
+	return sock, nil
+}
+
+func (p *Parser) ParseServer() (server.Config, error) {
 	var serv server.Config
 	if err := p.decode(p.Root.Server.Body, &serv); err != nil {
 		return serv, errors.New("error decoding server block")
@@ -213,46 +231,82 @@ func (p *Parser) parseServer() (server.Config, error) {
 	}
 	return serv, nil
 }
-func (p *Parser) parseRequests() (map[string]request.Request, error) {
+
+func (p *Parser) Request(hreq *HCLRequest) (request.Request, error) {
+	if hreq == nil {
+		return request.Request{}, fmt.Errorf("request not found")
+	}
+
+	req := request.Request{Label: hreq.Label, Block: &hreq.Body}
+	if err := p.decode(hreq.Body, &req); err != nil {
+		return req, fmt.Errorf("error decoding request hreq(%s)", hreq.Label)
+	}
+	if hreq.shouldSkip {
+		req.Skip = true
+	}
+
+	if req.CopyFrom != "" {
+		var copyFromBody *HCLRequest
+		for _, h := range p.Root.Requests {
+			if h.Label == req.CopyFrom {
+				copyFromBody = h
+			}
+		}
+		if copyFromBody == nil {
+			return req, fmt.Errorf("request (%s) copy_from not found: %s", hreq.Label, req.CopyFrom)
+		}
+		copyFrom, err := p.Request(copyFromBody)
+		if err != nil {
+			return req, err
+		}
+		req.CombineFrom(copyFrom)
+	}
+
+	var err error
+	req.Body, err = p.marshalBody(req.BodyHCL)
+	if err != nil {
+		return req, err
+	}
+	if req.Expect != nil {
+		req.Expect.Body, err = p.marshalBody(req.Expect.BodyHCL)
+		if err != nil {
+			return req, err
+		}
+	}
+	if err := req.SetDefaults(p.Ctx); err != nil {
+		return req, err
+	}
+	// make body look nice if its json
+	if json.Valid([]byte(req.Body)) {
+		var buf bytes.Buffer
+		err := json.Compact(&buf, []byte(req.Body))
+		if err != nil {
+			return req, err
+		}
+		req.Body = buf.String()
+		// requests[label] = req
+	}
+	return req, nil
+}
+
+func (p *Parser) ParseRequests() (map[string]request.Request, error) {
 	requests := map[string]request.Request{}
 	labels := []string{}
+
 	for i, block := range p.Root.Requests {
-		req := request.Request{Label: block.Label, Block: &block.Body}
-		if err := p.decode(block.Body, &req); err != nil {
-			return requests, fmt.Errorf("error decoding request block(%s)", block.Label)
-		}
-		if block.shouldSkip {
-			req.Skip = true
-		}
-		if slices.Contains(labels, req.Label) {
-			return requests, fmt.Errorf(`labels must be unique: "%s" already exists`, req.Label)
+		if slices.Contains(labels, block.Label) {
+			return requests, fmt.Errorf(`labels must be unique: "%s" already exists`, block.Label)
 		}
 
-		var err error
-		req.Body, err = p.marshalBody(req.BodyHCL)
+		// TODO: this needs a lot of information, maybe its best to break
+		// up parsing and pass back the parser to the rest object
+		req, err := p.Request(block)
 		if err != nil {
 			return requests, err
 		}
-		if req.Expect != nil {
-			req.Expect.Body, err = p.marshalBody(req.Expect.BodyHCL)
-			if err != nil {
-				return requests, err
-			}
-		}
-		if err := req.SetDefaults(p.Ctx); err != nil {
-			return requests, err
-		}
-		req.BlockIndex = i
-		// make body look nice if its json
-		if json.Valid([]byte(req.Body)) {
-			var buf bytes.Buffer
-			err := json.Compact(&buf, []byte(req.Body))
-			if err != nil {
-				return requests, err
-			}
-			req.Body = buf.String()
-			// requests[label] = req
-		}
+		// req.BlockIndex = i
+		p.Root.Requests[i].BlockIndex = i
+
 		requests[req.Label] = req
 		labels = append(labels, req.Label)
 	}
@@ -276,6 +330,41 @@ func (p *Parser) parseRequests() (map[string]request.Request, error) {
 func (p *Parser) updateLocalsContext() {
 	p.Ctx.Variables["locals"] = cty.ObjectVal(p.Locals)
 }
+
+func valueToCty(v any) cty.Value {
+	switch v := v.(type) {
+	case string:
+		return cty.StringVal(v)
+	case float64:
+		return cty.NumberVal(big.NewFloat(v))
+	case int:
+		return cty.NumberVal(big.NewFloat(float64(v)))
+	case bool:
+		return cty.BoolVal(v)
+	case []any:
+		ctyList := make([]cty.Value, len(v))
+		for i, item := range v {
+			ctyList[i] = valueToCty(item)
+		}
+		return cty.ListVal(ctyList)
+	case map[string]any:
+		return cty.ObjectVal(exportsToCty(v))
+	default:
+		return cty.NullVal(cty.DynamicPseudoType)
+	}
+}
+func exportsToCty(exports map[string]any) map[string]cty.Value {
+	ret := map[string]cty.Value{}
+	for k, v := range exports {
+		ret[k] = valueToCty(v)
+	}
+	return ret
+}
+func (p *Parser) AddExportsCtx(exports map[string]any) {
+	p.Exports = exportsToCty(exports)
+	p.Ctx.Variables["exports"] = cty.ObjectVal(p.Exports)
+}
+
 func (p *Parser) makeContext() {
 	p.Ctx = &hcl.EvalContext{
 		Variables: map[string]cty.Value{
@@ -283,15 +372,17 @@ func (p *Parser) makeContext() {
 			"exports": cty.ObjectVal(p.Exports),
 		},
 		Functions: map[string]function.Function{
-			"btmpl":  makeTemplateFunc(),
-			"env":    makeEnvFunc(),
-			"form":   makeFormFunc(),
-			"json":   makeJSONFunc(),
-			"nanoid": makeNanoIDFunc(),
-			"read":   makeFileReadFunc(),
-			"tmpl":   makeGoTemplateFunc(),
-			"trim":   makeTrimFunc(),
-			"uuid":   makeUUIDFunc(),
+			"btmpl":   makeTemplateFunc(),
+			"env":     makeEnvFunc(),
+			"form":    makeFormFunc(),
+			"json":    makeJSONFunc(),
+			"nanoid":  makeNanoIDFunc(),
+			"read":    makeFileReadFunc(),
+			"b64_enc": makeBase64EncodeFunc(),
+			"b64_dec": makeBase64DecodeFunc(),
+			"tmpl":    makeGoTemplateFunc(),
+			"trim":    makeTrimFunc(),
+			"uuid":    makeUUIDFunc(),
 		},
 	}
 }

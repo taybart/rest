@@ -19,7 +19,7 @@ func parse(t *testing.T, filename string, expectedReqs int) file.Rest {
 }
 
 func TestBasicParse(t *testing.T) {
-	rest := parse(t, "../doc/examples/basic.rest", 1)
+	rest := parse(t, "../doc/examples/client/basic.rest", 1)
 
 	basic := request.Request{
 		Label:   "basic",
@@ -36,7 +36,7 @@ func TestBasicParse(t *testing.T) {
 }
 
 func TestTemplateParse(t *testing.T) {
-	rest := parse(t, "../doc/examples/template.rest", 1)
+	rest := parse(t, "../doc/examples/client/template.rest", 1)
 
 	templated := request.Request{
 		Label:   "template",
@@ -52,7 +52,7 @@ func TestTemplateParse(t *testing.T) {
 
 }
 func TestImportParse(t *testing.T) {
-	rest := parse(t, "../doc/examples/import.rest", 2)
+	rest := parse(t, "../doc/examples/client/import.rest", 2)
 	headers := rest.Requests["test"].Headers
 	if headers["X-imported-header"] != "success" {
 		t.Fatal(`unexpected import result expected "success" got:`,
@@ -64,7 +64,7 @@ func TestImportParse(t *testing.T) {
 	}
 }
 func TestSocketParse(t *testing.T) {
-	rest := parse(t, "../doc/examples/socket.rest", 0)
+	rest := parse(t, "../doc/examples/client/socket.rest", 0)
 	if len(rest.Socket.Playbook) != 3 {
 		t.Fatal("expected 3 socket plays, got", len(rest.Socket.Playbook))
 	}
@@ -75,14 +75,14 @@ func TestSocketParse(t *testing.T) {
 
 func TestServerParse(t *testing.T) {
 	// TODO: test all fields
-	rest := parse(t, "../doc/examples/server.rest", 0)
+	rest := parse(t, "../doc/examples/server/basic.rest", 0)
 	if rest.Server.Addr != "localhost:18080" {
 		t.Fatal("expected address localhost:18080, got", rest.Server.Addr)
 	}
-	if rest.Server.Response.Status != 200 {
-		t.Fatal("expected response statuscode to be", 200, "got", rest.Server.Response.Status)
+	if rest.Server.Response.Status != 418 {
+		t.Fatal("expected response statuscode to be", 418, "got", rest.Server.Response.Status)
 	}
-	if string(rest.Server.Response.Body) != `{"custom":"response"}` {
-		t.Fatal("expected body to be", `{"custom":"response"}`, "got", string(rest.Server.Response.Body))
+	if string(rest.Server.Response.Body) != `` {
+		t.Fatal("expected body to be empty got:", string(rest.Server.Response.Body))
 	}
 }

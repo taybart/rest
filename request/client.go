@@ -38,20 +38,20 @@ func NewClient(config Config) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Do(r Request) (string, error) {
+func (c *Client) Do(r Request) (string, map[string]any, error) {
 
 	if r.Delay != "" {
 		delay, err := time.ParseDuration(r.Delay)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		time.Sleep(delay)
 	}
 	r.UserAgent = c.Config.UserAgent
 
-	req, err := r.Build(c.exports)
+	req, err := r.Build()
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	if c.Config.NoFollowRedirect {
@@ -68,18 +68,28 @@ func (c *Client) Do(r Request) (string, error) {
 
 	res, err := c.client.Do(req)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	// run lua code if it exists
 	if r.PostHook != "" {
 		res, exports, err := r.RunPostHook(res, c.client.Jar)
-		if len(exports) > 0 {
-			c.exports = exports
-		}
-		return res, err
+		// if len(exports) > 0 {
+		// c.exports = exports
+		// }
+		return res, exports, err
 	}
 
-	return c.CheckExpectation(r, res)
+	dumped, err := c.CheckExpectation(r, res)
+	if err != nil {
+		return "", nil, err
+	}
+	// TODO
+	exports, err := c.GetExports(r, res)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return dumped, exports, err
 }
 func (c *Client) CheckExpectation(r Request, res *http.Response) (string, error) {
 	dumped, err := httputil.DumpResponse(res, true)
@@ -140,6 +150,10 @@ func (c *Client) CheckExpectation(r Request, res *http.Response) (string, error)
 	}
 	return string(dumped), nil
 }
+func (c *Client) GetExports(r Request, res *http.Response) (map[string]any, error) {
+	return nil, nil
+}
+
 func (c *Client) DoSocket(socketArg string, s Socket) error {
 
 	dialer, action, err := s.Build(socketArg, c.Config)

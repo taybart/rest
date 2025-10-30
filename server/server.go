@@ -93,8 +93,10 @@ func (s *Server) Serve() error {
 
 func (s *Server) WriteConfigResponse(w http.ResponseWriter) error {
 
-	for k, v := range s.Config.Response.Headers {
-		w.Header().Add(k, v)
+	if s.Config.Response != nil {
+		for k, v := range s.Config.Response.Headers {
+			w.Header().Add(k, v)
+		}
 	}
 
 	status := http.StatusOK

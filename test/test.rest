@@ -57,12 +57,19 @@ request "copy test" {
   post_hook = <<LUA
     print('label: '.. rest.label)
     -- print('exports => '.. rest.exports.test)
+
     rest.exports = {
       mexico = {
-        place = "puerto vallarta",
-      },
-      test = json.decode(rest.res.body).status
+        place = "puerto vallarta"
+      }
     }
+      -- rest.exports.test = json.decode(rest.res.body).status
+    -- rest.exports = {
+    --   mexico = {
+    --     place = "puerto vallarta",
+    --   },
+    --   test = json.decode(rest.res.body).status
+    -- }
     -- rest.exports.mexico = "puerto vallarta"
     -- rest.exports.test = json.decode(rest.res.body).status
     -- print('\n')
@@ -77,11 +84,11 @@ request "form test" {
   body = form({
     test= "[0,1,2]"
   })
-  # post_hook = <<LUA
-  #   print('label: '..rest.label)
-  #   print('exports => '.. rest.exports.test)
-  #   print('\n')
-  # LUA
+  post_hook = <<LUA
+    print('label: '..rest.label)
+    print('exports => '.. inspect(rest.exports.mexico))
+    print('\n')
+  LUA
 }
 
 socket {

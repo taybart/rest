@@ -104,7 +104,7 @@ func TestEcho(t *testing.T) {
 		Quiet: true,
 	})
 	defer ts.Close()
-	req, err := http.NewRequest("GET", ts.URL+"/__echo__", strings.NewReader(`{"data": "hello"}`))
+	req, err := http.NewRequest("POST", ts.URL+"/__echo__", strings.NewReader(`{"data": "hello"}`))
 	if err != nil {
 		t.Errorf("error creating request: %s", err)
 	}
