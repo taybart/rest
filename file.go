@@ -61,8 +61,3 @@ func (rest *Rest) Request(label string) (request.Request, error) {
 	}
 	return req, nil
 }
-
-// FIXME this is dumb
-func (rest *Rest) BuildSocket() (request.Socket, error) {
-	return rest.Parser.Socket()
-}
