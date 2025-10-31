@@ -236,7 +236,7 @@ func (c *Client) DoSocket(socketArg string, s request.Socket) error {
 		return fmt.Errorf("no such playbook entry: %s", socketArg)
 
 	case request.SocketREPL:
-		r := request.NewREPL(s.NoSpecialCmds)
+		r := NewREPL(s.NoSpecialCmds)
 		go r.Loop(func(cmd string) error {
 			switch cmd {
 			case "ls":

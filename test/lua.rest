@@ -1,24 +1,10 @@
 request "lua check" {
   url = "http://localhost:18080/__echo__"
-  body = { hello = "hello" }
   post_hook = <<LUA
-   print(rest.req.dump)
-   error("whats up")
-    -- local body = json.decode(rest.res.body)
-    -- inspect.print(body.test.second)
+    print(rest.res.dump)
+    local body = json.decode(rest.res.body)
+    inspect.print(body.test.second)
   LUA
 }
 
-server {
-  address = "127.0.0.1:18080"
-  handler "GET" "/__echo__" {
-    fn = <<LUA
-      inspect.print(json.decode(rest.req.body))
-      return { 
-        status = 200, 
-        body = rest.req.body, 
-        headers = {["Set-Cookie"] = "test=1"},
-      }
-    LUA
-  }
-}
+server { address = "127.0.0.1:18080" }

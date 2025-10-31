@@ -204,6 +204,8 @@ Hooks are also passed a `rest` table that contains the following:
 }
 ```
 
+There is also a special `fail` function that can be used to fail the request. It takes a string argument and returns an error back up to the rest cli. This is different than a lua `error` which will be caught by the lua runtime. The main difference is that `fail` will cause the cli to just print the error you want without lua stack info.
+
 ### exports
 
 You can grab values from responses and put them in the `exports` table. This is available in requests below when the value is set.
@@ -216,20 +218,18 @@ request "auth" {
         rest.exports.auth = json.decode(rest.res.body).token
     LUA
 }
-request "one" {
+request "get status" {
     // ...
     bearer_token = exports.auth
     post_hook = <<LUA
         rest.exports.one_status = json.decode(rest.res.body).status
     LUA
 }
-request "two" {
+request "forward status" {
     // ...
     body = { "status": rest.exports.one_status }
 }
 ```
-
-There is also a special `fail` function that can be used to fail the request. It takes a string argument and returns an error back up to the rest cli. This is different than a lua `error` which will be caught by the lua runtime. The main difference is that `fail` will cause the cli to just print the error you want without lua stack info.
 
 An example of using more complicated hooks can be found [here](https://github.com/taybart/search)
 

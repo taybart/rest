@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -113,11 +114,12 @@ func (s *Server) HandleEcho() http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		// FIXME, need to just bounce back client friendly headers
-		// echo headers back
-		// for k, v := range r.Header {
-		// 	w.Header().Add(k, strings.Join(v, ","))
-		// }
+		// echo x- headers back
+		for k, v := range r.Header {
+			if strings.HasPrefix(k, "x-") || strings.HasPrefix(k, "X-") {
+				w.Header().Add(k, strings.Join(v, ","))
+			}
+		}
 
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, string(body))
