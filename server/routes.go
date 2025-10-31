@@ -154,7 +154,9 @@ func (s *Server) HandleWSEcho() http.HandlerFunc {
 		for {
 			messageType, p, err := conn.ReadMessage()
 			if err != nil {
-				log.Error(err)
+				if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
+					log.Error(err)
+				}
 				return
 			}
 			if err := conn.WriteMessage(messageType, p); err != nil {

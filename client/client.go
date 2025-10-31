@@ -8,12 +8,9 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httputil"
-	"os"
-	"os/signal"
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/taybart/log"
 	"github.com/taybart/rest/request"
 )
 
@@ -81,12 +78,7 @@ func (c *Client) Do(r request.Request) (string, map[string]any, error) {
 		return "", nil, err
 	}
 
-	exports, err := c.GetExports(r, res)
-	if err != nil {
-		return "", nil, err
-	}
-
-	return dumped, exports, err
+	return dumped, nil, err
 }
 func (c *Client) CheckExpectation(r request.Request, res *http.Response) (string, error) {
 	dumped, err := httputil.DumpResponse(res, true)
@@ -146,134 +138,4 @@ func (c *Client) CheckExpectation(r request.Request, res *http.Response) (string
 		}
 	}
 	return string(dumped), nil
-}
-func (c *Client) GetExports(r request.Request, res *http.Response) (map[string]any, error) {
-	return nil, nil
-}
-
-func (c *Client) DoSocket(socketArg string, s request.Socket) error {
-
-	dialer, action, err := s.Build(socketArg, c.Config)
-	if err != nil {
-		return err
-	}
-	headers := http.Header{
-		"User-Agent": []string{c.Config.UserAgent},
-	}
-	if s.Origin != "" {
-		headers.Set("Origin", s.Origin)
-	}
-
-	conn, _, err := dialer.Dial(s.U.String(), headers)
-	if err != nil {
-		log.Fatal("Failed to connect:", err)
-	}
-	defer conn.Close()
-
-	// signals
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-	quit := make(chan struct{}) // internal quit
-	done := make(chan struct{}) // cleanup channel
-
-	// recieve goroutine
-	go func() {
-		defer close(done)
-		for {
-			select {
-			case <-quit:
-				return
-			default:
-				_, message, err := conn.ReadMessage()
-				if err != nil {
-					log.Println("Read error:", err)
-					return
-				}
-				fmt.Printf("%s\r< %s\r\n%s> %s",
-					log.Yellow, message, log.Green, log.Reset)
-			}
-		}
-	}()
-
-	// populate delay if available
-	var delay time.Duration
-	if s.Run.Delay != "" {
-		var err error
-		delay, err = time.ParseDuration(s.Run.Delay)
-		if err != nil {
-			log.Error(err)
-			return nil
-		}
-	}
-	switch action {
-	case request.SocketRunPlaybook:
-		fmt.Printf("Runing playbook order: %+v\n", s.Run.Order)
-
-		go func() {
-			defer close(quit)
-			for _, next := range s.Run.Order {
-				if next == "noop" {
-					continue
-				}
-				payload := []byte(s.Playbook[next])
-				err := conn.WriteMessage(websocket.TextMessage, payload)
-				if err != nil {
-					log.Error("Write:", err)
-					return
-				}
-				time.Sleep(delay)
-			}
-		}()
-
-	case request.SocketRunEntry:
-		if pb, ok := s.Playbook[socketArg]; ok {
-			err := conn.WriteMessage(websocket.TextMessage, []byte(pb))
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-		return fmt.Errorf("no such playbook entry: %s", socketArg)
-
-	case request.SocketREPL:
-		r := NewREPL(s.NoSpecialCmds)
-		go r.Loop(func(cmd string) error {
-			switch cmd {
-			case "ls":
-				if !r.NoSpecialCmds {
-					fmt.Print("\n\r")
-					for k := range s.Playbook {
-						fmt.Printf("%s ", k)
-					}
-					return nil
-				}
-				fallthrough
-			default:
-				pb, ok := s.Playbook[cmd]
-				if !ok {
-					return fmt.Errorf("no such playbook entry: %s", cmd)
-				}
-				err := conn.WriteMessage(websocket.TextMessage, []byte(pb))
-				if err != nil {
-					return fmt.Errorf("ws write: %w", err)
-				}
-				fmt.Printf("\n\r%ssent(%s)%s", log.BoldGreen, cmd, log.Reset)
-			}
-			return nil
-		}, done)
-	}
-
-	// Wait for interrupt, quit or done signal
-	select {
-	case <-quit:
-	case <-done:
-	case <-interrupt:
-		err := conn.WriteMessage(websocket.CloseMessage,
-			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-		if err != nil {
-			log.Println("Write close error:", err)
-		}
-		return err
-	}
-	return nil
 }
