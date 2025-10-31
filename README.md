@@ -31,7 +31,6 @@ request "httpbin post" {
       local body = json.decode(rest.res.body)
       local ret = json.decode(body.data) -- what_we_sent_to_httpbin
       print(inspect(ret)) -- { hello = "world" }
-      return ret.hello -- cli prints -> world
   LUA
 }
 ```
