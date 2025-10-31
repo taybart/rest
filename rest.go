@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 
+	"github.com/taybart/rest/client"
 	"github.com/taybart/rest/exports"
 	"github.com/taybart/rest/exports/templates"
 	"github.com/taybart/rest/request"
@@ -19,7 +20,7 @@ func RunClientFile(filename string, ignoreFail bool) error {
 		return err
 	}
 
-	client, err := request.NewClient(rest.Config)
+	client, err := client.New(rest.Config)
 	if err != nil {
 		return err
 	}
@@ -69,7 +70,7 @@ func RunClientLabel(filename string, label string) error {
 		return err
 	}
 
-	client, err := request.NewClient(rest.Config)
+	client, err := client.New(rest.Config)
 	if err != nil {
 		return err
 	}
@@ -97,7 +98,7 @@ func RunClientBlock(filename string, block int) error {
 		return err
 	}
 
-	client, err := request.NewClient(rest.Config)
+	client, err := client.New(rest.Config)
 	if err != nil {
 		return err
 	}
@@ -134,7 +135,7 @@ func RunSocket(socketArg string, filename string) error {
 	if len(socket.Playbook) == 0 {
 		return fmt.Errorf("no socket in file")
 	}
-	client, err := request.NewClient(rest.Config)
+	client, err := client.New(rest.Config)
 	if err != nil {
 		return err
 	}
@@ -167,6 +168,7 @@ func ExportFile(filename, export, label string, block int) error {
 		for _, e := range templates.Exports() {
 			fmt.Println(e)
 		}
+		fmt.Println("postman")
 		return nil
 	}
 	if export == "postman" {

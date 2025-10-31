@@ -91,8 +91,15 @@ server {
 ### Handler functions
 
 The handler function has access to the same lua tools as the client post_hook. 
-The return must be in the form: `return status, body` (ex. `return 200, json.encode({msg = "hello world"})`)
-where status is an int http status code and body is a string that will be put in the body of the response.
+The return must be a table (its the same type as the response block in HCL): 
+ex: 
+```lua
+return { 
+    status = 200, 
+    headers = {["Set-Cookie"] = "test=1",
+    body = json.encode({msg = "hello world"}), 
+}
+```
 
 **Modules**
 
@@ -104,5 +111,8 @@ There are some global modules available in the lua runtime.
 - `base64` - encode and decode base64
 - `tools` - various helper functions, check out the [tools](https://github.com/taybart/rest/blob/main/request/lua/tools.lua) module for commented functions 
     - one call out is `tools.get_req_header`, but you can read the file to see the rest of the fuctions
+- `kv` - in-memory key/value store that persists between requests
+    - `kv.get(key)` - get value from kv cache, returns nil if key doesn't exist
+    - `kv.set(key, value)` - set a key's value, can be anything
 
 See [examples/server](./examples/server) for a more detailed examples

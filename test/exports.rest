@@ -3,7 +3,7 @@ request "get auth token" {
   method = "POST"
   body = {
     "username": "root",
-    "password": "root"
+    "password": env("PASSWORD")
   }
   post_hook = <<LUA
     print('==='..rest.label..'===')
@@ -12,17 +12,14 @@ request "get auth token" {
       fail('no auth_token returned')
       return
     end
-    rest.exports.auth= {
-      token = body.auth_token
-    }
-    rest.exports.test = "AHHHH"
+    rest.exports.auth_token = body.auth_token
     print('got new auth_token: '..rest.exports.auth.token)
   LUA
 }
 
 request "use exports" {
   url = "http://localhost:18080/test"
-  bearer_token = exports.auth.token
+  bearer_token = exports.auth_token
   post_hook = <<LUA
     print('\n==='..rest.label..'===')
     local auth_header, other = tools.get_req_header('Authorization')
@@ -31,13 +28,14 @@ request "use exports" {
       fail('missing or incorrect auth_token')
       return
     end
+    inspect.print(rest.exports.body)
     print(inspect(json.decode(rest.res.body)))
   LUA
 }
 
 request "unknown route" {
   url = "http://localhost:18080/unknown"
-  bearer_token = exports.auth.token
+  bearer_token = exports.auth_token
   expect = 404
   post_hook = <<LUA
     print('\n==='..rest.label..'===')
@@ -53,7 +51,6 @@ request "unknown route" {
 server {
   address = "localhost:18080"
   handler "POST" "/auth" {
-    # method  = "POST"
     response {
       status = 200
       headers = { "Content-Type" = "application/json" }
@@ -61,16 +58,19 @@ server {
     }
   }
   handler "GET" "/test" {
-    # method  = "GET"
     fn = <<LUA
+      local me = tonumber(kv.get("me"))
       print('auth header: '..tools.get_req_header('Authorization'))
       if tools.get_req_header('Authorization') ~= "Bearer this_is_an_auth_token" then
-        return 
-        end
-      return 200, json.encode({ hello =  "world" })
+        return 401, ""
+      end
+      me += 1
+      kv.set("me", me)
+      return 200, json.encode({ hello =  me })
     LUA
   }
-  # response {
-  #   status = 200
-  # }
+  response {
+    status = 200
+    # body = { hello = "world" }
+  }
 }

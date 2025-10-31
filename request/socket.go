@@ -46,7 +46,7 @@ type Socket struct {
 	Label  string `hcl:"label,label"`
 	Expect int    `hcl:"expect,optional"`
 
-	u *url.URL
+	U *url.URL
 }
 
 func (s *Socket) ParseExtras(ctx *hcl.EvalContext) error {
@@ -126,11 +126,11 @@ func (s *Socket) Build(arg string, config Config) (*websocket.Dialer, SocketActi
 			})
 		}
 	}
-	s.u, err = url.Parse(s.URL)
+	s.U, err = url.Parse(s.URL)
 	if err != nil {
 		return nil, action, err
 	}
-	jar.SetCookies(s.u, cookies)
+	jar.SetCookies(s.U, cookies)
 
 	dialer := &websocket.Dialer{
 		Proxy:            http.ProxyFromEnvironment,

@@ -30,14 +30,20 @@ func (s *Server) Routes(server *http.Server) {
 
 func (s *Server) registerHandlerFns() bool {
 	if len(s.Config.Handlers) > 0 {
+		rootRegistered := false
 		for _, handler := range s.Config.Handlers {
+			if handler.Path == "/" {
+				rootRegistered = true
+			}
 			log.Infof("registering handler %s%s%s\n", log.Blue, handler.Path, log.Reset)
 			s.Router.HandleFunc(handler.Path, log.Middleware(s.CustomHandlerFn(handler)))
 		}
-		// catch all with s.Config.Response as default if specified
-		s.Router.HandleFunc("/", log.Middleware(func(w http.ResponseWriter, r *http.Request) {
-			s.WriteResponseWithDefault(w, Response{Status: http.StatusNotFound})
-		}))
+		if !rootRegistered {
+			// catch all with s.Config.Response as default if specified
+			s.Router.HandleFunc("/", log.Middleware(func(w http.ResponseWriter, r *http.Request) {
+				s.WriteResponseWithDefault(w, Response{Status: http.StatusNotFound})
+			}))
+		}
 		return true
 	}
 	return false
@@ -46,14 +52,17 @@ func (s *Server) CustomHandlerFn(handler *Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if handler.Method == r.Method {
 			if handler.Fn != "" {
-				status, body, err := s.RunLuaHandler(handler.Fn, r, w)
+				res, err := s.RunLuaHandler(handler.Fn, r, w)
 				if err != nil {
 					log.Error(err)
 					w.WriteHeader(http.StatusBadRequest)
 				} else {
-					w.WriteHeader(status)
+					for k, v := range res.Headers {
+						w.Header().Add(k, v)
+					}
+					w.WriteHeader(res.Status)
 				}
-				fmt.Fprint(w, body)
+				fmt.Fprint(w, string(res.Body))
 				return
 			}
 			if handler.Response != nil {

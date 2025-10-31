@@ -113,7 +113,7 @@ func execute(l *lua.LState, code string) error {
 	}))
 
 	if err := l.DoString(code); err != nil {
-		return err
+		return restlua.FmtError(code, err)
 	}
 
 	if err := syncExportsTable(l); err != nil {
@@ -122,32 +122,20 @@ func execute(l *lua.LState, code string) error {
 	return cleanError
 }
 
-func (r *Request) RunPostHook(res *http.Response, jar http.CookieJar) (string, map[string]any, error) {
+func (r *Request) RunPostHook(res *http.Response, jar http.CookieJar) (map[string]any, error) {
 
 	l := lua.NewState()
 	defer l.Close()
 
 	if err := restlua.RegisterModules(l); err != nil {
-		return "", nil, err
+		return nil, err
 	}
 	if err := populateGlobalObject(l, r, res, jar); err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
 	if err := execute(l, r.PostHook); err != nil {
-		return "", nil, err
+		return nil, err
 	}
-
-	exports := restlua.LTableToMap(exportsTable)
-	// exports := map[string]any{}
-	// for k, v := range table {
-	// 	if export, ok := v.(string); ok {
-	// 		exports[k] = export
-	// 	}
-	// }
-
-	if ret := l.Get(-1); ret.String() != "nil" {
-		return ret.String(), exports, nil
-	}
-	return "", exports, nil
+	return restlua.LTableToMap(exportsTable), nil
 }

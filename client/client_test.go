@@ -1,4 +1,4 @@
-package request_test
+package client_test
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/taybart/rest"
-	"github.com/taybart/rest/request"
+	"github.com/taybart/rest/client"
 )
 
 func parse(t *testing.T, filename string, expectedReqs int) rest.Rest {
@@ -74,7 +74,7 @@ func DisabledTestClientRequest(t *testing.T) {
 	req.URL.Host = u.Host
 	basic.Built = req
 
-	client, err := request.NewClient(rest.Config)
+	client, err := client.New(rest.Config)
 	if err != nil {
 		t.Fatal(err)
 	}

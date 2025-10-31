@@ -1,5 +1,5 @@
-// Package request provides a client for making HTTP requests.
-package request
+// Package client provides a client for making HTTP requests.
+package client
 
 import (
 	"crypto/tls"
@@ -14,16 +14,16 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/taybart/log"
+	"github.com/taybart/rest/request"
 )
 
 type Client struct {
-	client  *http.Client
-	ws      *websocket.Conn
-	Config  Config
-	exports map[string]string
+	client *http.Client
+	ws     *websocket.Conn
+	Config request.Config
 }
 
-func NewClient(config Config) (*Client, error) {
+func New(config request.Config) (*Client, error) {
 	client := http.Client{}
 	if !config.NoCookies {
 		jar, err := cookiejar.New(nil)
@@ -38,7 +38,7 @@ func NewClient(config Config) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Do(r Request) (string, map[string]any, error) {
+func (c *Client) Do(r request.Request) (string, map[string]any, error) {
 
 	if r.Delay != "" {
 		delay, err := time.ParseDuration(r.Delay)
@@ -72,11 +72,8 @@ func (c *Client) Do(r Request) (string, map[string]any, error) {
 	}
 	// run lua code if it exists
 	if r.PostHook != "" {
-		res, exports, err := r.RunPostHook(res, c.client.Jar)
-		// if len(exports) > 0 {
-		// c.exports = exports
-		// }
-		return res, exports, err
+		exports, err := r.RunPostHook(res, c.client.Jar)
+		return "", exports, err
 	}
 
 	dumped, err := c.CheckExpectation(r, res)
@@ -91,7 +88,7 @@ func (c *Client) Do(r Request) (string, map[string]any, error) {
 
 	return dumped, exports, err
 }
-func (c *Client) CheckExpectation(r Request, res *http.Response) (string, error) {
+func (c *Client) CheckExpectation(r request.Request, res *http.Response) (string, error) {
 	dumped, err := httputil.DumpResponse(res, true)
 	if err != nil {
 		return "", err
@@ -150,11 +147,11 @@ func (c *Client) CheckExpectation(r Request, res *http.Response) (string, error)
 	}
 	return string(dumped), nil
 }
-func (c *Client) GetExports(r Request, res *http.Response) (map[string]any, error) {
+func (c *Client) GetExports(r request.Request, res *http.Response) (map[string]any, error) {
 	return nil, nil
 }
 
-func (c *Client) DoSocket(socketArg string, s Socket) error {
+func (c *Client) DoSocket(socketArg string, s request.Socket) error {
 
 	dialer, action, err := s.Build(socketArg, c.Config)
 	if err != nil {
@@ -167,7 +164,7 @@ func (c *Client) DoSocket(socketArg string, s Socket) error {
 		headers.Set("Origin", s.Origin)
 	}
 
-	conn, _, err := dialer.Dial(s.u.String(), headers)
+	conn, _, err := dialer.Dial(s.U.String(), headers)
 	if err != nil {
 		log.Fatal("Failed to connect:", err)
 	}
@@ -209,7 +206,7 @@ func (c *Client) DoSocket(socketArg string, s Socket) error {
 		}
 	}
 	switch action {
-	case SocketRunPlaybook:
+	case request.SocketRunPlaybook:
 		fmt.Printf("Runing playbook order: %+v\n", s.Run.Order)
 
 		go func() {
@@ -228,7 +225,7 @@ func (c *Client) DoSocket(socketArg string, s Socket) error {
 			}
 		}()
 
-	case SocketRunEntry:
+	case request.SocketRunEntry:
 		if pb, ok := s.Playbook[socketArg]; ok {
 			err := conn.WriteMessage(websocket.TextMessage, []byte(pb))
 			if err != nil {
@@ -238,8 +235,8 @@ func (c *Client) DoSocket(socketArg string, s Socket) error {
 		}
 		return fmt.Errorf("no such playbook entry: %s", socketArg)
 
-	case SocketREPL:
-		r := NewREPL(s.NoSpecialCmds)
+	case request.SocketREPL:
+		r := request.NewREPL(s.NoSpecialCmds)
 		go r.Loop(func(cmd string) error {
 			switch cmd {
 			case "ls":

@@ -188,6 +188,7 @@ Hooks are also passed a `rest` table that contains the following:
   method = "GET", -- method used for the request
   query = {}, -- query table of the request
   url = "https://httpbin.org/get" -- url used for the request
+  dump = "" -- formatted full request in http format
 }
 ```
 
@@ -195,33 +196,40 @@ Hooks are also passed a `rest` table that contains the following:
 
 ```lua
 {
-  body = "" -- string representation of the response body (can also be parsed with json module)
+  body = "" -- string representation of the response body (can be parsed into a lua table with json.decode())
   cookies = {}, -- cookies that were set during the request
   headers = {}, -- headers table returned by the server
   status = 200 -- status code returned by the server
+  dump = "" -- formatted full response in http format
 }
 ```
 
-`shared` - a table that is shared between requests
+### exports
+
+You can grab values from responses and put them in the `exports` table. This is available in requests below when the value is set.
+It can be used in the HCL of rest files or in post_hooks (`rest.exports` in lua land). One use case is to authenticate in the first request block and use the returned auth token in the next request block.
 
 ```hcl
-request "one" {
+request "auth" {
     // ...
     post_hook = <<LUA
-        rest.shared.one_res = json.decode(rest.res.body).status
+        rest.exports.auth = json.decode(rest.res.body).token
+    LUA
+}
+request "one" {
+    // ...
+    bearer_token = exports.auth
+    post_hook = <<LUA
+        rest.exports.one_status = json.decode(rest.res.body).status
     LUA
 }
 request "two" {
     // ...
-    post_hook = <<LUA
-        print(rest.shared.one_res == json.decode(rest.res.body).status)
-    LUA
+    body = { "status": rest.exports.one_status }
 }
 ```
 
-It is possible to return a string from a hook, this will be returned to the client (printed out for now)
-
-There is also a special `fail` function that can be used to fail the request. It takes a string argument and returns an error. This is different than a lua `error` and will just return the error to the client.
+There is also a special `fail` function that can be used to fail the request. It takes a string argument and returns an error back up to the rest cli. This is different than a lua `error` which will be caught by the lua runtime. The main difference is that `fail` will cause the cli to just print the error you want without lua stack info.
 
 An example of using more complicated hooks can be found [here](https://github.com/taybart/search)
 
@@ -280,6 +288,7 @@ $ rest -f api.rest -e ls # list supported languages
 curl
 go
 js
+postman
 $ rest -f api.rest -e curl
 curl -X ...
 ```
