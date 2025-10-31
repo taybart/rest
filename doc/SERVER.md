@@ -96,7 +96,7 @@ ex:
 ```lua
 return { 
     status = 200, 
-    headers = {["Set-Cookie"] = "test=1",
+    headers = { ["Set-Cookie"] = "test=1" }
     body = json.encode({msg = "hello world"}), 
 }
 ```
