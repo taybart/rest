@@ -25,7 +25,7 @@
             pkgs = import nixpkgs { inherit system; };
           }
         );
-      version = "0.5.1";
+      version = "0.6.0";
     in
     {
       # nix run/build

@@ -1,0 +1,6 @@
+// run a server at localhost:18080 that serves a directory
+server {
+  address = "localhost:18080"
+  tls = "./test/keys/example.com"
+  directory = "./doc/examples/server"
+}
