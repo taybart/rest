@@ -51,11 +51,7 @@ func (rest *Rest) RequestByIndex(i int) (request.Request, error) {
 		return request.Request{}, errors.New("request not found")
 	}
 
-	req, err := rest.Parser.Request(ret)
-	if err != nil {
-		return req, err
-	}
-	return req, nil
+	return rest.Parser.Request(ret)
 }
 
 func (rest *Rest) Request(label string) (request.Request, error) {
@@ -67,10 +63,7 @@ func (rest *Rest) Request(label string) (request.Request, error) {
 }
 
 func (rest *Rest) RunFile(ignoreFail bool) error {
-	client, err := client.New(rest.Parser.Config)
-	if err != nil {
-		return err
-	}
+
 	// make sure to run blocks in order of appearance
 	order := make([]string, 0, len(rest.Requests))
 	for k := range rest.Requests {
@@ -82,6 +75,10 @@ func (rest *Rest) RunFile(ignoreFail bool) error {
 		return rest.Requests[order[i]].BlockIndex < rest.Requests[order[j]].BlockIndex
 	})
 
+	client, err := client.New(rest.Parser.Config)
+	if err != nil {
+		return err
+	}
 	for _, label := range order {
 		// TODO: make sure ctx works the right way here
 		req, err := rest.Request(label)
@@ -112,42 +109,29 @@ func (rest *Rest) RunFile(ignoreFail bool) error {
 }
 
 func (rest *Rest) RunLabel(label string) error {
-	client, err := client.New(rest.Parser.Config)
-	if err != nil {
-		return err
-	}
 	req, err := rest.Request(label)
 	if err != nil {
 		return err
 	}
-	if req.Skip {
-		fmt.Println("skipping", req.Label)
-		return nil
-	}
-	res, _, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	if res != "" {
-		fmt.Println(res)
-	}
-	return nil
+	return rest.run(req)
 }
 
 func (rest *Rest) RunIndex(block int) error {
+	req, err := rest.RequestByIndex(block)
+	if err != nil {
+		return err
+	}
+	return rest.run(req)
+}
+
+func (rest *Rest) run(req request.Request) error {
 	client, err := client.New(rest.Parser.Config)
 	if err != nil {
 		return err
 	}
 
-	req, err := rest.RequestByIndex(block)
-	if err != nil {
-		return err
-	}
-
 	if req.Skip {
-		fmt.Println("skipping", req.Label)
-		return nil
+		return errors.New("request marked as skip = true")
 	}
 
 	res, _, err := client.Do(req)
@@ -179,7 +163,6 @@ func (rest *Rest) RunSocket(socketArg string) error {
 }
 
 func (rest *Rest) RunServer() error {
-
 	config, err := rest.Parser.Server()
 	if err != nil {
 		return err
