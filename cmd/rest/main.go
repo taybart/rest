@@ -186,7 +186,11 @@ func run() error {
 	 **********/
 	if c.Serve {
 		if a.UserSet("file") {
-			return rest.RunServerFile(c.File)
+			f, err := rest.NewFile(c.File)
+			if err != nil {
+				return err
+			}
+			return f.RunServer()
 		}
 		// FIXME: idk if this works the same as before
 		res, err := parseServerResponse(c.Response)
@@ -206,29 +210,34 @@ func run() error {
 	/**********
 	 * CLIENT *
 	 **********/
-	if c.File == "" {
+	if !a.UserSet("file") {
 		return fmt.Errorf("missing required flag -f")
+	}
+
+	f, err := rest.NewFile(c.File)
+	if err != nil {
+		return err
 	}
 
 	if c.Export != "" {
 		log.Debugf("exporting file %s to %s\n", c.File, c.Export)
-		return rest.ExportFile(c.File, c.Export, c.Label, c.Block)
+		return f.Export(c.Export, c.Label, c.Block)
 	}
 
 	if a.Get("socket").Provided {
 		log.Debug("running socket block on file", c.File)
-		return rest.RunSocket(c.Socket, c.File)
+		return f.RunSocket(c.Socket)
 	}
 
 	if c.Block >= 0 {
 		log.Debug("running block", c.Block, "on file", c.File)
-		return rest.RunClientBlock(c.File, c.Block)
+		return f.RunIndex(c.Block)
 	} else if c.Label != "" {
 		log.Debug("running request", c.Label, "on file", c.File)
-		return rest.RunClientLabel(c.File, c.Label)
+		return f.RunLabel(c.Label)
 	} else {
 		log.Debug("running file", c.File)
-		return rest.RunClientFile(c.File, c.IgnoreFail)
+		return f.RunFile(c.IgnoreFail)
 	}
 }
 

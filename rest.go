@@ -10,29 +10,76 @@ import (
 	"github.com/taybart/rest/client"
 	"github.com/taybart/rest/exports"
 	"github.com/taybart/rest/exports/templates"
+	"github.com/taybart/rest/file"
 	"github.com/taybart/rest/request"
 	"github.com/taybart/rest/server"
 )
 
-func RunClientFile(filename string, ignoreFail bool) error {
-	rest, err := NewRestFile(filename)
+type Rest struct {
+	Parser   *file.Parser
+	Requests map[string]*file.HCLRequest
+	filename string
+}
+
+func NewFile(filename string) (*Rest, error) {
+	parser, err := file.NewParser(filename)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	rest := &Rest{
+		filename: filename,
+		Parser:   parser,
+		Requests: make(map[string]*file.HCLRequest),
+	}
+	for i, block := range parser.Root.Requests {
+		rest.Requests[block.Label] = block
+		rest.Requests[block.Label].BlockIndex = i
+	}
+	return rest, nil
+
+}
+
+func (rest *Rest) RequestByIndex(i int) (request.Request, error) {
+	var ret *file.HCLRequest
+	for _, r := range rest.Requests {
+		if r.BlockIndex == i {
+			ret = r
+			break
+		}
+	}
+	if ret == nil {
+		return request.Request{}, errors.New("request not found")
 	}
 
-	client, err := client.New(rest.Config)
+	req, err := rest.Parser.Request(ret)
+	if err != nil {
+		return req, err
+	}
+	return req, nil
+}
+
+func (rest *Rest) Request(label string) (request.Request, error) {
+	req, ok := rest.Requests[label]
+	if !ok {
+		return request.Request{}, errors.New("request label not found")
+	}
+	return rest.Parser.Request(req)
+}
+
+func (rest *Rest) RunFile(ignoreFail bool) error {
+	client, err := client.New(rest.Parser.Config)
 	if err != nil {
 		return err
 	}
 	// make sure to run blocks in order of appearance
-	order := make([]string, 0, len(rest.HCLRequests))
-	for k := range rest.HCLRequests {
+	order := make([]string, 0, len(rest.Requests))
+	for k := range rest.Requests {
 		order = append(order, k)
 	}
 
 	// Sort keys by BlockIndex
 	sort.Slice(order, func(i, j int) bool {
-		return rest.HCLRequests[order[i]].BlockIndex < rest.HCLRequests[order[j]].BlockIndex
+		return rest.Requests[order[i]].BlockIndex < rest.Requests[order[j]].BlockIndex
 	})
 
 	for _, label := range order {
@@ -64,13 +111,8 @@ func RunClientFile(filename string, ignoreFail bool) error {
 	return nil
 }
 
-func RunClientLabel(filename string, label string) error {
-	rest, err := NewRestFile(filename)
-	if err != nil {
-		return err
-	}
-
-	client, err := client.New(rest.Config)
+func (rest *Rest) RunLabel(label string) error {
+	client, err := client.New(rest.Parser.Config)
 	if err != nil {
 		return err
 	}
@@ -92,18 +134,13 @@ func RunClientLabel(filename string, label string) error {
 	return nil
 }
 
-func RunClientBlock(filename string, block int) error {
-	rest, err := NewRestFile(filename)
+func (rest *Rest) RunIndex(block int) error {
+	client, err := client.New(rest.Parser.Config)
 	if err != nil {
 		return err
 	}
 
-	client, err := client.New(rest.Config)
-	if err != nil {
-		return err
-	}
-
-	req, err := rest.RequestIndex(block)
+	req, err := rest.RequestByIndex(block)
 	if err != nil {
 		return err
 	}
@@ -123,11 +160,7 @@ func RunClientBlock(filename string, block int) error {
 	return nil
 }
 
-func RunSocket(socketArg string, filename string) error {
-	rest, err := NewRestFile(filename)
-	if err != nil {
-		return err
-	}
+func (rest *Rest) RunSocket(socketArg string) error {
 	socket, err := rest.Parser.Socket()
 	if err != nil {
 		return err
@@ -135,7 +168,7 @@ func RunSocket(socketArg string, filename string) error {
 	if len(socket.Playbook) == 0 {
 		return fmt.Errorf("no socket in file")
 	}
-	client, err := client.New(rest.Config)
+	client, err := client.New(rest.Parser.Config)
 	if err != nil {
 		return err
 	}
@@ -145,12 +178,8 @@ func RunSocket(socketArg string, filename string) error {
 	return nil
 }
 
-func RunServerFile(filename string) error {
+func (rest *Rest) RunServer() error {
 
-	rest, err := NewRestFile(filename)
-	if err != nil {
-		return err
-	}
 	config, err := rest.Parser.Server()
 	if err != nil {
 		return err
@@ -163,7 +192,7 @@ func RunServerFile(filename string) error {
 	return s.Serve()
 }
 
-func ExportFile(filename, export, label string, block int) error {
+func (rest *Rest) Export(export, label string, block int) error {
 	if export == "?" || export == "ls" || export == "list" {
 		for _, e := range templates.Exports() {
 			fmt.Println(e)
@@ -172,24 +201,25 @@ func ExportFile(filename, export, label string, block int) error {
 		return nil
 	}
 	if export == "postman" {
-		return exports.ToPostmanCollection(filename, label, block)
+		return exports.ToPostmanCollection(rest.filename, label, block)
 	}
 
-	rest, err := NewRestFile(filename)
-	if err != nil {
-		return err
-	}
 	t := templates.Get(export)
 	if t == nil {
 		return fmt.Errorf(" exporting language (%s) not supported", export)
 	}
 	treqs := map[string]templates.Request{}
-	for _, req := range rest.Requests {
+	for label := range rest.Requests {
+		req, err := rest.Request(label)
+		if err != nil {
+			return err
+		}
+
 		body := req.Body
 		if body == "null" {
 			body = ""
 		}
-		ua := rest.Config.UserAgent
+		ua := rest.Parser.Config.UserAgent
 		if ua == request.DefaultConfig().UserAgent {
 			ua = ""
 		}
@@ -217,5 +247,5 @@ func ExportFile(filename, export, label string, block int) error {
 			UserAgent: ua,
 		}
 	}
-	return t.Execute(os.Stdout, filename, treqs)
+	return t.Execute(os.Stdout, rest.filename, treqs)
 }
