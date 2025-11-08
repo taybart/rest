@@ -68,8 +68,8 @@ func (c *Client) Do(r request.Request) (string, map[string]any, error) {
 		return "", nil, err
 	}
 	// run lua code if it exists
-	if r.PostHook != "" {
-		exports, err := r.RunPostHook(res, c.client.Jar)
+	if r.After != "" {
+		exports, err := r.RunAfterHook(res, c.client.Jar)
 		return "", exports, err
 	}
 

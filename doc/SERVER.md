@@ -67,7 +67,7 @@ server {
     # if you need a more complicated test server you can add specific handlers
     handler "GET" "/path" {
         # either use lua to create a more complex response
-        fn = "similar concept to the post_hook in the client files (see hander fns below)"
+        fn = "similar concept to the after hook in the client files (see hander fns below)"
         # or use a response object to just have different responses per path
         response {
             status = 200
@@ -90,14 +90,14 @@ server {
 
 ### Handler functions
 
-The handler function has access to the same lua tools as the client post_hook. 
-The return must be a table (its the same type as the response block in HCL): 
-ex: 
+The handler function has access to the same lua tools as the client after hook.
+The return must be a table (its the same type as the response block in HCL):
+ex:
 ```lua
-return { 
-    status = 200, 
+return {
+    status = 200,
     headers = { ["Set-Cookie"] = "test=1" }
-    body = json.encode({msg = "hello world"}), 
+    body = json.encode({msg = "hello world"}),
 }
 ```
 
@@ -110,7 +110,6 @@ There are some global modules available in the lua runtime.
 - `inspect` - used to inspect lua values
 - `base64` - encode and decode base64
 - `tools` - various helper functions, check out the [tools](https://github.com/taybart/rest/blob/main/lua/modules/tools.lua) module for commented functions
-- 
     - one call out is `tools.get_req_header`, but you can read the file to see the rest of the fuctions
 - `kv` - in-memory key/value store that persists between requests
     - `kv.get(key)` - get value from kv cache, returns nil if key doesn't exist

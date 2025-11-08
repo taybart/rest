@@ -27,7 +27,7 @@ request "httpbin post" {
     hello: "${locals.name}"
   }
   # has lua interpreter to post process check docs/CLIENT.md for more
-  post_hook = <<LUA
+  after = <<LUA
       local body = json.decode(rest.res.body)
       local ret = json.decode(body.data) -- what_we_sent_to_httpbin
       print(inspect(ret)) -- { hello = "world" }

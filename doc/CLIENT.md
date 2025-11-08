@@ -7,7 +7,7 @@ It also has a lua interpreter to post-process responses.
 1. [Config/Locals](#configlocals)
 1. [Request Blocks](#request-blocks)
 1. [Functions](#functions)
-1. [Hooks](#hooks)
+1. [After Hooks](#after-hooks)
 1. [Export](#export-to-a-different-language)
 1. [Sockets](#sockets)
 
@@ -123,7 +123,7 @@ request "my request" {
 
   # is a string, heredoc (<<IDENT ... IDENT) is a good way to set it
   # using LUA as the ident can make some editors highlight the code better
-  post_hook = "see hooks below"
+  after = "see after hooks below"
 }
 ```
 
@@ -162,9 +162,9 @@ request "my request" {
 }
 ```
 
-## Hooks
+## After Hooks
 
-Hooks are defined in the `post_hook` field. They are lua functions that are executed after the response is received. They can be used to do fancy lua stuff.
+Hooks are defined in the `after` field. They are lua functions that are executed after the response is received. They can be used to do fancy lua stuff.
 
 There are a couple of global libraries available to you:
 
@@ -209,19 +209,19 @@ There is also a special `fail` function that can be used to fail the request. It
 ### exports
 
 You can grab values from responses and put them in the `exports` table. This is available in requests below when the value is set.
-It can be used in the HCL of rest files or in post_hooks (`rest.exports` in lua land). One use case is to authenticate in the first request block and use the returned auth token in the next request block.
+It can be used in the HCL of rest files or in `after` hooks (`rest.exports` in lua land). One use case is to authenticate in the first request block and use the returned auth token in the next request block.
 
 ```hcl
 request "auth" {
     // ...
-    post_hook = <<LUA
+    after = <<LUA
         rest.exports.auth = json.decode(rest.res.body).token
     LUA
 }
 request "get status" {
     // ...
     bearer_token = exports.auth
-    post_hook = <<LUA
+    after = <<LUA
         rest.exports.one_status = json.decode(rest.res.body).status
     LUA
 }

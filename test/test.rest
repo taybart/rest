@@ -38,7 +38,7 @@ request "header test" {
     "X-Other-Header" = "other"
   }
   body = {}
-  post_hook = <<LUA
+  after = <<LUA
     print('label: '..rest.label)
     -- print('setting exports.test => hi')
     -- rest.exports.test = 'hi'
@@ -54,7 +54,7 @@ request "copy test" {
     "from": "${locals.test}",
     "to": "${locals.imported}"
   }
-  post_hook = <<LUA
+  after = <<LUA
     print('label: '.. rest.label)
     -- print('exports => '.. rest.exports.test)
 
@@ -84,7 +84,7 @@ request "form test" {
   body = form({
     test= "[0,1,2]"
   })
-  post_hook = <<LUA
+  after = <<LUA
     print('label: '..rest.label)
     print('exports => '.. inspect(rest.exports.mexico))
     print('\n')

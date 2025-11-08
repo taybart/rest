@@ -7,13 +7,13 @@ import (
 	"github.com/taybart/rest/request"
 )
 
-func parse(t *testing.T, filename string, expectedReqs int) rest.Rest {
-	rest, err := rest.NewRestFile(filename)
+func parse(t *testing.T, filename string, expectedReqs int) *rest.Rest {
+	rest, err := rest.NewFile(filename)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rest.HCLRequests) != expectedReqs {
-		t.Fatalf("expected %d request(s), got %d", expectedReqs, len(rest.HCLRequests))
+	if len(rest.Requests) != expectedReqs {
+		t.Fatalf("expected %d request(s), got %d", expectedReqs, len(rest.Requests))
 	}
 	return rest
 }
@@ -23,7 +23,7 @@ func TestBasicParse(t *testing.T) {
 
 	basic := request.Request{
 		Label:   "basic",
-		URL:     "http://localhost:18080/hello-world",
+		URL:     "http://localhost:18080/__echo__",
 		Method:  "POST",
 		Headers: map[string]string{"Content-Type": "application/json"},
 		Body:    `{"data":"hello world"}`,

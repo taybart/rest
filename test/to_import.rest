@@ -14,7 +14,7 @@ request "base" {
   method = "POST"
   bearer_token = "test"
   body = tmpl(locals.testTmpl, {WORLD = "world"})
-  post_hook = <<LUA
+  after = <<LUA
     if rest.label == "base" then
       error("should not have executed base")
     end

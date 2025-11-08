@@ -5,7 +5,7 @@ request "get auth token" {
     "username": "root",
     "password": env("PASSWORD")
   }
-  post_hook = <<LUA
+  after = <<LUA
     print('==='..rest.label..'===')
     local body = json.decode(rest.res.body)
     if not body.auth_token  then
@@ -20,7 +20,7 @@ request "get auth token" {
 request "use exports" {
   url = "http://localhost:18080/test"
   bearer_token = exports.auth_token
-  post_hook = <<LUA
+  after = <<LUA
     print('\n==='..rest.label..'===')
     local auth_header, other = tools.get_req_header('Authorization')
     if  auth_header ~= "Bearer this_is_an_auth_token" then
@@ -37,7 +37,7 @@ request "unknown route" {
   url = "http://localhost:18080/unknown"
   bearer_token = exports.auth_token
   expect = 404
-  post_hook = <<LUA
+  after = <<LUA
     print('\n==='..rest.label..'===')
     if not tools.is_expected_response() then
       return

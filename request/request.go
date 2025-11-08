@@ -31,7 +31,7 @@ type Request struct {
 	Headers     map[string]string `hcl:"headers,optional"`
 	Cookies     map[string]string `hcl:"cookies,optional"`
 	Query       map[string]string `hcl:"query,optional"`
-	PostHook    string            `hcl:"post_hook,optional"`
+	After       string            `hcl:"after,optional"`
 	CopyFrom    string            `hcl:"copy_from,optional"`
 	// extras
 	Expect       *Expect `hcl:"expect,block"`
@@ -161,8 +161,8 @@ func (r Request) Equal(cmp Request) bool {
 
 		return false
 	}
-	if r.PostHook != cmp.PostHook {
-		fmt.Println("post hooks don't match")
+	if r.After != cmp.After {
+		fmt.Println("after hooks don't match")
 		return false
 	}
 	if r.Expect != cmp.Expect {
@@ -196,8 +196,8 @@ func (r *Request) CombineFrom(from Request) {
 	if r.UserAgent == "" {
 		r.UserAgent = from.UserAgent
 	}
-	if r.PostHook == "" {
-		r.PostHook = from.PostHook
+	if r.After == "" {
+		r.After = from.After
 	}
 	if from.Expect != nil {
 		if r.Expect == nil {

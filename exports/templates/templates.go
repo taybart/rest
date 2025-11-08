@@ -35,7 +35,7 @@ type Request struct {
 	Headers   map[string]string
 	Cookies   map[string]string
 	Query     map[string]string
-	PostHook  string
+	After     string
 	UserAgent string
 
 	// extras

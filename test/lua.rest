@@ -1,6 +1,6 @@
 request "lua check" {
   url = "http://localhost:18080/__echo__"
-  post_hook = <<LUA
+  after = <<LUA
     print(rest.res.dump)
     local body = json.decode(rest.res.body)
     inspect.print(body.test.second)

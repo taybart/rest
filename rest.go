@@ -215,16 +215,16 @@ func (rest *Rest) Export(export, label string, block int) error {
 			}
 		}
 		treqs[req.Label] = templates.Request{
-			Method:   req.Method,
-			URL:      req.URL,
-			Headers:  req.Headers,
-			Body:     body,
-			Query:    req.Query,
-			Cookies:  req.Cookies,
-			PostHook: req.PostHook,
-			Label:    req.Label,
-			Delay:    req.Delay,
-			Expect:   expect,
+			Method:  req.Method,
+			URL:     req.URL,
+			Headers: req.Headers,
+			Body:    body,
+			Query:   req.Query,
+			Cookies: req.Cookies,
+			After:   req.After,
+			Label:   req.Label,
+			Delay:   req.Delay,
+			Expect:  expect,
 			// BlockIndex: req.BlockIndex,
 			// config
 			UserAgent: ua,

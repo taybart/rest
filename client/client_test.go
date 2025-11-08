@@ -12,17 +12,17 @@ import (
 	"github.com/taybart/rest/client"
 )
 
-func parse(t *testing.T, filename string, expectedReqs int) rest.Rest {
-	rest, err := rest.NewRestFile(filename)
+func parse(t *testing.T, filename string, expectedReqs int) *rest.Rest {
+	rest, err := rest.NewFile(filename)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rest.HCLRequests) != expectedReqs {
-		t.Fatalf("expected %d request(s), got %d", expectedReqs, len(rest.HCLRequests))
+	if len(rest.Requests) != expectedReqs {
+		t.Fatalf("expected %d request(s), got %d", expectedReqs, len(rest.Requests))
 	}
 	return rest
 }
-func build(t *testing.T, restfile rest.Rest, label string) *http.Request {
+func build(t *testing.T, restfile *rest.Rest, label string) *http.Request {
 	toBuild, err := restfile.Request(label)
 	if err != nil {
 		t.Fatal("expected request to be found")
@@ -37,7 +37,7 @@ func build(t *testing.T, restfile rest.Rest, label string) *http.Request {
 func TestBasicRequest(t *testing.T) {
 	rest := parse(t, "../doc/examples/client/basic.rest", 1)
 	req := build(t, rest, "basic")
-	if req.URL.String() != "http://localhost:18080/hello-world" {
+	if req.URL.String() != "http://localhost:18080/__echo__" {
 		t.Fatal("expected url to be http://localhost:18080/hello-world got:", req.URL.String())
 	}
 	if req.Method != "POST" {
@@ -69,12 +69,15 @@ func DisabledTestClientRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	basic := rest.Requests["basic"]
+	basic, err := rest.Request("basic")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	req.URL.Host = u.Host
-	basic.Built = req
+	// basic.Built = req
 
-	client, err := client.New(rest.Config)
+	client, err := client.New(rest.Parser.Config)
 	if err != nil {
 		t.Fatal(err)
 	}

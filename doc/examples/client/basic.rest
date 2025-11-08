@@ -1,13 +1,9 @@
 # start a server with `rest -s -a :18080`
 request "basic" {
-  url = "http://localhost:18080/auth"
+  url = "http://localhost:18080/__echo__"
   method = "POST"
   headers = { "Content-Type" = "application/json" }
   body = {
     data = "hello world"
   }
-  # post_hook = <<LUA
-  #   local body = json.decode(rest.res.body)
-  #   print(inspect(body))
-  # LUA
 }

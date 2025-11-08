@@ -50,7 +50,7 @@ request "get auth token" {
   url = "http://localhost:18080/login"
   method = "POST"
   body = { "username": "root", "password": "toor" }
-  post_hook = <<LUA
+  after = <<LUA
     print('==='..rest.label..'===')
     print(rest.res.body)
     local body = json.decode(rest.res.body)
@@ -66,7 +66,7 @@ request "get auth token" {
 request "get user" {
   url = "http://localhost:18080/user/5"
   bearer_token = exports.auth_token
-  post_hook = <<LUA
+  after = <<LUA
     print('\n==='..rest.label..'===')
     inspect.print(json.decode(rest.res.body))
   LUA
@@ -74,7 +74,7 @@ request "get user" {
 request "get unknown" {
   url = "http://localhost:18080/idk"
   bearer_token = exports.auth_token
-  post_hook = <<LUA
+  after = <<LUA
     print('\n==='..rest.label..'===')
     print(rest.res.dump)
   LUA

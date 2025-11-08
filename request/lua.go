@@ -122,7 +122,7 @@ func execute(l *lua.LState, code string) error {
 	return cleanError
 }
 
-func (r *Request) RunPostHook(res *http.Response, jar http.CookieJar) (map[string]any, error) {
+func (r *Request) RunAfterHook(res *http.Response, jar http.CookieJar) (map[string]any, error) {
 
 	l := lua.NewState()
 	defer l.Close()
@@ -134,7 +134,7 @@ func (r *Request) RunPostHook(res *http.Response, jar http.CookieJar) (map[strin
 		return nil, err
 	}
 
-	if err := execute(l, r.PostHook); err != nil {
+	if err := execute(l, r.After); err != nil {
 		return nil, err
 	}
 	return restlua.LTableToMap(exportsTable), nil
