@@ -173,7 +173,7 @@ func (r Request) Equal(cmp Request) bool {
 }
 
 func (r *Request) CombineFrom(from Request) {
-	if r.Method == "GET" {
+	if r.Method == "GET" || r.Method == "" {
 		r.Method = from.Method
 	}
 	if r.URL == "" {
