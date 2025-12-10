@@ -22,7 +22,7 @@ func usage(u args.Usage) {
 		"cors", "response", "tls", "quiet",
 	}
 	client := []string{
-		"file", "block", "label",
+		"file", "block", "label", "list",
 		"socket", "export", "verbose",
 	}
 
@@ -110,6 +110,10 @@ var (
 				Short: "l",
 				Help:  "Request label to run",
 			},
+			"list": {
+				Help:    "List labels in file",
+				Default: false,
+			},
 			"export": {
 				Short: "e",
 				Help:  "Export file to specified language",
@@ -147,6 +151,7 @@ var (
 		File       string `arg:"file"`
 		Block      int    `arg:"block"`
 		Label      string `arg:"label"`
+		List       bool   `arg:"list"`
 		Socket     string `arg:"socket"`
 		Export     string `arg:"export"`
 		IgnoreFail bool   `arg:"ignore-fail"`
@@ -227,6 +232,13 @@ func run() error {
 	if a.Get("socket").Provided {
 		log.Debug("running socket block on file", c.File)
 		return f.RunSocket(c.Socket)
+	}
+
+	if c.List {
+		for _, b := range f.Requests {
+			fmt.Println(b.Label)
+		}
+		return nil
 	}
 
 	if c.Block >= 0 {
