@@ -15,14 +15,14 @@ import (
 
 func usage(u args.Usage) {
 	cli := []string{
-		"no-color",
+		"no-color", "list",
 	}
 	server := []string{
-		"addr", "serve", "dir", "file",
+		"addr", "serve", "dir", "spa", "file",
 		"cors", "response", "tls", "quiet",
 	}
 	client := []string{
-		"file", "block", "label", "list",
+		"file", "block", "label",
 		"socket", "export", "verbose",
 	}
 
@@ -45,7 +45,7 @@ func usage(u args.Usage) {
 var (
 	a = args.App{
 		Name:    "Rest",
-		Version: "v0.0.1",
+		Version: "v0.7.2",
 		Author:  "taybart <taybart@email.com>",
 		About:   "all the rest",
 		Args: map[string]*args.Arg{
@@ -63,6 +63,10 @@ var (
 			"verbose": {
 				Short:   "v",
 				Help:    "More client logging",
+				Default: false,
+			},
+			"list": {
+				Help:    "List labels in file",
 				Default: false,
 			},
 
@@ -95,6 +99,11 @@ var (
 				Help:    "TLS path name to be used for tls key/cert (defaults to no TLS)\n\tex: '-t ./keys/site.com' where the files ./keys/site.com.{key,crt} exist",
 				Default: "",
 			},
+			// TODO: add to server block
+			"spa": {
+				Help:    "Serve index.html in directory instead of 404",
+				Default: false,
+			},
 
 			/*** client ***/
 			"file": {
@@ -109,10 +118,6 @@ var (
 			"label": {
 				Short: "l",
 				Help:  "Request label to run",
-			},
-			"list": {
-				Help:    "List labels in file",
-				Default: false,
 			},
 			"export": {
 				Short: "e",
@@ -146,6 +151,7 @@ var (
 		Response string `arg:"response"`
 		Cors     bool   `arg:"cors"`
 		TLS      string `arg:"tls"`
+		SPA      bool   `arg:"spa"`
 
 		// client
 		File       string `arg:"file"`
@@ -208,6 +214,7 @@ func run() error {
 			Quiet:    c.Quiet,
 			Cors:     c.Cors,
 			Response: res,
+			SPA:      c.SPA,
 		})
 		return s.Serve()
 	}

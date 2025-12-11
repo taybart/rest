@@ -47,6 +47,7 @@ type Config struct {
 	Cors     bool       `hcl:"cors,optional"`
 	TLS      string     `hcl:"tls,optional"`
 	Handlers []*Handler `hcl:"handler,block"`
+	SPA      bool       `hcl:"spa,optional"`
 }
 
 func New(c Config) Server {

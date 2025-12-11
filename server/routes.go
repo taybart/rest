@@ -99,9 +99,11 @@ func (s *Server) HandleDir() http.HandlerFunc {
 				w.Header().Add(k, v)
 			}
 		}
-		if _, err := os.Stat(fmt.Sprintf("%s%s", d, r.URL)); os.IsNotExist(err) {
-			http.ServeFile(w, r, fmt.Sprintf("%s/index.html", d))
-			return
+		if s.Config.SPA {
+			if _, err := os.Stat(fmt.Sprintf("%s%s", d, r.URL)); os.IsNotExist(err) {
+				http.ServeFile(w, r, fmt.Sprintf("%s/index.html", d))
+				return
+			}
 		}
 		fs.ServeHTTP(w, r)
 	}

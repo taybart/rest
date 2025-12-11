@@ -9,6 +9,8 @@
 	Run a server
     --dir, -d:
 	Directory to serve
+    --spa:
+	Serve index.html in directory instead of 404
     --file, -f:
 	File to run
     --cors:
@@ -64,6 +66,8 @@ server {
     cors = true
     # serve a directory, this will override response if provided (except headers)
     directory = "./test"
+    # should this be treated as a single page application (ie frontend routing) by returning index.html instead of 404 (default false)
+    spa = true
     # if you need a more complicated test server you can add specific handlers
     handler "GET" "/path" {
         # either use lua to create a more complex response
