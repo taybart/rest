@@ -73,7 +73,9 @@ func New(c Config) Server {
 }
 func (s *Server) Serve() error {
 
-	log.Infof("listening to %s...\n", s.Config.Addr)
+	if !s.Config.Quiet {
+		log.Infof("listening to %s...\n", s.Config.Addr)
+	}
 	if s.Config.TLS != "" {
 		crt := fmt.Sprintf("%s.crt", s.Config.TLS)
 		key := fmt.Sprintf("%s.key", s.Config.TLS)

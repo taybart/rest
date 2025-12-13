@@ -186,6 +186,9 @@ func (p *Parser) read(filename string, root *Root) error {
 
 func (p *Parser) Socket() (request.Socket, error) {
 	var sock request.Socket
+	if p.Root.Server == nil {
+		return sock, errors.New("socket block not found")
+	}
 	if err := p.decode(p.Root.Socket.Body, &sock); err != nil {
 		return sock, errors.New("error decoding socket block")
 	}
@@ -197,6 +200,9 @@ func (p *Parser) Socket() (request.Socket, error) {
 
 func (p *Parser) Server() (server.Config, error) {
 	var serv server.Config
+	if p.Root.Server == nil {
+		return serv, errors.New("server block not found")
+	}
 	if err := p.decode(p.Root.Server.Body, &serv); err != nil {
 		return serv, errors.New("error decoding server block")
 	}
