@@ -1,0 +1,11 @@
+server {
+  address = "localhost:8080"
+  tls = "./keys/example.com"
+  # proxy = "localhost:8081"
+  handler "GET" "/proxy" {
+    proxy = "localhost:8081"
+  }
+  response {
+    status = 200
+  }
+}

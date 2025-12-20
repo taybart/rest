@@ -22,6 +22,13 @@ func (s *Server) Routes(server *http.Server) {
 		s.Router.HandleFunc("/", gzipHandler(s.HandleDir()))
 		return
 	}
+	if s.Config.Proxy != "" {
+		proxy := httputil.NewSingleHostReverseProxy(s.MustParseURL(s.Config.Proxy))
+		s.Router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			proxy.ServeHTTP(w, r)
+		})
+		return
+	}
 	if !s.registerHandlerFns() {
 		s.Router.HandleFunc("/__ws__", s.HandleWSEcho())
 		s.Router.HandleFunc("/__echo__", log.Middleware(gzipHandler(s.HandleEcho())))
@@ -50,8 +57,18 @@ func (s *Server) registerHandlerFns() bool {
 	return false
 }
 func (s *Server) CustomHandlerFn(handler *Handler) http.HandlerFunc {
+
+	var proxy *httputil.ReverseProxy
+	if handler.Proxy != "" {
+		proxy = httputil.NewSingleHostReverseProxy(s.MustParseURL(handler.Proxy))
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		if handler.Method == r.Method {
+		if handler.Method == r.Method || handler.Method == "*" {
+			if handler.Proxy != "" {
+				proxy.ServeHTTP(w, r)
+				return
+			}
 			if handler.Fn != "" {
 				res, err := s.RunLuaHandler(handler.Fn, r, w)
 				if err != nil {

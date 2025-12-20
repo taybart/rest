@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
@@ -29,6 +30,7 @@ type Handler struct {
 	Method   string    `json:"method" hcl:"method,label"`
 	Path     string    `json:"path" hcl:"path,label"`
 	Fn       string    `json:"fn" hcl:"fn,optional"`
+	Proxy    string    `json:"proxy" hcl:"proxy,optional"`
 	Response *Response `hcl:"response,block"`
 }
 
@@ -41,6 +43,7 @@ type Server struct {
 type Config struct {
 	Addr     string     `hcl:"address"`
 	Dir      string     `hcl:"directory,optional"`
+	Proxy    string     `hcl:"proxy,optional"`
 	Quiet    bool       `hcl:"quiet,optional"`
 	Response *Response  `hcl:"response,block"`
 	Origins  []string   `hcl:"origins,optional"`
@@ -92,6 +95,17 @@ func (s *Server) Serve() error {
 		}
 	}
 	return nil
+}
+
+func (s *Server) MustParseURL(in string) *url.URL {
+	u, err := url.Parse(in)
+	if err != nil || u.Host == "" {
+		u, err = url.Parse("http://" + in)
+		if err != nil {
+			log.Fatal("could not proxy url: %s, error: %v", in, err)
+		}
+	}
+	return u
 }
 
 func (s *Server) WriteConfigResponse(w http.ResponseWriter) error {
