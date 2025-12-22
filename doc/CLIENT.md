@@ -133,7 +133,7 @@ There are a few functions that can be used in a rest file:
 
 - `env("VALUE")` - grab an environment variable
 - `read("./filepath")` - read a file into the rest file, this will just be read into a string so it can be used anywhere (ex. request body,
-- `json("{\"string\": \"json\"}")` - turn string value into a json object, there are some caveats with this function
+- `json({string: "json"})` - turn an HCL table into a string value, useful for values in templates
 - `form({key = "value"}")` - turn map value into a url-encoded form string
 - `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
 - `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map (currently only map[string]strings are supported)
