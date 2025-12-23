@@ -153,40 +153,9 @@ func (p *Parser) read(filename string, root *Root) error {
 	return nil
 }
 
-// func Parse(filename string) (Rest, error) {
-// 	ret := Rest{
-// 		Config: request.DefaultConfig(),
-// 	}
-//
-// 	p, err := NewParser(filename)
-// 	if err != nil {
-// 		return ret, err
-// 	}
-//
-// 	if p.Root.Socket != nil {
-// 		ret.Socket, err = p.ParseSocket()
-// 		if err != nil {
-// 			return ret, err
-// 		}
-// 	}
-// 	if p.Root.Server != nil {
-// 		ret.Server, err = p.ParseServer()
-// 		if err != nil {
-// 			return ret, err
-// 		}
-// 	}
-//
-// 	ret.Requests, err = p.ParseRequests()
-// 	if err != nil {
-// 		return ret, err
-// 	}
-//
-// 	return ret, err
-// }
-
 func (p *Parser) Socket() (request.Socket, error) {
 	var sock request.Socket
-	if p.Root.Server == nil {
+	if p.Root.Socket == nil {
 		return sock, errors.New("socket block not found")
 	}
 	if err := p.decode(p.Root.Socket.Body, &sock); err != nil {
@@ -367,17 +336,18 @@ func (p *Parser) makeContext() {
 			"exports": cty.ObjectVal(p.Exports),
 		},
 		Functions: map[string]function.Function{
-			"btmpl":   makeTemplateFunc(),
-			"env":     makeEnvFunc(),
-			"form":    makeFormFunc(),
-			"json":    makeJSONFunc(),
-			"nanoid":  makeNanoIDFunc(),
-			"read":    makeFileReadFunc(),
-			"b64_enc": makeBase64EncodeFunc(),
-			"b64_dec": makeBase64DecodeFunc(),
-			"tmpl":    makeGoTemplateFunc(),
-			"trim":    makeTrimFunc(),
-			"uuid":    makeUUIDFunc(),
+			"b64_dec":  makeBase64DecodeFunc(),
+			"b64_enc":  makeBase64EncodeFunc(),
+			"btmpl":    makeTemplateFunc(),
+			"env":      makeEnvFunc(),
+			"form":     makeFormFunc(),
+			"json_dec": makeJSONDecodeFunc(),
+			"json_enc": makeJSONEncodeFunc(),
+			"nanoid":   makeNanoIDFunc(),
+			"read":     makeFileReadFunc(),
+			"tmpl":     makeGoTemplateFunc(),
+			"trim":     makeTrimFunc(),
+			"uuid":     makeUUIDFunc(),
 		},
 	}
 }
