@@ -36,6 +36,8 @@ type Root struct {
 	Imports *[]string `hcl:"imports"`
 	Exports *[]string `hcl:"exports"`
 
+	CLI *string `hcl:"cli,optional"`
+
 	Locals []*struct {
 		Body hcl.Body `hcl:",remain"`
 	} `hcl:"locals,block"`

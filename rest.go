@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"sort"
 
 	"github.com/taybart/rest/client"
@@ -63,6 +64,16 @@ func (rest *Rest) Request(label string) (request.Request, error) {
 }
 
 func (rest *Rest) RunFile(ignoreFail bool) error {
+	// TODO: make this more explicit
+	if rest.Parser.Root.CLI != nil && os.Getenv("__REST_CLI") != "true" {
+		os.Setenv("__REST_CLI", "true") // loop guard
+		// cmd := exec.Command("sh", "-c", *rest.Parser.Root.CLI)
+		cmd := exec.Command(*rest.Parser.Root.CLI)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
 
 	// make sure to run blocks in order of appearance
 	order := make([]string, 0, len(rest.Requests))
@@ -124,24 +135,28 @@ func (rest *Rest) RunIndex(block int) error {
 	return rest.run(req)
 }
 
-func (rest *Rest) run(req request.Request) error {
+func (rest *Rest) Run(req request.Request) (string, error) {
 	client, err := client.New(rest.Parser.Config)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if req.Skip {
-		return errors.New("request marked as skip = true")
+		return "", errors.New("request marked as skip = true")
 	}
 
 	res, _, err := client.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
+	return res, nil
+}
+func (rest *Rest) run(req request.Request) error {
+	res, err := rest.Run(req)
 	if res != "" {
 		fmt.Println(res)
 	}
-	return nil
+	return err
 }
 
 func (rest *Rest) RunSocket(socketArg string) error {

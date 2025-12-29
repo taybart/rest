@@ -1,0 +1,44 @@
+
+# cli = <<SH
+# conversation=""
+#
+# while true; do
+#   read -p "> " PROMPT
+#   if [ "$conversation" == "" ]; then
+#     conversation="{\"role\": \"user\", \"content\": \"$PROMPT\"}"
+#   else
+#     conversation="$conversation,{\"role\": \"user\", \"content\": \"$PROMPT\"}"
+#   fi
+#   res=$(conversation="[$conversation]" go run ./cmd/rest -f ./test/cli-tool/client.rest)
+#   echo "$res"
+#   conversation="$conversation,{\"role\": \"assistant\", \"content\": \"$${res//$'\n'/\\n}\"}"
+# done
+# SH
+cli = <<LUA
+local conversation={}
+
+while true do
+  print('> ')
+  local prompt = io.read()
+  table.append(conversation, { role = "user", content = prompt })
+  local res = rest.label('completions')
+  table.append(conversation, { role = "assistant", content = res })
+end
+LUA
+
+
+request "completions" {
+  url = "http://localhost:8585/api/v1/chat/completions"
+  method = "POST"
+  headers = { "Content-Type" = "application/json" }
+  body = {
+    model: "permissive",
+    // need to be able to escape newlines
+    messages: json_dec(env("conversation"))
+  }
+  after = <<LUA
+    local body = json.decode(rest.res.body)
+    local response = body.choices[1].message.content
+    print(response)
+  LUA
+}
