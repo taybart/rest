@@ -80,7 +80,6 @@ func (rest *Rest) RunFile(ignoreFail bool) error {
 		return err
 	}
 	for _, label := range order {
-		// TODO: make sure ctx works the right way here
 		req, err := rest.Request(label)
 		if err != nil {
 			return err
@@ -124,24 +123,17 @@ func (rest *Rest) RunIndex(block int) error {
 	return rest.run(req)
 }
 
-func (rest *Rest) Run(req request.Request) (string, error) {
+func (rest *Rest) run(req request.Request) error {
 	client, err := client.New(rest.Parser.Config)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	if req.Skip {
-		return "", errors.New("request marked as skip = true")
+		return errors.New("request marked as skip = true")
 	}
 
 	res, _, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	return res, nil
-}
-func (rest *Rest) run(req request.Request) error {
-	res, err := rest.Run(req)
 	if res != "" {
 		fmt.Println(res)
 	}

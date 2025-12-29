@@ -329,6 +329,7 @@ func exportsToCty(exports map[string]any) map[string]cty.Value {
 func (p *Parser) AddExportsCtx(exports map[string]any) {
 	p.Exports = exportsToCty(exports)
 	p.Ctx.Variables["exports"] = cty.ObjectVal(p.Exports)
+	p.Ctx.Functions["try_exports"] = makeTryExportsFunc(p.Exports)
 }
 
 func (p *Parser) makeContext() {
@@ -338,18 +339,19 @@ func (p *Parser) makeContext() {
 			"exports": cty.ObjectVal(p.Exports),
 		},
 		Functions: map[string]function.Function{
-			"b64_dec":  makeBase64DecodeFunc(),
-			"b64_enc":  makeBase64EncodeFunc(),
-			"btmpl":    makeTemplateFunc(),
-			"env":      makeEnvFunc(),
-			"form":     makeFormFunc(),
-			"json_dec": makeJSONDecodeFunc(),
-			"json_enc": makeJSONEncodeFunc(),
-			"nanoid":   makeNanoIDFunc(),
-			"read":     makeFileReadFunc(),
-			"tmpl":     makeGoTemplateFunc(),
-			"trim":     makeTrimFunc(),
-			"uuid":     makeUUIDFunc(),
+			"b64_dec":     makeBase64DecodeFunc(),
+			"b64_enc":     makeBase64EncodeFunc(),
+			"btmpl":       makeTemplateFunc(),
+			"env":         makeEnvFunc(),
+			"form":        makeFormFunc(),
+			"json_dec":    makeJSONDecodeFunc(),
+			"json_enc":    makeJSONEncodeFunc(),
+			"nanoid":      makeNanoIDFunc(),
+			"read":        makeFileReadFunc(),
+			"tmpl":        makeGoTemplateFunc(),
+			"try_exports": makeTryExportsFunc(p.Exports),
+			"trim":        makeTrimFunc(),
+			"uuid":        makeUUIDFunc(),
 		},
 	}
 }

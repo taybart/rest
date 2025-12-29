@@ -2,6 +2,7 @@ package file
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -262,6 +263,35 @@ func makeNanoIDFunc() function.Function {
 				return cty.NilVal, err
 			}
 			return cty.StringVal(id), nil
+		},
+	})
+}
+
+func makeTryExportsFunc(exports map[string]cty.Value) function.Function {
+	return function.New(&function.Spec{
+		VarParam: &function.Parameter{
+			Name: "args",
+			Type: cty.DynamicPseudoType,
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+
+			if args[0].IsNull() {
+				return cty.NilVal, errors.New("exports key is required")
+			}
+
+			key := args[0].AsString()
+
+			_default := ""
+
+			// Handle optional alphabet argument
+			if len(args) > 1 && !args[1].IsNull() {
+				_default = args[1].AsString()
+			}
+			if val, ok := exports[key]; ok {
+				return val, nil
+			}
+			return cty.StringVal(_default), nil
 		},
 	})
 }

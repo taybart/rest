@@ -9,11 +9,12 @@ while true do
     goto continue
   end
   table.insert(conversation, { role = "user", content = prompt })
-  os.setenv('conversation', json.encode(conversation))
+  rest.exports.conversation = json.encode(conversation)
+  -- os.setenv('conversation', json.encode(conversation))
   rest.label('completions')
   table.insert(conversation, { role = "assistant", content = rest.exports.response })
   -- check we are exporting correctly
-  rest.label('test')
+  -- rest.label('test')
   ::continue::
 end
 LUA
@@ -27,10 +28,13 @@ request "completions" {
   body = {
     model: "gemma3:4b",
     // need to be able to escape newlines
-    messages: json_dec(env("conversation"))
+    # messages: json_dec(env("conversation"))
+    // TODO: we need to be able to allow for checking if exports contains a value
+    messages: json_dec(try_exports("conversation", env("conversation")))
   }
   after = <<LUA
     local body = json.decode(rest.res.body)
+    -- inspect.print(rest.req.body)
     local response = body.choices[1].message.content
     rest.exports.response = response
     -- check we are exporting correctly
@@ -38,7 +42,8 @@ request "completions" {
     print(response)
   LUA
 }
- request "test" {
+
+request "test" {
   url = "http://localhost:18080/${exports.test}"
 }
 
