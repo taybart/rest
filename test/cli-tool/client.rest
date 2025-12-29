@@ -1,6 +1,5 @@
 cli = <<LUA
 local conversation={}
-
 while true do
   io.write('> ')
   local prompt = io.read()
@@ -14,7 +13,7 @@ while true do
   rest.label('completions')
   table.insert(conversation, { role = "assistant", content = rest.exports.response })
   -- check we are exporting correctly
-  -- rest.label('test')
+  rest.label('test')
   ::continue::
 end
 LUA
@@ -27,9 +26,6 @@ request "completions" {
   headers = { "Content-Type" = "application/json" }
   body = {
     model: "gemma3:4b",
-    // need to be able to escape newlines
-    # messages: json_dec(env("conversation"))
-    // TODO: we need to be able to allow for checking if exports contains a value
     messages: json_dec(try_exports("conversation", env("conversation")))
   }
   after = <<LUA
@@ -38,7 +34,11 @@ request "completions" {
     local response = body.choices[1].message.content
     rest.exports.response = response
     -- check we are exporting correctly
-    rest.exports.test = 'doesthiswork'
+    if rest.exports.test then
+      rest.exports.test = rest.exports.test..'doesthiswork'
+    else
+      rest.exports.test = 'doesthiswork'
+    end
     print(response)
   LUA
 }
@@ -50,4 +50,3 @@ request "test" {
 server {
   address = "0.0.0.0:18080"
 }
-

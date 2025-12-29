@@ -10,6 +10,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
+var rclient *client.Client
 var exportsTable *lua.LTable
 
 func syncExportsTable(l *lua.LState, f *rest.Rest) error {
@@ -24,8 +25,6 @@ func syncExportsTable(l *lua.LState, f *rest.Rest) error {
 
 	return nil
 }
-
-var rclient *client.Client
 
 func do(f *rest.Rest, req request.Request) (map[string]any, error) {
 	if req.Skip {
@@ -113,7 +112,7 @@ func execute(l *lua.LState, code string) error {
 	return nil
 }
 
-func RunCLITool(f *rest.Rest) error {
+func runCLITool(f *rest.Rest) error {
 
 	var err error
 	rclient, err = client.New(f.Parser.Config)

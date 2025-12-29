@@ -36,6 +36,7 @@ type Root struct {
 	Imports *[]string `hcl:"imports"`
 	Exports *[]string `hcl:"exports"`
 
+	// TODO: allow for read() in this context
 	CLI *string `hcl:"cli,optional"`
 
 	Locals []*struct {

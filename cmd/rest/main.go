@@ -252,7 +252,7 @@ func run() error {
 	} else {
 		if f.Parser.Root.CLI != nil && os.Getenv("__REST_CLI") != "true" {
 			os.Setenv("__REST_CLI", "true") // inf loop guard
-			return RunCLITool(f)
+			return runCLITool(f)
 		}
 		log.Debug("running file", c.File)
 		return f.RunFile(c.IgnoreFail)
