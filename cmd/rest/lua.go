@@ -2,93 +2,84 @@ package main
 
 import (
 	"errors"
-	"net/http"
 
 	"github.com/taybart/rest"
+	"github.com/taybart/rest/client"
 	restlua "github.com/taybart/rest/lua"
-	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 )
 
-func populateGlobalObject(l *lua.LState, file *rest.Rest) error {
-	table := restlua.MakeLTable(l, map[string]lua.LValue{
-		// TODO: add "label" function
-		"label": lua.LString(""),
-	})
+var rclient *client.Client
+
+func doRequestLabel(f *rest.Rest, label string) (map[string]any, error) {
+	req, err := f.Request(label)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Skip {
+		return nil, errors.New("request marked as skip = true")
+	}
+
+	_, exports, err := rclient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// make sure to add the exports back into parsers ctx
+	f.Parser.AddExportsCtx(exports)
+	return exports, nil
+}
+
+var exportsTable *lua.LTable
+
+func populateGlobalObject(l *lua.LState, f *rest.Rest) error {
 	doLabel := func(l *lua.LState) int {
 		label := l.ToString(1) /* get argument */
-		file.RunLabel(label)
-		l.Push(lua.LString(v))
-		return 1 /* number of results */
+		exports, err := doRequestLabel(f, label)
+		if err != nil {
+			panic(err)
+		}
+		// set all exports from running the request,
+		// this will reset on every run for the cli context not the client context
+		l.SetField(l.GetGlobal("rest"), "exports", restlua.MapToLTable(l, exports))
+		return 0 /* number of results */
 	}
 	l.SetGlobal("rest", restlua.MakeLTable(l, map[string]lua.LValue{
-		"path_value": l.NewFunction(doLabel),
+		"label":   l.NewFunction(doLabel),
+		"exports": exportsTable,
 	}))
-	// l.SetGlobal("rest", table)
 
 	return nil
 }
 
 func execute(l *lua.LState, code string) error {
-	var cleanError error
-
-	l.SetGlobal("fail", l.NewFunction(func(L *lua.LState) int {
-		cleanError = errors.New(L.CheckString(1))
-		for range 10 {
-			L.Push(lua.LNil)
-		}
-		return 10
-	}))
-
 	if err := l.DoString(code); err != nil {
 		return restlua.FmtError(code, err)
 	}
-
-	return cleanError
-}
-
-func luaHelpers(l *lua.LState, req *http.Request) error {
-	kvCacheLoader(l)
-	// l.PreloadModule("kv", kvCacheLoader)
-
-	pathValue := func(l *lua.LState) int {
-		id := l.ToString(1) /* get argument */
-		v := req.PathValue(id)
-		l.Push(lua.LString(v))
-		return 1 /* number of results */
-	}
-	l.SetGlobal("s", restlua.MakeLTable(l, map[string]lua.LValue{
-		"path_value": l.NewFunction(pathValue),
-	}))
 	return nil
 }
 
-func (s *Server) RunLuaHandler(handler string, req *http.Request, w http.ResponseWriter) (Response, error) {
+func RunCLITool(f *rest.Rest) error {
+
+	var err error
+	rclient, err = client.New(f.Parser.Config)
+	if err != nil {
+		return err
+	}
 
 	l := lua.NewState()
 	defer l.Close()
 
-	res := Response{
-		Status: http.StatusOK,
-	}
-
 	if err := restlua.RegisterModules(l); err != nil {
-		return res, err
+		return err
 	}
-	if err := populateGlobalObject(l, req); err != nil {
-		return res, err
+	if err := populateGlobalObject(l, f); err != nil {
+		return err
 	}
-	if err := s.luaHelpers(l, req); err != nil {
-		return res, err
-	}
-	if err := execute(l, handler); err != nil {
-		return res, err
+	if err := execute(l, *f.Parser.Root.CLI); err != nil {
+		return err
 	}
 
-	luaRes := l.Get(-1)
-	err := gluamapper.Map(luaRes.(*lua.LTable), &res)
-	if err != nil {
-		return res, err
-	}
-	return res, nil
+	return nil
 }

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"sort"
 
 	"github.com/taybart/rest/client"
@@ -64,16 +63,6 @@ func (rest *Rest) Request(label string) (request.Request, error) {
 }
 
 func (rest *Rest) RunFile(ignoreFail bool) error {
-	// TODO: make this more explicit
-	if rest.Parser.Root.CLI != nil && os.Getenv("__REST_CLI") != "true" {
-		os.Setenv("__REST_CLI", "true") // loop guard
-		// cmd := exec.Command("sh", "-c", *rest.Parser.Root.CLI)
-		cmd := exec.Command(*rest.Parser.Root.CLI)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
-	}
 
 	// make sure to run blocks in order of appearance
 	order := make([]string, 0, len(rest.Requests))

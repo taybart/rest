@@ -1,44 +1,48 @@
-
-# cli = <<SH
-# conversation=""
-#
-# while true; do
-#   read -p "> " PROMPT
-#   if [ "$conversation" == "" ]; then
-#     conversation="{\"role\": \"user\", \"content\": \"$PROMPT\"}"
-#   else
-#     conversation="$conversation,{\"role\": \"user\", \"content\": \"$PROMPT\"}"
-#   fi
-#   res=$(conversation="[$conversation]" go run ./cmd/rest -f ./test/cli-tool/client.rest)
-#   echo "$res"
-#   conversation="$conversation,{\"role\": \"assistant\", \"content\": \"$${res//$'\n'/\\n}\"}"
-# done
-# SH
 cli = <<LUA
 local conversation={}
 
 while true do
-  print('> ')
+  io.write('> ')
   local prompt = io.read()
-  table.append(conversation, { role = "user", content = prompt })
-  local res = rest.label('completions')
-  table.append(conversation, { role = "assistant", content = res })
+  if prompt == "echo" then
+    inspect.print(conversation)
+    goto continue
+  end
+  table.insert(conversation, { role = "user", content = prompt })
+  os.setenv('conversation', json.encode(conversation))
+  rest.label('completions')
+  table.insert(conversation, { role = "assistant", content = rest.exports.response })
+  -- check we are exporting correctly
+  rest.label('test')
+  ::continue::
 end
 LUA
 
 
 request "completions" {
-  url = "http://localhost:8585/api/v1/chat/completions"
+  # url = "http://localhost:8585/api/v1/chat/completions"
+  url = "http://localhost:11434/v1/chat/completions"
   method = "POST"
   headers = { "Content-Type" = "application/json" }
   body = {
-    model: "permissive",
+    model: "gemma3:4b",
     // need to be able to escape newlines
     messages: json_dec(env("conversation"))
   }
   after = <<LUA
     local body = json.decode(rest.res.body)
     local response = body.choices[1].message.content
+    rest.exports.response = response
+    -- check we are exporting correctly
+    rest.exports.test = 'doesthiswork'
     print(response)
   LUA
 }
+ request "test" {
+  url = "http://localhost:18080/${exports.test}"
+}
+
+server {
+  address = "0.0.0.0:18080"
+}
+

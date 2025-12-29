@@ -255,6 +255,11 @@ func run() error {
 		log.Debug("running request", c.Label, "on file", c.File)
 		return f.RunLabel(c.Label)
 	} else {
+
+		if f.Parser.Root.CLI != nil && os.Getenv("__REST_CLI") != "true" {
+			os.Setenv("__REST_CLI", "true") // inf loop guard
+			return RunCLITool(f)
+		}
 		log.Debug("running file", c.File)
 		return f.RunFile(c.IgnoreFail)
 	}
