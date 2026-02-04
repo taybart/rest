@@ -45,12 +45,16 @@ func RegisterModules(l *lua.LState) error {
 			return err
 		}
 	}
-
-	if err := clipboard.Init(); err != nil {
-		panic(err)
-	}
+	// TODO: maybe add vim module that can somehow reach out to the plugin
+	//       this would be nice for copy to just add a vim.notify('success')
 
 	l.SetGlobal("copy", l.NewFunction(func(l *lua.LState) int {
+		if err := clipboard.Init(); err != nil {
+			fmt.Println(err)
+			l.Push(lua.LBool(false))
+			return 1
+		}
+
 		toCopy := l.Get(1)
 
 		var result string
