@@ -3,10 +3,12 @@ package restlua
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"strconv"
 
 	lua "github.com/yuin/gopher-lua"
+	"golang.design/x/clipboard"
 )
 
 //go:embed modules/*
@@ -43,6 +45,41 @@ func RegisterModules(l *lua.LState) error {
 			return err
 		}
 	}
+
+	if err := clipboard.Init(); err != nil {
+		panic(err)
+	}
+
+	l.SetGlobal("copy", l.NewFunction(func(l *lua.LState) int {
+		toCopy := l.Get(1)
+
+		var result string
+
+		switch v := toCopy.(type) {
+		case *lua.LTable:
+			// Marshal table to string
+			tbl := LTableToMap(v)
+			b, err := json.Marshal(tbl)
+			if err != nil {
+				l.Push(lua.LBool(false))
+				return 1
+			}
+			result = string(b)
+		case lua.LString:
+			result = string(v)
+		case lua.LNumber:
+			result = v.String()
+		case lua.LBool:
+			result = v.String()
+		default:
+			result = toCopy.String()
+		}
+
+		clipboard.Write(clipboard.FmtText, []byte(result))
+		l.Push(lua.LBool(true))
+		return 1
+	}))
+
 	return nil
 }
 

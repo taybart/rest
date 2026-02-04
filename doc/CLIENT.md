@@ -173,7 +173,12 @@ There are a couple of global libraries available to you:
 - `colors` - adds terminal color escape codes and formatting functions for extra points
 - `inspect` - used to inspect lua values
 - `base64` - encode and decode base64
-- `tools` - various helper functions, check out the [tools](https://github.com/taybart/rest/blob/main/request/lua/tools.lua) module for commented functions 
+- `tools` - various helper functions, check out the [tools](https://github.com/taybart/rest/blob/main/request/lua/tools.lua) module for commented functions
+
+Additionally there are a few global functions available to you:
+- `copy("value")` - copy a value to the clipboard, if the value is a table it will be marshalled to json
+- `fail("message")` - return a clean error to the rest cli so it can fail outside of the lua vm 
+                    (as opposed to `error("message")`, that does fail in the vm)
 
 Hooks are also passed a `rest` table that contains the following:
 
@@ -204,8 +209,6 @@ Hooks are also passed a `rest` table that contains the following:
   dump = "" -- formatted full response in http format
 }
 ```
-
-There is also a special `fail` function that can be used to fail the request. It takes a string argument and returns an error back up to the rest cli. This is different than a lua `error` which will be caught by the lua runtime. The main difference is that `fail` will cause the cli to just print the error you want without lua stack info.
 
 ### exports
 
