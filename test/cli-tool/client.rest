@@ -1,31 +1,31 @@
 cli = <<LUA
 local conversation = {}
 while true do
-	io.write("> ")
+	io.write('> ')
 	local prompt = io.read()
-	if prompt == "echo" then
+	if prompt == 'echo' then
 		inspect.print(conversation)
 		goto continue
 	end
-	table.insert(conversation, { role = "user", content = prompt })
+	table.insert(conversation, { role = 'user', content = prompt })
 	rest.exports.conversation = json.encode(conversation)
 	-- os.setenv('conversation', json.encode(conversation))
-	rest.label("completions")
-	table.insert(conversation, { role = "assistant", content = rest.exports.response })
+	rest.label('completions')
+	table.insert(conversation, { role = 'assistant', content = rest.exports.response })
 	-- check we are exporting correctly
-	rest.label("test")
+	rest.label('test')
 	::continue::
 end
 LUA
 
-
+    # model: "gemma3:4b",
 request "completions" {
-  # url = "http://localhost:8585/api/v1/chat/completions"
-  url = "http://localhost:11434/v1/chat/completions"
+  url = "http://localhost:8585/api/v1/chat/completions"
+  # url = "http://localhost:11434/v1/chat/completions"
   method = "POST"
   headers = { "Content-Type" = "application/json" }
   body = {
-    model: "gemma3:4b",
+    model: "permissive",
     messages: json_dec(try_exports("conversation", env("conversation")))
   }
   after = <<LUA
@@ -35,11 +35,10 @@ request "completions" {
     rest.exports.response = response
     -- check we are exporting correctly
     if rest.exports.test then
-    	rest.exports.test = rest.exports.test .. "doesthiswork"
+    	rest.exports.test = rest.exports.test .. 'doesthiswork'
     else
-    	rest.exports.test = "doesthiswork"
+    	rest.exports.test = 'doesthiswork'
     end
-    print(response)
   LUA
 }
 
