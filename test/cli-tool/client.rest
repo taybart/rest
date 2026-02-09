@@ -18,6 +18,23 @@ while true do
 end
 LUA
 
+cli {
+  globals = { conversation = {} }
+  loop = <<LUA
+    if input == 'echo' then
+    	inspect.print(conversation)
+    	goto continue
+    end
+    table.insert(conversation, { role = 'user', content = input })
+    rest.exports.conversation = json.encode(conversation)
+    rest.label('completions')
+    table.insert(conversation, { role = 'assistant', content = rest.exports.response })
+    -- check we are exporting correctly
+    rest.label('test')
+    ::continue::
+  LUA
+}
+
     # model: "gemma3:4b",
 request "completions" {
   url = "http://localhost:8585/api/v1/chat/completions"
