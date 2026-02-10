@@ -30,7 +30,7 @@ func (s *Server) Routes(server *http.Server) {
 		return
 	}
 	if !s.registerHandlerFns() {
-		s.Router.HandleFunc("/__ws__", s.HandleWSEcho())
+		s.Router.HandleFunc("/__ws__", s.HandleWSEcho("*"))
 		s.Router.HandleFunc("/__echo__", log.Middleware(gzipHandler(s.HandleEcho())))
 		s.Router.HandleFunc("/", log.Middleware(gzipHandler(s.HandleRoot())))
 	}
@@ -44,7 +44,11 @@ func (s *Server) registerHandlerFns() bool {
 				rootRegistered = true
 			}
 			log.Infof("registering handler %s%s%s\n", log.Blue, handler.Path, log.Reset)
-			s.Router.HandleFunc(handler.Path, log.Middleware(s.CustomHandlerFn(handler)))
+			if handler.WS {
+				s.Router.HandleFunc(handler.Path, s.HandleWSEcho(handler.Method))
+			} else {
+				s.Router.HandleFunc(handler.Path, log.Middleware(s.CustomHandlerFn(handler)))
+			}
 		}
 		if !rootRegistered {
 			// catch all with s.Config.Response as default if specified
@@ -159,31 +163,39 @@ func (s *Server) HandleRoot() http.HandlerFunc {
 	}
 }
 
-func (s *Server) HandleWSEcho() http.HandlerFunc {
+func (s *Server) HandleWSEcho(method string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		upgrader := websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
-		}
-		if s.Config.Cors {
-			upgrader.CheckOrigin = func(r *http.Request) bool { return true }
-		}
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		for {
-			messageType, p, err := conn.ReadMessage()
-			if err != nil {
-				if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-					log.Error(err)
-				}
-				return
+		if method == r.Method || method == "*" {
+
+			log.Infof("%s %s\n",
+				r.Method,
+				r.URL.Path,
+			)
+			upgrader := websocket.Upgrader{
+				ReadBufferSize:  1024,
+				WriteBufferSize: 1024,
 			}
-			if err := conn.WriteMessage(messageType, p); err != nil {
+			if s.Config.Cors {
+				upgrader.CheckOrigin = func(r *http.Request) bool { return true }
+			}
+			conn, err := upgrader.Upgrade(w, r, nil)
+			if err != nil {
 				log.Error(err)
 				return
+			}
+			for {
+				messageType, p, err := conn.ReadMessage()
+				if err != nil {
+					if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
+						log.Error(err)
+					}
+					return
+				}
+				log.Infof("[ws] echo %s\n", p)
+				if err := conn.WriteMessage(messageType, p); err != nil {
+					log.Error(err)
+					return
+				}
 			}
 		}
 	}
