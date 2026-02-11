@@ -14,21 +14,14 @@ import (
 
 var exportsTable *lua.LTable
 
-func syncExportsTable(L *lua.LState) error {
-	// Get the global "rest" table
-	restValue := L.GetGlobal("rest")
-	restTable, ok := restValue.(*lua.LTable)
-	if !ok {
-		return fmt.Errorf("global 'rest' is not a table")
-	}
-
+func syncExportsTable(l *lua.LState) error {
 	// Get the "exports" field from the rest table
-	exportsValue := L.GetField(restTable, "exports")
+	exportsValue := l.GetField(l.GetGlobal("rest"), "exports")
+	var ok bool
 	exportsTable, ok = exportsValue.(*lua.LTable)
 	if !ok {
 		return fmt.Errorf("rest.exports is not a table")
 	}
-
 	return nil
 }
 

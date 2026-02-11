@@ -27,17 +27,12 @@ func usage(u args.Usage) {
 	}
 
 	var usage strings.Builder
-	usage.WriteString(
-		fmt.Sprintf("%s\t\t=== Rest Easy ===\n%s",
-			log.BoldBlue, log.Reset))
-	usage.WriteString(
-		fmt.Sprintf("%sCLI:\n%s", log.BoldGreen, log.Reset))
+	fmt.Fprintf(&usage, "%s\t\t=== Rest Easy ===\n%s", log.BoldBlue, log.Reset)
+	fmt.Fprintf(&usage, "%sCLI:\n%s", log.BoldGreen, log.Reset)
 	u.BuildFlagString(&usage, cli)
-	usage.WriteString(
-		fmt.Sprintf("%sServer:\n%s", log.BoldGreen, log.Reset))
+	fmt.Fprintf(&usage, "%sServer:\n%s", log.BoldGreen, log.Reset)
 	u.BuildFlagString(&usage, server)
-	usage.WriteString(
-		fmt.Sprintf("%sClient:\n%s", log.BoldGreen, log.Reset))
+	fmt.Fprintf(&usage, "%sClient:\n%s", log.BoldGreen, log.Reset)
 	u.BuildFlagString(&usage, client)
 	fmt.Println(usage.String())
 }
@@ -255,6 +250,9 @@ func run() error {
 		log.Debug("running request", c.Label, "on file", c.File)
 		return f.RunLabel(c.Label)
 	} else {
+		if f.Parser.Root.CLI != nil {
+			return runCLITool(f)
+		}
 		log.Debug("running file", c.File)
 		return f.RunFile(c.IgnoreFail)
 	}

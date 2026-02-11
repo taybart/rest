@@ -1,0 +1,64 @@
+cli {
+  // this will generate a bash script
+  flags = { 
+    // check for this in args
+    // populate this into cli.id when parsing the file via env vars? 
+    // or we use the flags key
+    id = { 
+      // print this on help
+      desc = "id"
+      // run this block label or index
+      request_id = "completions"
+      bool = false
+    } 
+  }
+  loop_setup = <<LUA
+    local conversation = {}
+  LUA
+  // TODO: reevaluate this
+  loop = <<LUA
+    	if input == 'echo' then
+    		inspect.print(conversation)
+    		goto continue
+    	end
+    	table.insert(conversation, { role = 'user', content = input })
+    	rest.exports.conversation = json.encode(conversation)
+    	rest.label('completions')
+    	table.insert(conversation, { role = 'assistant', content = rest.exports.response })
+    	-- check we are exporting correctly
+    	rest.label('test')
+    	::continue::
+  LUA
+}
+
+    # model: "gemma3:4b",
+request "completions" {
+  url = "http://localhost:8585/api/v1/chat/completions"
+  # url = "http://localhost:11434/v1/chat/completions"
+  method = "POST"
+  headers = { "Content-Type" = "application/json" }
+  body = {
+    model: "permissive",
+    messages: json_dec(try_exports("conversation", env("conversation")))
+  }
+  after = <<LUA
+    local body = json.decode(rest.res.body)
+    -- inspect.print(rest.req.body)
+    local response = body.choices[1].message.content
+    rest.exports.response = response
+    -- check we are exporting correctly
+    if rest.exports.test then
+    	rest.exports.test = rest.exports.test .. 'doesthiswork'
+    else
+    	rest.exports.test = 'doesthiswork'
+    end
+  LUA
+}
+
+request "test" {
+  url = "http://localhost:18080/${exports.test}"
+}
+
+server {
+  address = "0.0.0.0:18080"
+}
