@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/taybart/rest"
 	"github.com/taybart/rest/client"
@@ -113,13 +114,21 @@ func execute(l *lua.LState, code string) error {
 }
 
 func runCLITool(f *rest.Rest) error {
-
-	var err error
-	rclient, err = client.New(f.Parser.Config)
+	cli, err := f.Parser.CLI()
 	if err != nil {
 		return err
 	}
 
+	// TODO: do something with flags
+
+	if f.Parser.Root.CLI.Loop == nil {
+		return errors.New("no loop defined")
+	}
+
+	rclient, err = client.New(f.Parser.Config)
+	if err != nil {
+		return err
+	}
 	l := lua.NewState()
 	defer l.Close()
 
@@ -129,7 +138,14 @@ func runCLITool(f *rest.Rest) error {
 	if err := populateGlobalObject(l, f); err != nil {
 		return err
 	}
-	if err := execute(l, *f.Parser.Root.CLI); err != nil {
+
+	if err := execute(l, fmt.Sprintf(`
+		%s
+    while true do
+    	io.write('> ')
+    	local input = io.read()
+			%s
+		end`, *cli.LoopSetup, *cli.Loop)); err != nil {
 		return err
 	}
 

@@ -1,37 +1,33 @@
-cli = <<LUA
-local conversation = {}
-while true do
-	io.write('> ')
-	local prompt = io.read()
-	if prompt == 'echo' then
-		inspect.print(conversation)
-		goto continue
-	end
-	table.insert(conversation, { role = 'user', content = prompt })
-	rest.exports.conversation = json.encode(conversation)
-	-- os.setenv('conversation', json.encode(conversation))
-	rest.label('completions')
-	table.insert(conversation, { role = 'assistant', content = rest.exports.response })
-	-- check we are exporting correctly
-	rest.label('test')
-	::continue::
-end
-LUA
-
 cli {
-  globals = { conversation = {} }
+  // this will generate a bash script
+  flags = { 
+    // check for this in args
+    // populate this into cli.id when parsing the file via env vars? 
+    // or we use the flags key
+    id = { 
+      // print this on help
+      desc = "id"
+      // run this block label or index
+      request_id = "completions"
+      bool = false
+    } 
+  }
+  loop_setup = <<LUA
+    local conversation = {}
+  LUA
+  // TODO: reevaluate this
   loop = <<LUA
-    if input == 'echo' then
-    	inspect.print(conversation)
-    	goto continue
-    end
-    table.insert(conversation, { role = 'user', content = input })
-    rest.exports.conversation = json.encode(conversation)
-    rest.label('completions')
-    table.insert(conversation, { role = 'assistant', content = rest.exports.response })
-    -- check we are exporting correctly
-    rest.label('test')
-    ::continue::
+    	if input == 'echo' then
+    		inspect.print(conversation)
+    		goto continue
+    	end
+    	table.insert(conversation, { role = 'user', content = input })
+    	rest.exports.conversation = json.encode(conversation)
+    	rest.label('completions')
+    	table.insert(conversation, { role = 'assistant', content = rest.exports.response })
+    	-- check we are exporting correctly
+    	rest.label('test')
+    	::continue::
   LUA
 }
 

@@ -30,6 +30,20 @@ type HCLRequest struct {
 	BlockIndex int
 }
 
+type CLIFlag struct {
+	Desc      string `hcl:"desc"`
+	RequestID string `hcl:"request_id"`
+	Bool      bool   `hcl:"bool"`
+	// Key       string
+}
+
+type CLI struct {
+	Loop      *string `hcl:"loop,optional"`
+	LoopSetup *string `hcl:"loop_setup,optional"`
+	Flags     map[string]CLIFlag
+	FlagsBody hcl.Body `hcl:",remain"`
+}
+
 type Root struct {
 	filename string
 
@@ -37,7 +51,7 @@ type Root struct {
 	Exports *[]string `hcl:"exports"`
 
 	// TODO: allow for read() in this context
-	CLI *string `hcl:"cli,optional"`
+	CLI *CLI `hcl:"cli,block"`
 
 	Locals []*struct {
 		Body hcl.Body `hcl:",remain"`
@@ -154,6 +168,49 @@ func (p *Parser) read(filename string, root *Root) error {
 		return errors.New("failed to decode rest file")
 	}
 	return nil
+}
+
+func (p *Parser) CLI() (CLI, error) {
+	if p.Root.CLI == nil {
+		return CLI{}, errors.New("cli block not found")
+	}
+
+	cli := p.Root.CLI
+	if cli.FlagsBody != nil {
+		cli.Flags = make(map[string]CLIFlag)
+		attrs, diags := cli.FlagsBody.JustAttributes()
+		if diags.HasErrors() {
+			p.writeDiags(diags)
+			return *cli, errors.New("error parsing cli flags")
+		}
+		flagsAttr, ok := attrs["flags"]
+		if !ok {
+			return *cli, nil // no flags defined
+		}
+
+		val, diags := flagsAttr.Expr.Value(p.Ctx)
+		if diags.HasErrors() {
+			p.writeDiags(diags)
+			return *cli, errors.New("error evaluating flags")
+		}
+
+		if val.Type().IsObjectType() || val.Type().IsMapType() {
+			for name, flagVal := range val.AsValueMap() {
+				var flag CLIFlag
+				if flagVal.Type().HasAttribute("desc") {
+					flag.Desc = flagVal.GetAttr("desc").AsString()
+				}
+				if flagVal.Type().HasAttribute("request_id") {
+					flag.RequestID = flagVal.GetAttr("request_id").AsString()
+				}
+				if flagVal.Type().HasAttribute("bool") {
+					flag.Bool = true
+				}
+				cli.Flags[name] = flag
+			}
+		}
+	}
+	return *cli, nil
 }
 
 func (p *Parser) Socket() (request.Socket, error) {

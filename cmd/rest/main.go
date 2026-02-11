@@ -250,8 +250,7 @@ func run() error {
 		log.Debug("running request", c.Label, "on file", c.File)
 		return f.RunLabel(c.Label)
 	} else {
-		if f.Parser.Root.CLI != nil && os.Getenv("__REST_CLI") != "true" {
-			os.Setenv("__REST_CLI", "true") // inf loop guard
+		if f.Parser.Root.CLI != nil {
 			return runCLITool(f)
 		}
 		log.Debug("running file", c.File)
