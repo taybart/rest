@@ -12,9 +12,7 @@ cli {
       bool = false
     } 
   }
-  loop_setup = <<LUA
-    local conversation = {}
-  LUA
+  loop_setup = "local conversation = {}"
   // TODO: reevaluate this
   loop = <<LUA
     	if input == 'echo' then
@@ -25,33 +23,35 @@ cli {
     	rest.exports.conversation = json.encode(conversation)
     	rest.label('completions')
     	table.insert(conversation, { role = 'assistant', content = rest.exports.response })
+    	print(rest.exports.response)
     	-- check we are exporting correctly
-    	rest.label('test')
+    	-- rest.label('test')
     	::continue::
   LUA
 }
 
-    # model: "gemma3:4b",
 request "completions" {
-  url = "http://localhost:8585/api/v1/chat/completions"
-  # url = "http://localhost:11434/v1/chat/completions"
+  # url = "http://localhost:8585/api/v1/chat/completions"
+  url = "https://llm.bbl.systems/v1/chat/completions"
   method = "POST"
   headers = { "Content-Type" = "application/json" }
   body = {
-    model: "permissive",
+    # model: "permissive",
+    model: "gemma3:12b",
     messages: json_dec(try_exports("conversation", env("conversation")))
   }
   after = <<LUA
-    local body = json.decode(rest.res.body)
-    -- inspect.print(rest.req.body)
-    local response = body.choices[1].message.content
-    rest.exports.response = response
-    -- check we are exporting correctly
-    if rest.exports.test then
-    	rest.exports.test = rest.exports.test .. 'doesthiswork'
-    else
-    	rest.exports.test = 'doesthiswork'
-    end
+  if rest.res.status ~= 200 then error(rest.res.body) end
+  local body = json.decode(rest.res.body)
+  -- inspect.print(rest.req.body)
+  local response = body.choices[1].message.content
+  rest.exports.response = response
+  -- check we are exporting correctly
+  if rest.exports.test then
+  	rest.exports.test = rest.exports.test .. 'doesthiswork'
+  else
+  	rest.exports.test = 'doesthiswork'
+  end
   LUA
 }
 

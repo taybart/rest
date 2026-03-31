@@ -6,14 +6,14 @@ request "get auth token" {
     "password": env("PASSWORD")
   }
   after = <<LUA
-    print('==='..rest.label..'===')
+    print('===' .. rest.label .. '===')
     local body = json.decode(rest.res.body)
-    if not body.auth_token  then
-      fail('no auth_token returned')
-      return
+    if not body.auth_token then
+    	fail('no auth_token returned')
+    	return
     end
     rest.exports.auth_token = body.auth_token
-    print('got new auth_token: '..rest.exports.auth.token)
+    print('got new auth_token: ' .. rest.exports.auth.token)
   LUA
 }
 
@@ -21,12 +21,12 @@ request "use exports" {
   url = "http://localhost:18080/test"
   bearer_token = exports.auth_token
   after = <<LUA
-    print('\n==='..rest.label..'===')
+    print('\n===' .. rest.label .. '===')
     local auth_header, other = tools.get_req_header('Authorization')
-    if  auth_header ~= "Bearer this_is_an_auth_token" then
-      print(auth_header, other)
-      fail('missing or incorrect auth_token')
-      return
+    if auth_header ~= 'Bearer this_is_an_auth_token' then
+    	print(auth_header, other)
+    	fail('missing or incorrect auth_token')
+    	return
     end
     inspect.print(rest.exports.body)
     print(inspect(json.decode(rest.res.body)))
@@ -38,10 +38,8 @@ request "unknown route" {
   bearer_token = exports.auth_token
   expect = 404
   after = <<LUA
-    print('\n==='..rest.label..'===')
-    if not tools.is_expected_response() then
-      return
-    end
+    print('\n===' .. rest.label .. '===')
+    if not tools.expected() then return end
     inspect.print(rest.exports)
     print(rest.res.dump)
   LUA
@@ -59,14 +57,12 @@ server {
   }
   handler "GET" "/test" {
     fn = <<LUA
-      local me = tonumber(kv.get("me"))
-      print('auth header: '..tools.get_req_header('Authorization'))
-      if tools.get_req_header('Authorization') ~= "Bearer this_is_an_auth_token" then
-        return 401, ""
-      end
+      local me = tonumber(kv.get('me'))
+      print('auth header: ' .. tools.get_req_header('Authorization'))
+      if tools.get_req_header('Authorization') ~= 'Bearer this_is_an_auth_token' then return 401, '' end
       me += 1
-      kv.set("me", me)
-      return 200, json.encode({ hello =  me })
+      kv.set('me', me)
+      return 200, json.encode({ hello = me })
     LUA
   }
   response {
