@@ -188,8 +188,11 @@ func (rest *Rest) Export(export, label string, block int) error {
 		return fmt.Errorf(" exporting language (%s) not supported", export)
 	}
 	treqs := map[string]templates.Request{}
-	for label := range rest.Requests {
-		req, err := rest.Request(label)
+	for lab := range rest.Requests {
+		if label != "" && label != lab {
+			continue
+		}
+		req, err := rest.Request(lab)
 		if err != nil {
 			return err
 		}
