@@ -4,6 +4,7 @@ Rest uses HCL to define requests and run them.
 It also has a lua interpreter to post-process responses.
 
 1. [Cli](#client-cli)
+1. [CLI Block](#cli-block)
 1. [Config/Locals](#configlocals)
 1. [Request Blocks](#request-blocks)
 1. [Functions](#functions)
@@ -21,6 +22,118 @@ rest -f FILE_NAME -b BLOCK_NUMBER
 # run by label (request "LABEL_NAME" {)
 rest -f FILE_NAME -l LABLE_NAME
 
+```
+
+## CLI Block
+
+The `cli` block turns a rest file into an interactive command-line tool. When a file contains a `cli` block and is run without `-b`, `-l`, `-e`, `-S`, or `--list`, rest will start a Lua REPL instead of executing requests directly.
+
+```hcl
+cli {
+  # optional: lua code to run once before the loop starts
+  loop_setup = "local state = {}"
+
+  # required: lua code to run in a loop until it breaks or errors
+  loop = <<LUA
+    print("Hello from the CLI!")
+    break
+  LUA
+
+  # optional: define custom flags that can be passed on the command line
+  flags = {
+    name = {
+      desc = "A name to greet"
+      bool = false
+    }
+    loud = {
+      desc = "Enable loud mode"
+      bool = true
+    }
+  }
+}
+```
+
+### CLI Flags
+
+Flags defined in the `cli` block can be passed on the command line just like built-in flags. They are exposed to the Lua loop as fields on the global `cli` table.
+
+```sh
+# pass a string flag
+rest -f mycli.rest --name Alice
+
+# pass a bool flag
+rest -f mycli.rest --loud
+
+# explicitly set a bool flag to false
+rest -f mycli.rest --loud=false
+```
+
+Inside the Lua loop:
+
+```lua
+print("Hello, " .. (cli.name or "world") .. "!")
+if cli.loud == "true" then
+  print("LOUD MODE")
+end
+```
+
+**Important:** Flag names must not conflict with any built-in rest flags (e.g., `file`, `block`, `label`, `verbose`, `serve`, etc.). If a conflict is detected, rest will exit with an error.
+
+### CLI Loop
+
+The `loop` field contains Lua code that runs in a `while true do ... end` loop. The code can read from `io.read()`, write to `io.write()`, and use any of the standard Lua libraries or rest-provided globals.
+
+The `loop_setup` field is optional and runs once before the loop begins. It's useful for initializing state.
+
+```hcl
+cli {
+  loop_setup = "local history = {}"
+  loop = <<LUA
+    io.write("> ")
+    local input = io.read()
+    if input == "quit" then
+      break
+    end
+    table.insert(history, input)
+    print("You said: " .. input)
+  LUA
+}
+```
+
+### Full Example
+
+```hcl
+cli {
+  flags = {
+    id = {
+      desc = "User ID"
+      bool = false
+    }
+  }
+  loop_setup = "local conversation = {}"
+  loop = <<LUA
+    if input == 'echo' then
+      inspect.print(conversation)
+      goto continue
+    end
+    table.insert(conversation, { role = 'user', content = input })
+    rest.exports.conversation = json.encode(conversation)
+    rest.label('completions')
+    table.insert(conversation, { role = 'assistant', content = rest.exports.response })
+    print(rest.exports.response)
+    ::continue::
+  LUA
+}
+
+request "completions" {
+  url = "https://api.example.com/v1/chat/completions"
+  method = "POST"
+  headers = { "Content-Type" = "application/json" }
+  body = {
+    model = "gpt-4"
+    messages: json_dec(try_exports("conversation", env("conversation")))
+  }
+}
 ```
 
 ## Config/Locals

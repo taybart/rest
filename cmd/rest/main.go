@@ -10,6 +10,7 @@ import (
 	"github.com/taybart/args"
 	"github.com/taybart/log"
 	"github.com/taybart/rest"
+	"github.com/taybart/rest/file"
 	"github.com/taybart/rest/server"
 )
 
@@ -251,11 +252,82 @@ func run() error {
 		return f.RunLabel(c.Label)
 	} else {
 		if f.Parser.Root.CLI != nil {
-			return runCLITool(f)
+			cliBlock, err := f.Parser.CLI()
+			if err != nil {
+				return err
+			}
+			reserved := getReservedFlags(a)
+			for name := range cliBlock.Flags {
+				if reserved[name] {
+					return fmt.Errorf("cli flag %q conflicts with a built-in flag", name)
+				}
+			}
+			cliFlagValues := parseCLIFlagsFromArgs(cliBlock.Flags, reserved)
+			return runCLITool(f, cliBlock, cliFlagValues)
 		}
 		log.Debug("running file", c.File)
 		return f.RunFile(c.IgnoreFail)
 	}
+}
+
+func getReservedFlags(a args.App) map[string]bool {
+	reserved := map[string]bool{
+		"help": true,
+		"h":    true,
+	}
+	for name, arg := range a.Args {
+		reserved[name] = true
+		if arg.Short != "" {
+			reserved[arg.Short] = true
+		}
+	}
+	return reserved
+}
+
+func parseCLIFlagsFromArgs(flags map[string]file.CLIFlag, reserved map[string]bool) map[string]string {
+	parsed := make(map[string]string)
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if !strings.HasPrefix(arg, "-") {
+			continue
+		}
+		name := strings.TrimPrefix(arg, "--")
+		name = strings.TrimPrefix(name, "-")
+
+		var value string
+		hasEquals := false
+		if idx := strings.Index(name, "="); idx != -1 {
+			value = name[idx+1:]
+			name = name[:idx]
+			hasEquals = true
+		}
+
+		if reserved[name] {
+			continue
+		}
+
+		flagDef, ok := flags[name]
+		if !ok {
+			continue
+		}
+
+		if flagDef.Bool {
+			if hasEquals {
+				parsed[name] = value
+			} else {
+				parsed[name] = "true"
+			}
+		} else {
+			if hasEquals {
+				parsed[name] = value
+			} else if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				i++
+				parsed[name] = args[i]
+			}
+		}
+	}
+	return parsed
 }
 
 func parseServerResponse(responseFlag string) (*server.Response, error) {

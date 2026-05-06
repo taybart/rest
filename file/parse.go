@@ -204,7 +204,7 @@ func (p *Parser) CLI() (CLI, error) {
 					flag.RequestID = flagVal.GetAttr("request_id").AsString()
 				}
 				if flagVal.Type().HasAttribute("bool") {
-					flag.Bool = true
+					flag.Bool = flagVal.GetAttr("bool").True()
 				}
 				cli.Flags[name] = flag
 			}

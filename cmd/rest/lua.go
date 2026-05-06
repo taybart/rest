@@ -1,14 +1,20 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"strings"
 
 	"github.com/taybart/rest"
 	"github.com/taybart/rest/client"
+	"github.com/taybart/rest/file"
 	restlua "github.com/taybart/rest/lua"
 	"github.com/taybart/rest/request"
 	lua "github.com/yuin/gopher-lua"
+	"golang.org/x/term"
 )
 
 var rclient *client.Client
@@ -42,11 +48,17 @@ func do(f *rest.Rest, req request.Request) (map[string]any, error) {
 	return exports, nil
 }
 
-func populateGlobalObject(l *lua.LState, f *rest.Rest) error {
+func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]string) error {
 
 	if exportsTable == nil {
 		exportsTable = l.NewTable()
 	}
+
+	cliTable := l.NewTable()
+	for k, v := range cliFlags {
+		l.SetField(cliTable, k, lua.LString(v))
+	}
+	l.SetGlobal("cli", cliTable)
 
 	lDoFile := func(l *lua.LState) int {
 		ignoreFail := l.ToBool(1) /* get argument */
@@ -113,18 +125,12 @@ func execute(l *lua.LState, code string) error {
 	return nil
 }
 
-func runCLITool(f *rest.Rest) error {
-	cli, err := f.Parser.CLI()
-	if err != nil {
-		return err
-	}
-
-	// TODO: do something with flags
-
-	if f.Parser.Root.CLI.Loop == nil {
+func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string) error {
+	if cliBlock.Loop == nil {
 		return errors.New("no loop defined")
 	}
 
+	var err error
 	rclient, err = client.New(f.Parser.Config)
 	if err != nil {
 		return err
@@ -135,17 +141,54 @@ func runCLITool(f *rest.Rest) error {
 	if err := restlua.RegisterModules(l); err != nil {
 		return err
 	}
-	if err := populateGlobalObject(l, f); err != nil {
+	if err := populateGlobalObject(l, f, cliFlags); err != nil {
 		return err
 	}
 
+	loopSetup := ""
+	if cliBlock.LoopSetup != nil {
+		loopSetup = *cliBlock.LoopSetup
+	}
+
+	repl := client.NewREPL(true)
+	readlineFn := func(l *lua.LState) int {
+		var input string
+		if term.IsTerminal(int(os.Stdin.Fd())) {
+			var err error
+			input, err = repl.ReadLine("> ")
+			if err != nil {
+				if err == io.EOF {
+					l.Push(lua.LNil)
+					return 1
+				}
+				panic(err)
+			}
+		} else {
+			fmt.Print("> ")
+			reader := bufio.NewReader(os.Stdin)
+			var err error
+			input, err = reader.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					l.Push(lua.LNil)
+					return 1
+				}
+				panic(err)
+			}
+			input = strings.TrimSuffix(input, "\n")
+		}
+		l.Push(lua.LString(input))
+		return 1
+	}
+	l.SetGlobal("__rest_readline", l.NewFunction(readlineFn))
+
 	if err := execute(l, fmt.Sprintf(`
 		%s
-    while true do
-    	io.write('> ')
-    	local input = io.read()
+		while true do
+			local input = __rest_readline()
+			if input == nil then break end
 			%s
-		end`, *cli.LoopSetup, *cli.Loop)); err != nil {
+		end`, loopSetup, *cliBlock.Loop)); err != nil {
 		return err
 	}
 
