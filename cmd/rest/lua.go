@@ -152,10 +152,16 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string) err
 
 	repl := client.NewREPL(true)
 	readlineFn := func(l *lua.LState) int {
+		prompt := "> "
+		if l.GetTop() >= 1 {
+			if p, ok := l.Get(1).(lua.LString); ok {
+				prompt = string(p)
+			}
+		}
 		var input string
 		if term.IsTerminal(int(os.Stdin.Fd())) {
 			var err error
-			input, err = repl.ReadLine("> ")
+			input, err = repl.ReadLine(prompt)
 			if err != nil {
 				if err == io.EOF {
 					l.Push(lua.LNil)
@@ -164,7 +170,7 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string) err
 				panic(err)
 			}
 		} else {
-			fmt.Print("> ")
+			fmt.Print(prompt)
 			reader := bufio.NewReader(os.Stdin)
 			var err error
 			input, err = reader.ReadString('\n')
@@ -185,7 +191,7 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string) err
 	if err := execute(l, fmt.Sprintf(`
 		%s
 		while true do
-			local input = __rest_readline()
+			local input = __rest_readline(PROMPT or "> ")
 			if input == nil then break end
 			%s
 		end`, loopSetup, *cliBlock.Loop)); err != nil {

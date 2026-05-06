@@ -100,6 +100,22 @@ cli {
 }
 ```
 
+#### Custom Prompt
+
+You can customize the REPL prompt by setting the global `PROMPT` variable in `loop_setup`. This is useful for showing state like the current mode or context.
+
+```hcl
+cli {
+  loop_setup = <<LUA
+    PROMPT = "myapp> "
+  LUA
+  loop = <<LUA
+    -- input is automatically read using the custom prompt
+    print("got: " .. input)
+  LUA
+}
+```
+
 ### Full Example
 
 ```hcl
