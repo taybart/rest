@@ -167,9 +167,47 @@ func main() {
 	}
 }
 
+func detectShebang() string {
+	// When invoked via shebang, the script path is os.Args[1]
+	// (os.Args[0] is the interpreter: "rest")
+	if len(os.Args) < 2 {
+		return ""
+	}
+	script := os.Args[1]
+	f, err := os.Open(script)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	buf := make([]byte, 2)
+	if _, err := f.Read(buf); err != nil {
+		return ""
+	}
+	if buf[0] == '#' && buf[1] == '!' {
+		return script
+	}
+	return ""
+}
+
 func run() error {
 
 	log.SetNoTime()
+
+	// If invoked via shebang, inject -f with the script path
+	// unless the user already provided -f
+	if script := detectShebang(); script != "" {
+		hasFileFlag := false
+		for _, arg := range os.Args[1:] {
+			if arg == "-f" || arg == "--file" || strings.HasPrefix(arg, "-f=") || strings.HasPrefix(arg, "--file=") {
+				hasFileFlag = true
+				break
+			}
+		}
+		if !hasFileFlag {
+			os.Args = append([]string{os.Args[0], "-f", script}, os.Args[2:]...)
+		}
+	}
 
 	if err := a.Parse(); err != nil {
 		if errors.Is(err, args.ErrUsageRequested) {

@@ -145,6 +145,16 @@ func NewParser(filename string) (*Parser, error) {
 	return p, nil
 }
 
+func stripShebang(src []byte) []byte {
+	if len(src) >= 2 && src[0] == '#' && src[1] == '!' {
+		if idx := bytes.IndexByte(src, '\n'); idx != -1 {
+			return src[idx+1:]
+		}
+		return []byte{}
+	}
+	return src
+}
+
 func (p *Parser) read(filename string, root *Root) error {
 	src, err := os.ReadFile(filename)
 	if err != nil {
@@ -153,6 +163,7 @@ func (p *Parser) read(filename string, root *Root) error {
 		}
 		return fmt.Errorf("failed to read %s: %w", filename, err)
 	}
+	src = stripShebang(src)
 	var diags hcl.Diagnostics
 	p.Files[filename], diags = hclsyntax.ParseConfig(
 		src, filename,

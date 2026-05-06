@@ -24,6 +24,25 @@ rest -f FILE_NAME -l LABLE_NAME
 
 ```
 
+You can also turn a rest file into an executable script by adding a shebang at the top:
+
+```hcl
+#!/usr/bin/env rest
+
+cli {
+  ...
+}
+```
+
+Then make it executable and run it directly:
+
+```sh
+chmod +x mytool.rest
+./mytool.rest --name Alice
+```
+
+When invoked via shebang, rest will automatically use the script file as `-f`, so you don't need to pass it explicitly.
+
 ## CLI Block
 
 The `cli` block turns a rest file into an interactive command-line tool. When a file contains a `cli` block and is run without `-b`, `-l`, `-e`, `-S`, or `--list`, rest will start a Lua REPL instead of executing requests directly.

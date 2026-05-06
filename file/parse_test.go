@@ -1,6 +1,8 @@
 package file_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/taybart/rest"
@@ -104,5 +106,35 @@ func TestServerParse(t *testing.T) {
 	}
 	if string(config.Response.Body) != `` {
 		t.Fatal("expected body to be empty got:", string(config.Response.Body))
+	}
+}
+
+func TestShebangParse(t *testing.T) {
+	tmpDir := t.TempDir()
+	filename := filepath.Join(tmpDir, "shebang.rest")
+	content := `#!/usr/bin/env rest
+
+request "shebang" {
+  url = "http://localhost:18080/"
+  method = "GET"
+}
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := rest.NewFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Requests) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(r.Requests))
+	}
+	req, err := r.Request("shebang")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.URL != "http://localhost:18080/" {
+		t.Fatalf("unexpected url: %s", req.URL)
 	}
 }
