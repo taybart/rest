@@ -1,3 +1,4 @@
+// Package request is for rest requests
 package request
 
 import (

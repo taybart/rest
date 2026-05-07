@@ -30,11 +30,27 @@ type HCLRequest struct {
 	BlockIndex int
 }
 
+type CLIFlag struct {
+	Desc string `hcl:"desc"`
+	Bool bool   `hcl:"bool"`
+}
+
+type CLI struct {
+	Fn        *string `hcl:"fn,optional"`
+	Loop      *string `hcl:"loop,optional"`
+	LoopSetup *string `hcl:"loop_setup,optional"`
+	Flags     map[string]CLIFlag
+	FlagsBody hcl.Body `hcl:",remain"`
+}
+
 type Root struct {
 	filename string
 
 	Imports *[]string `hcl:"imports"`
 	Exports *[]string `hcl:"exports"`
+
+	// TODO: allow for read() in this context
+	CLI *CLI `hcl:"cli,block"`
 
 	Locals []*struct {
 		Body hcl.Body `hcl:",remain"`
@@ -128,6 +144,16 @@ func NewParser(filename string) (*Parser, error) {
 	return p, nil
 }
 
+func stripShebang(src []byte) []byte {
+	if len(src) >= 2 && src[0] == '#' && src[1] == '!' {
+		if idx := bytes.IndexByte(src, '\n'); idx != -1 {
+			return src[idx+1:]
+		}
+		return []byte{}
+	}
+	return src
+}
+
 func (p *Parser) read(filename string, root *Root) error {
 	src, err := os.ReadFile(filename)
 	if err != nil {
@@ -136,6 +162,7 @@ func (p *Parser) read(filename string, root *Root) error {
 		}
 		return fmt.Errorf("failed to read %s: %w", filename, err)
 	}
+	src = stripShebang(src)
 	var diags hcl.Diagnostics
 	p.Files[filename], diags = hclsyntax.ParseConfig(
 		src, filename,
@@ -151,6 +178,46 @@ func (p *Parser) read(filename string, root *Root) error {
 		return errors.New("failed to decode rest file")
 	}
 	return nil
+}
+
+func (p *Parser) CLI() (CLI, error) {
+	if p.Root.CLI == nil {
+		return CLI{}, errors.New("cli block not found")
+	}
+
+	cli := p.Root.CLI
+	if cli.FlagsBody != nil {
+		cli.Flags = make(map[string]CLIFlag)
+		attrs, diags := cli.FlagsBody.JustAttributes()
+		if diags.HasErrors() {
+			p.writeDiags(diags)
+			return *cli, errors.New("error parsing cli flags")
+		}
+		flagsAttr, ok := attrs["flags"]
+		if !ok {
+			return *cli, nil // no flags defined
+		}
+
+		val, diags := flagsAttr.Expr.Value(p.Ctx)
+		if diags.HasErrors() {
+			p.writeDiags(diags)
+			return *cli, errors.New("error evaluating flags")
+		}
+
+		if val.Type().IsObjectType() || val.Type().IsMapType() {
+			for name, flagVal := range val.AsValueMap() {
+				var flag CLIFlag
+				if flagVal.Type().HasAttribute("desc") {
+					flag.Desc = flagVal.GetAttr("desc").AsString()
+				}
+				if flagVal.Type().HasAttribute("bool") {
+					flag.Bool = flagVal.GetAttr("bool").True()
+				}
+				cli.Flags[name] = flag
+			}
+		}
+	}
+	return *cli, nil
 }
 
 func (p *Parser) Socket() (request.Socket, error) {
@@ -327,6 +394,7 @@ func exportsToCty(exports map[string]any) map[string]cty.Value {
 func (p *Parser) AddExportsCtx(exports map[string]any) {
 	p.Exports = exportsToCty(exports)
 	p.Ctx.Variables["exports"] = cty.ObjectVal(p.Exports)
+	p.Ctx.Functions["try_exports"] = makeTryExportsFunc(p.Exports)
 }
 
 func (p *Parser) makeContext() {
@@ -336,18 +404,19 @@ func (p *Parser) makeContext() {
 			"exports": cty.ObjectVal(p.Exports),
 		},
 		Functions: map[string]function.Function{
-			"b64_dec":  makeBase64DecodeFunc(),
-			"b64_enc":  makeBase64EncodeFunc(),
-			"btmpl":    makeTemplateFunc(),
-			"env":      makeEnvFunc(),
-			"form":     makeFormFunc(),
-			"json_dec": makeJSONDecodeFunc(),
-			"json_enc": makeJSONEncodeFunc(),
-			"nanoid":   makeNanoIDFunc(),
-			"read":     makeFileReadFunc(),
-			"tmpl":     makeGoTemplateFunc(),
-			"trim":     makeTrimFunc(),
-			"uuid":     makeUUIDFunc(),
+			"b64_dec":     makeBase64DecodeFunc(),
+			"b64_enc":     makeBase64EncodeFunc(),
+			"btmpl":       makeTemplateFunc(),
+			"env":         makeEnvFunc(),
+			"form":        makeFormFunc(),
+			"json_dec":    makeJSONDecodeFunc(),
+			"json_enc":    makeJSONEncodeFunc(),
+			"nanoid":      makeNanoIDFunc(),
+			"read":        makeFileReadFunc(),
+			"tmpl":        makeGoTemplateFunc(),
+			"try_exports": makeTryExportsFunc(p.Exports),
+			"trim":        makeTrimFunc(),
+			"uuid":        makeUUIDFunc(),
 		},
 	}
 }

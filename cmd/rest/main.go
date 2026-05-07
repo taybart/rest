@@ -10,6 +10,7 @@ import (
 	"github.com/taybart/args"
 	"github.com/taybart/log"
 	"github.com/taybart/rest"
+	"github.com/taybart/rest/file"
 	"github.com/taybart/rest/server"
 )
 
@@ -27,17 +28,12 @@ func usage(u args.Usage) {
 	}
 
 	var usage strings.Builder
-	usage.WriteString(
-		fmt.Sprintf("%s\t\t=== Rest Easy ===\n%s",
-			log.BoldBlue, log.Reset))
-	usage.WriteString(
-		fmt.Sprintf("%sCLI:\n%s", log.BoldGreen, log.Reset))
+	fmt.Fprintf(&usage, "%s\t\t=== Rest Easy ===\n%s", log.BoldBlue, log.Reset)
+	fmt.Fprintf(&usage, "%sCLI:\n%s", log.BoldGreen, log.Reset)
 	u.BuildFlagString(&usage, cli)
-	usage.WriteString(
-		fmt.Sprintf("%sServer:\n%s", log.BoldGreen, log.Reset))
+	fmt.Fprintf(&usage, "%sServer:\n%s", log.BoldGreen, log.Reset)
 	u.BuildFlagString(&usage, server)
-	usage.WriteString(
-		fmt.Sprintf("%sClient:\n%s", log.BoldGreen, log.Reset))
+	fmt.Fprintf(&usage, "%sClient:\n%s", log.BoldGreen, log.Reset)
 	u.BuildFlagString(&usage, client)
 	fmt.Println(usage.String())
 }
@@ -171,9 +167,47 @@ func main() {
 	}
 }
 
+func detectShebang() string {
+	// When invoked via shebang, the script path is os.Args[1]
+	// (os.Args[0] is the interpreter: "rest")
+	if len(os.Args) < 2 {
+		return ""
+	}
+	script := os.Args[1]
+	f, err := os.Open(script)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	buf := make([]byte, 2)
+	if _, err := f.Read(buf); err != nil {
+		return ""
+	}
+	if buf[0] == '#' && buf[1] == '!' {
+		return script
+	}
+	return ""
+}
+
 func run() error {
 
 	log.SetNoTime()
+
+	// If invoked via shebang, inject -f with the script path
+	// unless the user already provided -f
+	if script := detectShebang(); script != "" {
+		hasFileFlag := false
+		for _, arg := range os.Args[1:] {
+			if arg == "-f" || arg == "--file" || strings.HasPrefix(arg, "-f=") || strings.HasPrefix(arg, "--file=") {
+				hasFileFlag = true
+				break
+			}
+		}
+		if !hasFileFlag {
+			os.Args = append([]string{os.Args[0], "-f", script}, os.Args[2:]...)
+		}
+	}
 
 	if err := a.Parse(); err != nil {
 		if errors.Is(err, args.ErrUsageRequested) {
@@ -255,9 +289,83 @@ func run() error {
 		log.Debug("running request", c.Label, "on file", c.File)
 		return f.RunLabel(c.Label)
 	} else {
+		if f.Parser.Root.CLI != nil {
+			cliBlock, err := f.Parser.CLI()
+			if err != nil {
+				return err
+			}
+			reserved := getReservedFlags(a)
+			for name := range cliBlock.Flags {
+				if reserved[name] {
+					return fmt.Errorf("cli flag %q conflicts with a built-in flag", name)
+				}
+			}
+			cliFlagValues := parseCLIFlagsFromArgs(cliBlock.Flags, reserved)
+			return runCLITool(f, cliBlock, cliFlagValues)
+		}
 		log.Debug("running file", c.File)
 		return f.RunFile(c.IgnoreFail)
 	}
+}
+
+func getReservedFlags(a args.App) map[string]bool {
+	reserved := map[string]bool{
+		"help": true,
+		"h":    true,
+	}
+	for name, arg := range a.Args {
+		reserved[name] = true
+		if arg.Short != "" {
+			reserved[arg.Short] = true
+		}
+	}
+	return reserved
+}
+
+func parseCLIFlagsFromArgs(flags map[string]file.CLIFlag, reserved map[string]bool) map[string]string {
+	parsed := make(map[string]string)
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if !strings.HasPrefix(arg, "-") {
+			continue
+		}
+		name := strings.TrimPrefix(arg, "--")
+		name = strings.TrimPrefix(name, "-")
+
+		var value string
+		hasEquals := false
+		if idx := strings.Index(name, "="); idx != -1 {
+			value = name[idx+1:]
+			name = name[:idx]
+			hasEquals = true
+		}
+
+		if reserved[name] {
+			continue
+		}
+
+		flagDef, ok := flags[name]
+		if !ok {
+			continue
+		}
+
+		if flagDef.Bool {
+			if hasEquals {
+				parsed[name] = value
+			} else {
+				parsed[name] = "true"
+			}
+		} else {
+			if hasEquals {
+				parsed[name] = value
+			} else if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				i++
+				parsed[name] = args[i]
+			}
+		}
+	}
+	return parsed
 }
 
 func parseServerResponse(responseFlag string) (*server.Response, error) {

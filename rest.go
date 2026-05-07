@@ -80,7 +80,6 @@ func (rest *Rest) RunFile(ignoreFail bool) error {
 		return err
 	}
 	for _, label := range order {
-		// TODO: make sure ctx works the right way here
 		req, err := rest.Request(label)
 		if err != nil {
 			return err
@@ -135,13 +134,10 @@ func (rest *Rest) run(req request.Request) error {
 	}
 
 	res, _, err := client.Do(req)
-	if err != nil {
-		return err
-	}
 	if res != "" {
 		fmt.Println(res)
 	}
-	return nil
+	return err
 }
 
 func (rest *Rest) RunSocket(socketArg string) error {
@@ -192,8 +188,11 @@ func (rest *Rest) Export(export, label string, block int) error {
 		return fmt.Errorf(" exporting language (%s) not supported", export)
 	}
 	treqs := map[string]templates.Request{}
-	for label := range rest.Requests {
-		req, err := rest.Request(label)
+	for lab := range rest.Requests {
+		if label != "" && label != lab {
+			continue
+		}
+		req, err := rest.Request(lab)
 		if err != nil {
 			return err
 		}

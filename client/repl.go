@@ -2,7 +2,7 @@ package client
 
 import (
 	"fmt"
-	"strings"
+	"io"
 	"syscall"
 
 	"github.com/taybart/log"
@@ -25,6 +25,7 @@ type REPL struct {
 	historyIdx    int      // Current history index
 	buf           [1]byte  // Single-byte buffer
 	fd            int      // File descriptor
+	prompt        string
 }
 
 func NewREPL(noSpecialCmds bool) *REPL {
@@ -51,7 +52,8 @@ func (r *REPL) Loop(do func(string) error, done chan struct{}) error {
 		return err
 	}
 
-	fmt.Printf("%s> %s", log.Green, log.Reset)
+	r.prompt = fmt.Sprintf("%s> %s", log.Green, log.Reset)
+	fmt.Print(r.prompt)
 	for {
 		n, err := syscall.Read(r.fd, r.buf[:])
 		if err != nil || n == 0 {
@@ -78,12 +80,12 @@ func (r *REPL) Loop(do func(string) error, done chan struct{}) error {
 
 					r.input = r.input[:0]
 					if err := do(cmd); err != nil {
-						fmt.Printf("\r\n%s\n\r%s>%s ",
-							err, log.Green, log.Reset)
+						fmt.Printf("\r\n%s\n\r%s",
+							err, r.prompt)
 						continue
 					}
 				}
-				fmt.Printf("\n\r%s> %s", log.Green, log.Reset)
+				fmt.Printf("\n\r%s", r.prompt)
 			}
 
 		case BACKSPACE:
@@ -114,19 +116,77 @@ func (r *REPL) Loop(do func(string) error, done chan struct{}) error {
 
 	return nil
 }
+
+func (r *REPL) ReadLine(prompt string) (string, error) {
+	oldState, err := term.GetState(r.fd)
+	if err != nil {
+		return "", err
+	}
+	defer term.Restore(r.fd, oldState)
+
+	_, err = term.MakeRaw(r.fd)
+	if err != nil {
+		return "", err
+	}
+
+	r.prompt = prompt
+	r.input = r.input[:0]
+	r.historyIdx = len(r.history)
+	fmt.Print(r.prompt)
+
+	for {
+		n, err := syscall.Read(r.fd, r.buf[:])
+		if err != nil || n == 0 {
+			return "", io.EOF
+		}
+
+		b := r.buf[0]
+
+		switch b {
+		case '\r', '\n': // Enter key
+			cmd := string(r.input)
+			if len(cmd) != 0 {
+				r.history = append(r.history, cmd)
+				r.historyIdx = len(r.history)
+			}
+			fmt.Print("\r\n")
+			return cmd, nil
+
+		case BACKSPACE:
+			if len(r.input) > 0 {
+				r.input = r.input[:len(r.input)-1]
+				fmt.Print("\b \b")
+			}
+
+		case CtrlP:
+			r.PreviousCmd()
+		case CtrlN:
+			r.NextCmd()
+		case CtrlC, CtrlD:
+			fmt.Print("\r\n")
+			return "", io.EOF
+		case ESC:
+			if r.readArrow() {
+				continue
+			}
+
+		default:
+			r.input = append(r.input, rune(b))
+			fmt.Print(string(b))
+		}
+	}
+}
+
 func (r *REPL) PreviousCmd() {
 	if len(r.history) > 0 && r.historyIdx > 0 {
 		r.historyIdx--
 		r.input = []rune(r.history[r.historyIdx])
-		fmt.Printf("\033[2K\r%s\r%s>%s ",
-			strings.Repeat(" ", len(r.input)+1), log.Green, log.Reset) // Clear line
-		fmt.Print(string(r.input))
+		fmt.Printf("\033[2K\r%s%s", r.prompt, string(r.input))
 	}
 }
 func (r *REPL) NextCmd() {
 	if len(r.history) > 0 && r.historyIdx < len(r.history) {
-		fmt.Printf("\033[2K\r%s\r%s>%s ",
-			strings.Repeat(" ", len(r.input)+1), log.Green, log.Reset) // Clear line
+		fmt.Printf("\033[2K\r%s", r.prompt)
 		if r.historyIdx == len(r.history)-1 {
 			r.input = []rune{}
 			return

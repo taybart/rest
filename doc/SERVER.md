@@ -38,6 +38,18 @@
 }
 ```
 
+
+### Routes
+
+There are some build in routes to help with testing and development:
+
+- `/__echo__` - returns the request headers (only ones that begin with `x-`) and body
+- `/__ws__` - echo websocket messages back
+- `/__quit__` - exit the server process
+
+NOTE: these routes will be overridden if you provide a custom handler
+
+
 ### Examples
 
 ```sh
@@ -70,6 +82,8 @@ server {
     spa = true
     # if you need a more complicated test server you can add specific handlers
     handler "GET" "/path" {
+        # override responses and just serve a websocket echo path
+        ws = true
         # either use lua to create a more complex response
         fn = "similar concept to the after hook in the client files (see hander fns below)"
         # or use a response object to just have different responses per path

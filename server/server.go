@@ -31,6 +31,7 @@ type Handler struct {
 	Path     string    `json:"path" hcl:"path,label"`
 	Fn       string    `json:"fn" hcl:"fn,optional"`
 	Proxy    string    `json:"proxy" hcl:"proxy,optional"`
+	WS       bool      `json:"ws" hcl:"ws,optional"`
 	Response *Response `hcl:"response,block"`
 }
 
