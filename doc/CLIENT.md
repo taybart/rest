@@ -52,17 +52,23 @@ cli {
   # optional: lua code to run once before the loop starts
   loop_setup = "local state = {}"
 
-  # required: lua code to run in a loop until it breaks or errors
+  # required without fn: lua code to run in a loop until it breaks or errors (more below)
   loop = <<LUA
     print("Hello from the CLI!")
     break
+  LUA
+    
+  # required without loop: a "one off" handler to just run once, superceeds loop
+  fn = <<LUA
+    if cli.loud then -- loud is a boolean defined below
+        print(("Hello %s from the cli!"):format(cli.name or "world")) -- name is a flag defined below
+    end
   LUA
 
   # optional: define custom flags that can be passed on the command line
   flags = {
     name = {
       desc = "A name to greet"
-      bool = false
     }
     loud = {
       desc = "Enable loud mode"
@@ -111,7 +117,10 @@ cli {
     io.write("> ")
     local input = io.read()
     if input == "quit" then
-      break
+      break -- quit the loop
+    end
+    if input == "skip" then
+      goto continue -- jump past the rest of the loop and restart
     end
     table.insert(history, input)
     print("You said: " .. input)
@@ -156,7 +165,6 @@ cli {
     rest.label('completions')
     table.insert(conversation, { role = 'assistant', content = rest.exports.response })
     print(rest.exports.response)
-    ::continue::
   LUA
 }
 

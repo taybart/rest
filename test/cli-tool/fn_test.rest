@@ -1,0 +1,33 @@
+cli {
+  flags = {
+    name = {
+      desc = "A name to greet"
+    }
+    loud = {
+      desc = "Enable loud mode"
+      bool = true
+    }
+  }
+  loop = <<LUA
+    print('hi')
+  LUA
+  fn = <<LUA
+    if cli.loud then -- loud is a boolean defined below
+       print(("Hello %s from the cli!"):format(cli.name or "world")) -- name is a flag defined below
+       rest.exports.test = "hello"
+       rest.label('test')
+    end
+  LUA
+}
+
+request "test" {
+  url = "http://localhost:18080/${exports.test}"
+}
+
+server {
+  address = "0.0.0.0:18080"
+  response {
+    status = 200
+    body = "hello"
+  }
+}

@@ -126,8 +126,8 @@ func execute(l *lua.LState, code string) error {
 }
 
 func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string) error {
-	if cliBlock.Loop == nil {
-		return errors.New("no loop defined")
+	if cliBlock.Loop == nil && cliBlock.Fn == nil {
+		return errors.New("no handler fn or loop defined")
 	}
 
 	var err error
@@ -143,6 +143,10 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string) err
 	}
 	if err := populateGlobalObject(l, f, cliFlags); err != nil {
 		return err
+	}
+
+	if cliBlock.Fn != nil {
+		return execute(l, *cliBlock.Fn)
 	}
 
 	loopSetup := ""
@@ -194,6 +198,7 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string) err
 			local input = __rest_readline(PROMPT or "> ")
 			if input == nil then break end
 			%s
+    	::continue::
 		end`, loopSetup, *cliBlock.Loop)); err != nil {
 		return err
 	}

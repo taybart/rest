@@ -31,13 +31,12 @@ type HCLRequest struct {
 }
 
 type CLIFlag struct {
-	Desc      string `hcl:"desc"`
-	RequestID string `hcl:"request_id"`
-	Bool      bool   `hcl:"bool"`
-	// Key       string
+	Desc string `hcl:"desc"`
+	Bool bool   `hcl:"bool"`
 }
 
 type CLI struct {
+	Fn        *string `hcl:"fn,optional"`
 	Loop      *string `hcl:"loop,optional"`
 	LoopSetup *string `hcl:"loop_setup,optional"`
 	Flags     map[string]CLIFlag
@@ -210,9 +209,6 @@ func (p *Parser) CLI() (CLI, error) {
 				var flag CLIFlag
 				if flagVal.Type().HasAttribute("desc") {
 					flag.Desc = flagVal.GetAttr("desc").AsString()
-				}
-				if flagVal.Type().HasAttribute("request_id") {
-					flag.RequestID = flagVal.GetAttr("request_id").AsString()
 				}
 				if flagVal.Type().HasAttribute("bool") {
 					flag.Bool = flagVal.GetAttr("bool").True()
