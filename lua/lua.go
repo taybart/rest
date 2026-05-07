@@ -117,21 +117,28 @@ func MapToLTable(state *lua.LState, data map[string]any) *lua.LTable {
 	table := state.NewTable()
 
 	for key, value := range data {
+		var lval lua.LValue
 		switch v := value.(type) {
 		case string:
-			table.RawSetString(key, lua.LString(v))
+			lval = lua.LString(v)
 		case float64:
-			table.RawSetString(key, lua.LNumber(v))
+			lval = lua.LNumber(v)
 		case bool:
-			table.RawSetString(key, lua.LBool(v))
+			lval = lua.LBool(v)
 		case map[string]any:
 			// Recursively convert nested maps
-			table.RawSetString(key, MapToLTable(state, v))
+			lval = MapToLTable(state, v)
 		case nil:
-			table.RawSetString(key, lua.LNil)
+			lval = lua.LNil
 		default:
 			// Fallback for unknown types
-			table.RawSetString(key, lua.LString(fmt.Sprint(v)))
+			lval = lua.LString(fmt.Sprint(v))
+		}
+
+		if i, err := strconv.Atoi(key); err == nil {
+			table.RawSetInt(i, lval)
+		} else {
+			table.RawSetString(key, lval)
 		}
 	}
 

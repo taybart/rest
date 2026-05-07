@@ -48,6 +48,26 @@ func do(f *rest.Rest, req request.Request) (map[string]any, error) {
 	return exports, nil
 }
 
+func mergeIntoExports(l *lua.LState, exports map[string]any) {
+	restVal := l.GetGlobal("rest")
+	if restVal.Type() != lua.LTTable {
+		return
+	}
+	exportsVal := l.GetField(restVal, "exports")
+	var exportsTbl *lua.LTable
+	if exportsVal.Type() == lua.LTTable {
+		exportsTbl = exportsVal.(*lua.LTable)
+	} else {
+		exportsTbl = l.NewTable()
+		l.SetField(restVal, "exports", exportsTbl)
+	}
+
+	newTbl := restlua.MapToLTable(l, exports)
+	newTbl.ForEach(func(key, value lua.LValue) {
+		exportsTbl.RawSet(key, value)
+	})
+}
+
 func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]string) error {
 
 	if exportsTable == nil {
@@ -84,9 +104,7 @@ func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]strin
 		if err != nil {
 			panic(err)
 		}
-		// set all exports from running the request,
-		// this will reset on every run for the cli context not the client context
-		l.SetField(l.GetGlobal("rest"), "exports", restlua.MapToLTable(l, exports))
+		mergeIntoExports(l, exports)
 		return 0 /* number of results */
 	}
 	lDoIndex := func(l *lua.LState) int {
@@ -102,9 +120,7 @@ func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]strin
 		if err != nil {
 			panic(err)
 		}
-		// set all exports from running the request,
-		// this will reset on every run for the cli context not the client context
-		l.SetField(l.GetGlobal("rest"), "exports", restlua.MapToLTable(l, exports))
+		mergeIntoExports(l, exports)
 		return 0 /* number of results */
 	}
 

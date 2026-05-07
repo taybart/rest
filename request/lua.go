@@ -12,17 +12,17 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-var exportsTable *lua.LTable
+func getExportsTable(l *lua.LState) (*lua.LTable, error) {
+	exportsValue := l.GetField(l.GetGlobal("rest"), "exports")
+	if exportsValue.Type() != lua.LTTable {
+		return nil, fmt.Errorf("rest.exports is not a table")
+	}
+	return exportsValue.(*lua.LTable), nil
+}
 
 func syncExportsTable(l *lua.LState) error {
-	// Get the "exports" field from the rest table
-	exportsValue := l.GetField(l.GetGlobal("rest"), "exports")
-	var ok bool
-	exportsTable, ok = exportsValue.(*lua.LTable)
-	if !ok {
-		return fmt.Errorf("rest.exports is not a table")
-	}
-	return nil
+	_, err := getExportsTable(l)
+	return err
 }
 
 func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar http.CookieJar) error {
@@ -80,9 +80,7 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 		"dump":    lua.LString(string(resdump)),
 	})
 
-	if exportsTable == nil {
-		exportsTable = l.NewTable()
-	}
+	exportsTable := l.NewTable()
 
 	table := restlua.MakeLTable(l, map[string]lua.LValue{
 		"label":   lua.LString(req.Label),
@@ -128,6 +126,10 @@ func (r *Request) RunAfterHook(res *http.Response, jar http.CookieJar) (map[stri
 	}
 
 	if err := execute(l, r.After); err != nil {
+		return nil, err
+	}
+	exportsTable, err := getExportsTable(l)
+	if err != nil {
 		return nil, err
 	}
 	return restlua.LTableToMap(exportsTable), nil

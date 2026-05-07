@@ -392,7 +392,9 @@ func exportsToCty(exports map[string]any) map[string]cty.Value {
 	return ret
 }
 func (p *Parser) AddExportsCtx(exports map[string]any) {
-	p.Exports = exportsToCty(exports)
+	for k, v := range exports {
+		p.Exports[k] = valueToCty(v)
+	}
 	p.Ctx.Variables["exports"] = cty.ObjectVal(p.Exports)
 	p.Ctx.Functions["try_exports"] = makeTryExportsFunc(p.Exports)
 }
