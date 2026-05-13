@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/taybart/rest"
 	"github.com/taybart/rest/client"
@@ -129,6 +130,11 @@ func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]strin
 		"label":   l.NewFunction(lDoLabel),
 		"block":   l.NewFunction(lDoIndex),
 		"exports": exportsTable,
+	}))
+
+	l.SetGlobal("sleep", l.NewFunction(func(l *lua.LState) int {
+		time.Sleep(time.Duration(l.ToInt(1)) * time.Second)
+		return 0
 	}))
 
 	return nil
