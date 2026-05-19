@@ -6,6 +6,11 @@ local ceUnderlined = '\27[4;'
 local ceBlinking = '\27[5;'
 
 local colors = {
+  -- Clear escapes
+  clear_screen = '\27[2J\27[H',
+  clear_line = '\r\27[K',
+  cursor_up = '\27[A',
+
   -- Normal Colors
   gray = ce .. '37m',
   purple = ce .. '35m',
@@ -90,6 +95,14 @@ function colors.hyperlink(url, text, color)
     return color .. ret .. colors.reset
   end
   return ret
+end
+
+function colors.clear_prev(lines)
+  local out = ''
+  for i = 1, (lines or 1) do
+    out = out .. '\27[A\r\27[K'
+  end
+  return out
 end
 
 return colors
