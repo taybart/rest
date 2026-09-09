@@ -91,6 +91,32 @@ func TestSocketParse(t *testing.T) {
 	}
 }
 
+func TestSocketRawParse(t *testing.T) {
+	rest := parse(t, "../doc/examples/client/socket_raw.rest", 0)
+	socket, err := rest.Parser.Socket()
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := map[string]string{
+		// raw() sends the string verbatim, interpolation still resolves
+		"connect": "CONNECT abc123",
+		// objects are still json encoded
+		"sub": `{"channel":"#general","msg":"sub"}`,
+		// strings that are already json are still used as-is
+		"ping": `{"msg":"ping"}`,
+		// plain strings are still json encoded
+		"hi": `"hello"`,
+	}
+	if len(socket.Playbook) != len(expected) {
+		t.Fatalf("expected %d socket plays, got %d", len(expected), len(socket.Playbook))
+	}
+	for k, want := range expected {
+		if socket.Playbook[k] != want {
+			t.Fatalf("playbook %q: expected %s got %s", k, want, socket.Playbook[k])
+		}
+	}
+}
+
 func TestServerParse(t *testing.T) {
 	// TODO: test all fields
 	rest := parse(t, "../doc/examples/server/basic.rest", 0)

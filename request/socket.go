@@ -25,6 +25,14 @@ var (
 	SocketREPL        SocketAction = "repl"
 )
 
+// rawFrame is the type of RawFrameMark, it exists so the mark can't collide
+// with marks set by anything else
+type rawFrame struct{}
+
+// RawFrameMark is attached by the raw() playbook helper to say "send these
+// bytes as-is", instead of JSON encoding the value
+var RawFrameMark = rawFrame{}
+
 type SocketOrder struct {
 	Delay string   `hcl:"delay,optional"`
 	Order []string `hcl:"order,optional"`
@@ -88,11 +96,21 @@ func (s *Socket) ParseExtras(ctx *hcl.EvalContext) error {
 				key, value := it.Element()
 				keyStr := key.AsString()
 
+				// raw() marks the value, send those bytes verbatim
+				if value.HasMark(RawFrameMark) {
+					unmarked, _ := value.Unmark()
+					s.Playbook[keyStr] = unmarked.AsString()
+					continue
+				}
+				// a nested raw() has no meaning, drop the mark so the value
+				// can still be inspected and encoded below
+				value, _ = value.UnmarkDeep()
+
 				// If it's already a string that looks like JSON, use it directly
 				if value.Type() == cty.String {
 					strVal := value.AsString()
 					if json.Valid([]byte(strVal)) {
-						s.Playbook[keyStr] = string(strVal)
+						s.Playbook[keyStr] = strVal
 						continue
 					}
 				}
