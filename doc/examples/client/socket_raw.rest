@@ -1,0 +1,21 @@
+# start server with rest -s -a :18080
+locals {
+  token = "abc123"
+}
+socket {
+  url = "ws://localhost:18080/__ws__"
+  run = {
+    delay = "100ms"
+    order = ["connect", "sub", "noop"]
+  }
+  playbook = {
+    # raw text frame, sent byte for byte
+    connect = raw("CONNECT ${locals.token}")
+    # object, sent as json
+    sub = { msg = "sub", channel = "#general" }
+    # string that is already json, sent as is
+    ping = btmpl("{\"msg\":\"{{$0}}\"}", ["ping"])
+    # plain string, json encoded
+    hi = "hello"
+  }
+}

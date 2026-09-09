@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	gonanoid "github.com/matoous/go-nanoid/v2"
+	"github.com/taybart/rest/request"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -81,6 +82,25 @@ func makeBase64DecodeFunc() function.Function {
 				return cty.StringVal(""), err
 			}
 			return cty.StringVal(string(decoded)), nil
+		},
+	})
+}
+
+// makeRawFunc marks a string so socket playbooks send it as a raw text frame
+// instead of JSON encoding it
+func makeRawFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name:        "body",
+				Type:        cty.String,
+				AllowMarked: true,
+			},
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			body, _ := args[0].Unmark()
+			return body.Mark(request.RawFrameMark), nil
 		},
 	})
 }

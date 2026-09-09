@@ -414,6 +414,7 @@ func (p *Parser) makeContext() {
 			"json_dec":    makeJSONDecodeFunc(),
 			"json_enc":    makeJSONEncodeFunc(),
 			"nanoid":      makeNanoIDFunc(),
+			"raw":         makeRawFunc(),
 			"read":        makeFileReadFunc(),
 			"tmpl":        makeGoTemplateFunc(),
 			"try_exports": makeTryExportsFunc(p.Exports),

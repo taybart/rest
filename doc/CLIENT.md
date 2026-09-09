@@ -294,6 +294,7 @@ There are a few functions that can be used in a rest file:
 - `form({key = "value"}")` - turn map value into a url-encoded form string
 - `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
 - `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map (currently only map[string]strings are supported)
+- `raw("CONNECT token")` - mark a [socket](#sockets) playbook entry to be sent as a raw text frame instead of being JSON encoded
 
 For example (more examples in [examples/client](examples/client)):
 
@@ -438,6 +439,32 @@ socket {
   }
 }
 ```
+
+### Raw text frames
+
+Playbook entries are JSON encoded by default, so a plain string arrives on the wire
+with its quotes (`hi = "hello"` sends `"hello"`). Protocols with a plaintext
+handshake or line protocol need the bytes as written, wrap those in `raw()`:
+
+```hcl
+locals {
+  token = env("TOKEN")
+}
+socket {
+  url = "wss://host/ws"
+  run = {
+    delay = "2s"
+    order = ["connect", "noop"]
+  }
+  playbook = {
+    connect = raw("CONNECT ${locals.token}")        # sends: CONNECT eyJhbGciOi...
+    sub     = { msg = "sub", channel = "#general" } # sends: {"channel":"#general","msg":"sub"}
+  }
+}
+```
+
+Interpolation and the template helpers still resolve first, `raw()` only changes how
+the result is encoded. This works the same for `-S run`, `-S <entry>` and the REPL.
 
 ## Export to a different language
 
