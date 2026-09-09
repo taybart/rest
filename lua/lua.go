@@ -2,6 +2,7 @@
 package restlua
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -79,7 +80,7 @@ func RegisterModules(l *lua.LState) error {
 			result = toCopy.String()
 		}
 
-		clipboard.Write(clipboard.FmtText, []byte(result))
+		clipboard.Write(context.TODO(), clipboard.FmtText, []byte(result))
 		l.Push(lua.LBool(true))
 		return 1
 	}))
