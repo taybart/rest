@@ -15,6 +15,11 @@ type gzipResponseWriter struct {
 func (w gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
+
+// Unwrap lets http.ResponseController reach the underlying writer (e.g. to clear deadlines)
+func (w gzipResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
 func gzipHandler(fn http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
