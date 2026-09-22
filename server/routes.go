@@ -115,6 +115,8 @@ func (s *Server) HandleDir() http.HandlerFunc {
 	}
 	fs := http.FileServer(http.Dir(d))
 	return func(w http.ResponseWriter, r *http.Request) {
+		// file downloads can take arbitrarily long, drop the server-wide write deadline
+		_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
 		if s.Config.Response != nil {
 			for k, v := range s.Config.Response.Headers {
 				w.Header().Add(k, v)
