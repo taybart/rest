@@ -88,53 +88,89 @@ func RegisterModules(l *lua.LState) error {
 	return nil
 }
 
+func lValueToAny(value lua.LValue) any {
+	switch v := value.(type) {
+	case lua.LString:
+		return string(v)
+	case lua.LNumber:
+		return float64(v)
+	case lua.LBool:
+		return bool(v)
+	case *lua.LTable:
+		return lTableToValue(v)
+	case *lua.LNilType:
+		return nil
+	default:
+		return lua.LVAsString(v)
+	}
+}
+
+func lTableToValue(table *lua.LTable) any {
+	maxn := table.MaxN()
+	count := 0
+	isSeq := true
+	table.ForEach(func(key, _ lua.LValue) {
+		count++
+		if num, ok := key.(lua.LNumber); ok {
+			idx := int(num)
+			if float64(idx) != float64(num) || idx < 1 || idx > maxn {
+				isSeq = false
+			}
+		} else {
+			isSeq = false
+		}
+	})
+	if isSeq && count == maxn {
+		arr := make([]any, maxn)
+		for i := 1; i <= maxn; i++ {
+			arr[i-1] = lValueToAny(table.RawGetInt(i))
+		}
+		return arr
+	}
+	return LTableToMap(table)
+}
+
 func LTableToMap(table *lua.LTable) map[string]any {
 	result := make(map[string]any)
 
 	table.ForEach(func(key, value lua.LValue) {
 		keyStr := lua.LVAsString(key)
-		switch v := value.(type) {
-		case lua.LString:
-			result[keyStr] = string(v)
-		case lua.LNumber:
-			result[keyStr] = float64(v)
-		case lua.LBool:
-			result[keyStr] = bool(v)
-		case *lua.LTable:
-			// Recursively convert nested tables
-			result[keyStr] = LTableToMap(v)
-		case *lua.LNilType:
-			result[keyStr] = nil
-		default:
-			result[keyStr] = lua.LVAsString(v)
-		}
-
+		result[keyStr] = lValueToAny(value)
 	})
 
 	return result
+}
+
+func anyToLValue(state *lua.LState, value any) lua.LValue {
+	switch v := value.(type) {
+	case string:
+		return lua.LString(v)
+	case float64:
+		return lua.LNumber(v)
+	case int:
+		return lua.LNumber(v)
+	case bool:
+		return lua.LBool(v)
+	case []any:
+		tbl := state.NewTable()
+		for i, item := range v {
+			tbl.RawSetInt(i+1, anyToLValue(state, item))
+		}
+		return tbl
+	case map[string]any:
+		return MapToLTable(state, v)
+	case nil:
+		return lua.LNil
+	default:
+		return lua.LString(fmt.Sprint(v))
+	}
 }
 
 func MapToLTable(state *lua.LState, data map[string]any) *lua.LTable {
 	table := state.NewTable()
 
 	for key, value := range data {
-		var lval lua.LValue
-		switch v := value.(type) {
-		case string:
-			lval = lua.LString(v)
-		case float64:
-			lval = lua.LNumber(v)
-		case bool:
-			lval = lua.LBool(v)
-		case map[string]any:
-			// Recursively convert nested maps
-			lval = MapToLTable(state, v)
-		case nil:
-			lval = lua.LNil
-		default:
-			// Fallback for unknown types
-			lval = lua.LString(fmt.Sprint(v))
-		}
+		lval := anyToLValue(state, value)
 
 		if i, err := strconv.Atoi(key); err == nil {
 			table.RawSetInt(i, lval)

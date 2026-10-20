@@ -385,11 +385,14 @@ func valueToCty(v any) cty.Value {
 	case bool:
 		return cty.BoolVal(v)
 	case []any:
+		if len(v) == 0 {
+			return cty.EmptyTupleVal
+		}
 		ctyList := make([]cty.Value, len(v))
 		for i, item := range v {
 			ctyList[i] = valueToCty(item)
 		}
-		return cty.ListVal(ctyList)
+		return cty.TupleVal(ctyList)
 	case map[string]any:
 		return cty.ObjectVal(exportsToCty(v))
 	default:

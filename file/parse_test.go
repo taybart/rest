@@ -223,3 +223,47 @@ cli {
 		t.Fatalf("unexpected restart flag: %+v", restartFlag)
 	}
 }
+
+func TestTryExportsArrayAndTypes(t *testing.T) {
+	tmpDir := t.TempDir()
+	filename := filepath.Join(tmpDir, "exports.rest")
+	content := `request "restart" {
+  url = "http://localhost:18080/restart"
+  method = "POST"
+  body = {
+    dir = try_exports("dir", "/default/dir")
+    args = try_exports("args", [])
+  }
+}
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := rest.NewFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Default values (empty array)
+	req, err := r.Request("restart")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.Body != `{"args":[],"dir":"/default/dir"}` {
+		t.Fatalf("unexpected default body: %s", req.Body)
+	}
+
+	// 2. With exported array
+	r.Parser.AddExportsCtx(map[string]any{
+		"dir":  "/custom/dir",
+		"args": []any{"one", "two"},
+	})
+	req, err = r.Request("restart")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.Body != `{"args":["one","two"],"dir":"/custom/dir"}` {
+		t.Fatalf("unexpected exported body: %s", req.Body)
+	}
+}

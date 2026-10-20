@@ -290,28 +290,40 @@ func makeNanoIDFunc() function.Function {
 func makeTryExportsFunc(exports map[string]cty.Value) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{
-			Name: "args",
-			Type: cty.DynamicPseudoType,
+			Name:             "args",
+			Type:             cty.DynamicPseudoType,
+			AllowDynamicType: true,
+			AllowNull:        true,
 		},
-		Type: function.StaticReturnType(cty.String),
+		Type: func(args []cty.Value) (cty.Type, error) {
+			if len(args) == 0 || args[0].IsNull() {
+				return cty.DynamicPseudoType, errors.New("exports key is required")
+			}
+			if !args[0].IsKnown() {
+				return cty.DynamicPseudoType, nil
+			}
+			key := args[0].AsString()
+			if val, ok := exports[key]; ok {
+				return val.Type(), nil
+			}
+			if len(args) > 1 && !args[1].IsNull() {
+				return args[1].Type(), nil
+			}
+			return cty.String, nil
+		},
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-
-			if args[0].IsNull() {
+			if len(args) == 0 || args[0].IsNull() {
 				return cty.NilVal, errors.New("exports key is required")
 			}
 
 			key := args[0].AsString()
-
-			_default := ""
-
-			// Handle optional alphabet argument
-			if len(args) > 1 && !args[1].IsNull() {
-				_default = args[1].AsString()
-			}
 			if val, ok := exports[key]; ok {
 				return val, nil
 			}
-			return cty.StringVal(_default), nil
+			if len(args) > 1 && !args[1].IsNull() {
+				return args[1], nil
+			}
+			return cty.StringVal(""), nil
 		},
 	})
 }
