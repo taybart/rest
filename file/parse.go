@@ -31,8 +31,9 @@ type HCLRequest struct {
 }
 
 type CLIFlag struct {
-	Desc string `hcl:"desc"`
-	Bool bool   `hcl:"bool"`
+	Desc    string `hcl:"desc"`
+	Default string `hcl:"default"`
+	Bool    bool   `hcl:"bool"`
 }
 
 type CLI struct {
@@ -212,6 +213,9 @@ func (p *Parser) CLI() (CLI, error) {
 				}
 				if flagVal.Type().HasAttribute("bool") {
 					flag.Bool = flagVal.GetAttr("bool").True()
+				}
+				if flagVal.Type().HasAttribute("default") {
+					flag.Default = flagVal.GetAttr("default").AsString()
 				}
 				cli.Flags[name] = flag
 			}

@@ -365,6 +365,12 @@ func parseCLIFlagsFromArgs(flags map[string]file.CLIFlag, reserved map[string]bo
 			}
 		}
 	}
+	// apply defaults for flags that were not provided
+	for name, flagDef := range flags {
+		if _, ok := parsed[name]; !ok && flagDef.Default != "" {
+			parsed[name] = flagDef.Default
+		}
+	}
 	return parsed
 }
 
