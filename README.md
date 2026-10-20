@@ -57,52 +57,6 @@ server {
 }
 ```
 
-```
-rest -h
-		=== Rest Easy ===
-CLI:
-    --no-color, -nc:
-	No colors
-Server:
-    --addr, -a:
-	Address to listen on
-    --serve, -s:
-	Run a server
-    --dir, -d:
-	Directory to serve
-    --file, -f:
-	File to run
-    --cors:
-	Add cors headers
-    --response, -r:
-	Response to send, json file path or inline in the format {"status": 200, "body": {"hello": "world"}}
-    --tls, -t:
-	TLS path name to be used for tls key/cert (defaults to no TLS)
-	ex: '-t ./keys/site.com' where the files ./keys/site.com.{key,crt} exist
-    --tailscale:
-	Serve https using this machine's tailscale cert (needs the tailscale cli and HTTPS enabled on the tailnet)
-	listens on :8080 unless --addr is set so other tailnet devices can connect
-    --quiet, -q:
-	Don't log server requests
-Client:
-    --file, -f:
-	File to run
-    --block, -b:
-	Request block to run, 0-indexed
-    --label, -l:
-	Request label to run
-    --socket, -S:
-	Run the socket block (ignores requests)
-	if set like "--socket/-S run", rest will run socket.run.order and exit
-    --export, -e:
-	Export file to specified language
-    --client, -c:
-	Export full client instead of individual requests
-    --verbose, -v:
-	More client logging
-```
-
-
 **Create CLI tools**
 
 ```hcl
@@ -153,3 +107,49 @@ chmod +x hello.rest
 ```
 
 there are other options like a "loop" see [docs/CLIENT.md](doc/CLIENT.md) for more
+
+```
+rest -h
+		=== Rest Easy ===
+CLI:
+    --no-color, -nc:
+	No colors
+Server:
+    --addr, -a:
+	Address to listen on
+    --serve, -s:
+	Run a server
+    --dir, -d:
+	Directory to serve
+    --file, -f:
+	File to run
+    --cors:
+	Add cors headers
+    --response, -r:
+	Response to send, json file path or inline in the format {"status": 200, "body": {"hello": "world"}}
+    --tls, -t:
+	TLS path name to be used for tls key/cert (defaults to no TLS)
+	ex: '-t ./keys/site.com' where the files ./keys/site.com.{key,crt} exist
+    --tailscale:
+	Serve https using this machine's tailscale cert (needs the tailscale cli and HTTPS enabled on the tailnet)
+	listens on :8080 unless --addr is set so other tailnet devices can connect
+    --quiet, -q:
+	Don't log server requests
+Client:
+    --file, -f:
+	File to run
+    --block, -b:
+	Request block to run, 0-indexed
+    --label, -l:
+	Request label to run
+    --socket, -S:
+	Run the socket block (ignores requests)
+	if set like "--socket/-S run", rest will run socket.run.order and exit
+    --export, -e:
+	Export file to specified language
+    --client, -c:
+	Export full client instead of individual requests
+    --verbose, -v:
+	More client logging
+```
+
