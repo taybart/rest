@@ -79,6 +79,9 @@ Server:
     --tls, -t:
 	TLS path name to be used for tls key/cert (defaults to no TLS)
 	ex: '-t ./keys/site.com' where the files ./keys/site.com.{key,crt} exist
+    --tailscale:
+	Serve https using this machine's tailscale cert (needs the tailscale cli and HTTPS enabled on the tailnet)
+	listens on :8080 unless --addr is set so other tailnet devices can connect
     --quiet, -q:
 	Don't log server requests
 Client:

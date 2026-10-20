@@ -20,7 +20,7 @@ func usage(u args.Usage) {
 	}
 	server := []string{
 		"addr", "serve", "dir", "spa", "file",
-		"cors", "response", "tls", "quiet",
+		"cors", "response", "tls", "tailscale", "quiet",
 	}
 	client := []string{
 		"file", "block", "label",
@@ -95,6 +95,10 @@ var (
 				Help:    "TLS path name to be used for tls key/cert (defaults to no TLS)\n\tex: '-t ./keys/site.com' where the files ./keys/site.com.{key,crt} exist",
 				Default: "",
 			},
+			"tailscale": {
+				Help:    "Serve https using this machine's tailscale cert (needs the tailscale cli and HTTPS enabled on the tailnet)\n\tlistens on :8080 unless --addr is set so other tailnet devices can connect",
+				Default: false,
+			},
 			// TODO: add to server block
 			"spa": {
 				Help:    "Serve index.html in directory instead of 404",
@@ -141,13 +145,14 @@ var (
 		Verbose bool `arg:"verbose"`
 
 		// server
-		Addr     string `arg:"addr"`
-		Serve    bool   `arg:"serve"`
-		Dir      string `arg:"dir"`
-		Response string `arg:"response"`
-		Cors     bool   `arg:"cors"`
-		TLS      string `arg:"tls"`
-		SPA      bool   `arg:"spa"`
+		Addr      string `arg:"addr"`
+		Serve     bool   `arg:"serve"`
+		Dir       string `arg:"dir"`
+		Response  string `arg:"response"`
+		Cors      bool   `arg:"cors"`
+		TLS       string `arg:"tls"`
+		Tailscale bool   `arg:"tailscale"`
+		SPA       bool   `arg:"spa"`
 
 		// client
 		File       string `arg:"file"`
@@ -242,13 +247,20 @@ func run() error {
 		if err != nil {
 			return err
 		}
+		addr := c.Addr
+		if c.Tailscale && !a.UserSet("addr") {
+			// the default is localhost, which tailnet peers can't reach
+			addr = ":8080"
+		}
 		s := server.New(server.Config{
-			Addr:     c.Addr,
-			Dir:      c.Dir,
-			Quiet:    c.Quiet,
-			Cors:     c.Cors,
-			Response: res,
-			SPA:      c.SPA,
+			Addr:      addr,
+			Dir:       c.Dir,
+			Quiet:     c.Quiet,
+			Cors:      c.Cors,
+			Response:  res,
+			SPA:       c.SPA,
+			TLS:       c.TLS,
+			Tailscale: c.Tailscale,
 		})
 		return s.Serve()
 	}

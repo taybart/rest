@@ -20,6 +20,9 @@
     --tls, -t:
 	TLS path name to be used for tls key/cert (defaults to no TLS)
 	ex: '-t ./keys/site.com' where the files ./keys/site.com.{key,crt} exist
+    --tailscale:
+	Serve https using this machine's tailscale cert (needs the tailscale cli and HTTPS enabled on the tailnet)
+	listens on :8080 unless --addr is set so other tailnet devices can connect
     --quiet, -q:
 	Don't log server requests
 ```
@@ -59,6 +62,9 @@ rest -s
 # serve a directory with cors and tls
 rest -s -a 0.0.0.0:18080 -t ./tls/example.com -d ./dist --cors
 
+# serve a directory over https to your tailnet at https://<machine>.<tailnet>.ts.net:8085
+rest -s -a :8085 -d . --tailscale
+
 # serve with a custom response
 rest -s -r response.json
 ```
@@ -72,6 +78,8 @@ server {
     # TLS path name to be used for tls key/cert (defaults to no TLS)
     # ex: './keys/site.com' where the files ./keys/site.com.{key,crt} exist
     tls = "test/keys/example.com"
+    # or serve https with this machine's tailscale cert instead (default false)
+    # tailscale = true
     # don't dump requests (default false)
     quiet = true
     # add cors headers (default false)

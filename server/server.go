@@ -2,9 +2,11 @@
 package server
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -42,16 +44,18 @@ type Server struct {
 }
 
 type Config struct {
-	Addr     string     `hcl:"address"`
-	Dir      string     `hcl:"directory,optional"`
-	Proxy    string     `hcl:"proxy,optional"`
-	Quiet    bool       `hcl:"quiet,optional"`
-	Response *Response  `hcl:"response,block"`
-	Origins  []string   `hcl:"origins,optional"`
-	Cors     bool       `hcl:"cors,optional"`
-	TLS      string     `hcl:"tls,optional"`
-	Handlers []*Handler `hcl:"handler,block"`
-	SPA      bool       `hcl:"spa,optional"`
+	Addr     string    `hcl:"address"`
+	Dir      string    `hcl:"directory,optional"`
+	Proxy    string    `hcl:"proxy,optional"`
+	Quiet    bool      `hcl:"quiet,optional"`
+	Response *Response `hcl:"response,block"`
+	Origins  []string  `hcl:"origins,optional"`
+	Cors     bool      `hcl:"cors,optional"`
+	TLS      string    `hcl:"tls,optional"`
+	// serve https with this machine's tailscale cert (needs the tailscale cli)
+	Tailscale bool       `hcl:"tailscale,optional"`
+	Handlers  []*Handler `hcl:"handler,block"`
+	SPA       bool       `hcl:"spa,optional"`
 }
 
 func New(c Config) Server {
@@ -77,6 +81,9 @@ func New(c Config) Server {
 }
 func (s *Server) Serve() error {
 
+	if s.Config.Tailscale {
+		return s.serveTailscale()
+	}
 	if !s.Config.Quiet {
 		log.Infof("listening to %s...\n", s.Config.Addr)
 	}
@@ -94,6 +101,31 @@ func (s *Server) Serve() error {
 		if !errors.Is(err, http.ErrServerClosed) {
 			return err
 		}
+	}
+	return nil
+}
+
+func (s *Server) serveTailscale() error {
+	if s.Config.TLS != "" {
+		return errors.New("tls and tailscale can't be used together")
+	}
+	ts, err := newTailscaleCert()
+	if err != nil {
+		return err
+	}
+	host, port, err := net.SplitHostPort(s.Config.Addr)
+	if err != nil {
+		return err
+	}
+	if ip := net.ParseIP(host); host == "localhost" || (ip != nil && ip.IsLoopback()) {
+		log.Warnf("listening on %s, other tailnet devices can't reach it (use -a :%s)\n", host, port)
+	}
+	if !s.Config.Quiet {
+		log.Infof("listening to https://%s:%s...\n", ts.Domain, port)
+	}
+	s.Server.TLSConfig = &tls.Config{GetCertificate: ts.GetCertificate}
+	if err := s.Server.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
 	}
 	return nil
 }
