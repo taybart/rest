@@ -74,13 +74,17 @@ cli {
       desc = "Enable loud mode"
       bool = true
     }
+    dir = {
+      desc = "The directory to work in"
+      default = env("PWD")
+    }
   }
 }
 ```
 
 ### CLI Flags
 
-Flags defined in the `cli` block can be passed on the command line just like built-in flags. They are exposed to the Lua loop as fields on the global `cli` table.
+Flags defined in the `cli` block can be passed on the command line just like built-in flags. They are exposed to the Lua loop as fields on the global `cli` table, typed by kind: string flags are Lua strings, bool flags are real Lua booleans. Keys are the flags' literal HCL names, so hyphenated flags must be indexed as strings in Lua: a `list-dir` flag is `cli["list-dir"]` (writing `cli.list-dir` would parse as subtraction).
 
 ```sh
 # pass a string flag
@@ -97,12 +101,30 @@ Inside the Lua loop:
 
 ```lua
 print("Hello, " .. (cli.name or "world") .. "!")
-if cli.loud == "true" then
+if cli.loud then
   print("LOUD MODE")
 end
 ```
 
 **Important:** Flag names must not conflict with any built-in rest flags (e.g., `file`, `block`, `label`, `verbose`, `serve`, etc.). If a conflict is detected, rest will exit with an error.
+
+### Flag Defaults
+
+A string flag can declare a `default`, which is used when the flag is not passed on the command line:
+
+```hcl
+flags = {
+  dir = {
+    desc = "The directory to operate on"
+    default = env("PWD")
+  }
+}
+```
+
+- The default is evaluated like the rest of the file, so `env()` and interpolation (e.g. `"${locals.dir}"`) work.
+- A defaulted flag is **always** present on the Lua `cli` table. Without a default, an unset flag is `nil`, so `if cli.dir then` distinguishes "user passed it" from "fell back" — a defaulted flag can't tell you that.
+- Defaults are Lua-side only: they don't reach the HCL context. To use a flag value in a request with an HCL-side fallback, export it (`rest.exports`) and read it with `try_exports` — see [Exports](#exports).
+- Bool flags ignore `default` and are exposed as real Lua booleans: `--loud` → `true`, `--loud=false` → `false`, not passed → `nil`.
 
 ### CLI Loop
 

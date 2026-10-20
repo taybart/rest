@@ -69,7 +69,7 @@ func mergeIntoExports(l *lua.LState, exports map[string]any) {
 	})
 }
 
-func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]string) error {
+func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]string, flagDefs map[string]file.CLIFlag) error {
 
 	if exportsTable == nil {
 		exportsTable = l.NewTable()
@@ -77,7 +77,11 @@ func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]strin
 
 	cliTable := l.NewTable()
 	for k, v := range cliFlags {
-		l.SetField(cliTable, k, lua.LString(v))
+		if flagDef, ok := flagDefs[k]; ok && flagDef.Bool {
+			l.SetField(cliTable, k, lua.LBool(v == "true"))
+		} else {
+			l.SetField(cliTable, k, lua.LString(v))
+		}
 	}
 	l.SetGlobal("cli", cliTable)
 
@@ -163,7 +167,7 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string) err
 	if err := restlua.RegisterModules(l); err != nil {
 		return err
 	}
-	if err := populateGlobalObject(l, f, cliFlags); err != nil {
+	if err := populateGlobalObject(l, f, cliFlags, cliBlock.Flags); err != nil {
 		return err
 	}
 
