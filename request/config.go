@@ -7,6 +7,7 @@ type Config struct {
 	InsecureNoVerifyTLS bool   `hcl:"insecure_no_verify_tls,optional"`
 	NamespaceImports    bool   `hcl:"namespace_imports,optional"`
 	SkipImported        bool   `hcl:"skip_imported,optional"`
+	NoFlags             bool   `hcl:"no_flags,optional"`
 }
 
 func DefaultConfig() Config {
@@ -17,5 +18,6 @@ func DefaultConfig() Config {
 		InsecureNoVerifyTLS: false,
 		NamespaceImports:    true,
 		SkipImported:        false,
+		NoFlags:             false,
 	}
 }

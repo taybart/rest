@@ -69,13 +69,17 @@ cli {
   flags = {
     name = {
       desc = "A name to greet"
+      short = "n"
+      required = true
     }
     loud = {
       desc = "Enable loud mode"
+      short = "l"
       bool = true
     }
     dir = {
       desc = "The directory to work in"
+      short = "d"
       default = env("PWD")
     }
   }
@@ -84,7 +88,16 @@ cli {
 
 ### CLI Flags
 
-Flags defined in the `cli` block can be passed on the command line just like built-in flags. They are exposed to the Lua loop as fields on the global `cli` table, typed by kind: string flags are Lua strings, bool flags are real Lua booleans. Keys are the flags' literal HCL names, so hyphenated flags must be indexed as strings in Lua: a `list-dir` flag is `cli["list-dir"]` (writing `cli.list-dir` would parse as subtraction).
+Flags defined in the `cli` block can be passed on the command line just like built-in flags (using `github.com/taybart/args`). Passing `-h` or `--help` prints the description of all declared flags in the `cli` block.
+
+Flags are exposed to the Lua loop/fn as fields on the global `cli` table, typed by kind: string flags are Lua strings, bool flags are real Lua booleans. Keys are the flags' literal HCL names, so hyphenated flags must be indexed as strings in Lua: a `list-dir` flag is `cli["list-dir"]` (writing `cli.list-dir` would parse as subtraction).
+
+Each flag supports:
+- `desc` - Help description shown on `-h` / `--help`
+- `short` - Short flag alias (e.g. `short = "d"` for `-d`)
+- `bool` - Boolean flag (`true` / `false`)
+- `default` - Default string value when not passed
+- `required` - Require the flag to be set (`true` / `false`)
 
 ```sh
 # pass a string flag
@@ -93,8 +106,8 @@ rest -f mycli.rest --name Alice
 # pass a bool flag
 rest -f mycli.rest --loud
 
-# explicitly set a bool flag to false
-rest -f mycli.rest --loud=false
+# print help for the cli block's flags
+rest -f mycli.rest -h
 ```
 
 Inside the Lua loop:
@@ -106,7 +119,13 @@ if cli.loud then
 end
 ```
 
-**Important:** Flag names must not conflict with any built-in rest flags (e.g., `file`, `block`, `label`, `verbose`, `serve`, etc.). If a conflict is detected, rest will exit with an error.
+**Disabling built-in rest flags (`no_flags`):** By default, flag names and short flags must not conflict with any built-in rest flags (e.g., `file`/`f`, `block`/`b`, `label`/`l`, `dir`/`d`, `serve`/`s`, etc.). To disable rest's built-in CLI flags for a file so your `cli` block can freely use any flag names or short flags, set `no_flags = true` in the `config` block:
+
+```hcl
+config {
+  no_flags = true
+}
+```
 
 ### Flag Defaults
 
@@ -220,6 +239,8 @@ config {
   namespace_imports = true
   # don't execute requests that were imported (library creation)
   skip_imported = false
+  # disable built-in rest CLI flags so the cli {} block owns all flags
+  no_flags = false
 }
 ```
 

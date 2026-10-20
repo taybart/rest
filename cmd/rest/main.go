@@ -195,23 +195,106 @@ func detectShebang() string {
 	return ""
 }
 
+func detectFileFlag() string {
+	for i := 1; i < len(os.Args); i++ {
+		arg := os.Args[i]
+		if arg == "-f" || arg == "--file" {
+			if i+1 < len(os.Args) {
+				return os.Args[i+1]
+			}
+		} else if strings.HasPrefix(arg, "-f=") {
+			return strings.TrimPrefix(arg, "-f=")
+		} else if strings.HasPrefix(arg, "--file=") {
+			return strings.TrimPrefix(arg, "--file=")
+		}
+	}
+	return ""
+}
+
+func stripFileFlag(args []string) []string {
+	out := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "-f" || arg == "--file" {
+			i++ // skip value
+			continue
+		}
+		if strings.HasPrefix(arg, "-f=") || strings.HasPrefix(arg, "--file=") {
+			continue
+		}
+		out = append(out, arg)
+	}
+	return out
+}
+
+func hasHelpFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "-h" || arg == "--help" {
+			return true
+		}
+	}
+	return false
+}
+
 func run() error {
 
 	log.SetNoTime()
 
+	isShebang := false
+	targetFile := detectShebang()
+	if targetFile != "" {
+		isShebang = true
+	} else {
+		targetFile = detectFileFlag()
+	}
+
+	var preloaded *rest.Rest
+	if targetFile != "" {
+		if f, err := rest.NewFile(targetFile); err == nil {
+			preloaded = f
+		}
+	}
+
+	if preloaded != nil && preloaded.Parser.Config.NoFlags {
+		if isShebang {
+			os.Args = append([]string{os.Args[0]}, os.Args[2:]...)
+		} else {
+			os.Args = append([]string{os.Args[0]}, stripFileFlag(os.Args[1:])...)
+		}
+		if preloaded.Parser.Root.CLI != nil {
+			cliBlock, err := preloaded.Parser.CLI()
+			if err != nil {
+				return err
+			}
+			cliFlagValues, helpRequested, err := parseCLIFlagsWithArgs(cliBlock.Flags, nil)
+			if err != nil {
+				return err
+			}
+			if helpRequested {
+				return nil
+			}
+			return runCLITool(preloaded, cliBlock, cliFlagValues)
+		}
+		return preloaded.RunFile(false)
+	}
+
 	// If invoked via shebang, inject -f with the script path
 	// unless the user already provided -f
-	if script := detectShebang(); script != "" {
-		hasFileFlag := false
-		for _, arg := range os.Args[1:] {
-			if arg == "-f" || arg == "--file" || strings.HasPrefix(arg, "-f=") || strings.HasPrefix(arg, "--file=") {
-				hasFileFlag = true
-				break
-			}
+	if isShebang {
+		if detectFileFlag() == "" {
+			os.Args = append([]string{os.Args[0], "-f", targetFile}, os.Args[2:]...)
 		}
-		if !hasFileFlag {
-			os.Args = append([]string{os.Args[0], "-f", script}, os.Args[2:]...)
+	}
+
+	// If file has a CLI block and user passed -h/--help, let the CLI block's args parser print help
+	if preloaded != nil && preloaded.Parser.Root.CLI != nil && hasHelpFlag(os.Args[1:]) {
+		cliBlock, err := preloaded.Parser.CLI()
+		if err != nil {
+			return err
 		}
+		reserved := getReservedFlags(a)
+		_, _, err = parseCLIFlagsWithArgs(cliBlock.Flags, reserved)
+		return err
 	}
 
 	if err := a.Parse(); err != nil {
@@ -236,9 +319,13 @@ func run() error {
 	 **********/
 	if c.Serve {
 		if a.UserSet("file") {
-			f, err := rest.NewFile(c.File)
-			if err != nil {
-				return err
+			f := preloaded
+			if f == nil {
+				var err error
+				f, err = rest.NewFile(c.File)
+				if err != nil {
+					return err
+				}
 			}
 			return f.RunServer()
 		}
@@ -272,9 +359,13 @@ func run() error {
 		return fmt.Errorf("missing required flag -f")
 	}
 
-	f, err := rest.NewFile(c.File)
-	if err != nil {
-		return err
+	f := preloaded
+	if f == nil {
+		var err error
+		f, err = rest.NewFile(c.File)
+		if err != nil {
+			return err
+		}
 	}
 
 	if c.Export != "" {
@@ -307,12 +398,13 @@ func run() error {
 				return err
 			}
 			reserved := getReservedFlags(a)
-			for name := range cliBlock.Flags {
-				if reserved[name] {
-					return fmt.Errorf("cli flag %q conflicts with a built-in flag", name)
-				}
+			cliFlagValues, helpRequested, err := parseCLIFlagsWithArgs(cliBlock.Flags, reserved)
+			if err != nil {
+				return err
 			}
-			cliFlagValues := parseCLIFlagsFromArgs(cliBlock.Flags, reserved)
+			if helpRequested {
+				return nil
+			}
 			return runCLITool(f, cliBlock, cliFlagValues)
 		}
 		log.Debug("running file", c.File)
@@ -334,59 +426,61 @@ func getReservedFlags(a args.App) map[string]bool {
 	return reserved
 }
 
-func parseCLIFlagsFromArgs(flags map[string]file.CLIFlag, reserved map[string]bool) map[string]string {
-	parsed := make(map[string]string)
-	args := os.Args[1:]
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if !strings.HasPrefix(arg, "-") {
-			continue
-		}
-		name := strings.TrimPrefix(arg, "--")
-		name = strings.TrimPrefix(name, "-")
-
-		var value string
-		hasEquals := false
-		if idx := strings.Index(name, "="); idx != -1 {
-			value = name[idx+1:]
-			name = name[:idx]
-			hasEquals = true
-		}
-
-		if reserved[name] {
-			continue
-		}
-
-		flagDef, ok := flags[name]
-		if !ok {
-			continue
-		}
-
-		if flagDef.Bool {
-			if hasEquals {
-				parsed[name] = value
-			} else {
-				parsed[name] = "true"
+func parseCLIFlagsWithArgs(flags map[string]file.CLIFlag, reserved map[string]bool) (map[string]string, bool, error) {
+	cliApp := args.App{
+		Args: make(map[string]*args.Arg, len(flags)),
+	}
+	for name, flagDef := range flags {
+		if reserved != nil {
+			if reserved[name] {
+				return nil, false, fmt.Errorf("cli flag %q conflicts with a built-in flag", name)
+			}
+			if flagDef.Short != "" && reserved[flagDef.Short] {
+				return nil, false, fmt.Errorf("cli short flag %q conflicts with a built-in flag", flagDef.Short)
 			}
 		} else {
-			if hasEquals {
-				parsed[name] = value
-			} else if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
-				i++
-				parsed[name] = args[i]
+			if name == "help" || name == "h" {
+				return nil, false, fmt.Errorf("cli flag %q conflicts with help flag", name)
+			}
+			if flagDef.Short == "h" {
+				return nil, false, fmt.Errorf("cli short flag %q conflicts with help flag", flagDef.Short)
 			}
 		}
-	}
-	// apply defaults for string flags that were not provided (bools are always false unless passed)
-	for name, flagDef := range flags {
+		arg := &args.Arg{
+			Short:    flagDef.Short,
+			Help:     flagDef.Desc,
+			Required: flagDef.Required,
+		}
 		if flagDef.Bool {
+			arg.Default = false
+		} else if flagDef.Default != "" {
+			arg.Default = flagDef.Default
+		}
+		cliApp.Args[name] = arg
+	}
+
+	if err := cliApp.Parse(); err != nil {
+		if errors.Is(err, args.ErrUsageRequested) {
+			return nil, true, nil
+		}
+		return nil, false, err
+	}
+
+	parsed := make(map[string]string)
+	for name, flagDef := range flags {
+		arg := cliApp.Get(name)
+		if arg == nil {
 			continue
 		}
-		if _, ok := parsed[name]; !ok && flagDef.Default != "" {
-			parsed[name] = flagDef.Default
+		if flagDef.Bool {
+			if arg.Bool() {
+				parsed[name] = "true"
+			}
+		} else if arg.IsSet() {
+			parsed[name] = arg.String()
 		}
 	}
-	return parsed
+	return parsed, false, nil
 }
 
 func parseServerResponse(responseFlag string) (*server.Response, error) {

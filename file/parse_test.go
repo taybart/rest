@@ -164,3 +164,62 @@ request "shebang" {
 		t.Fatalf("unexpected url: %s", req.URL)
 	}
 }
+
+func TestNoFlagsAndCLIParse(t *testing.T) {
+	tmpDir := t.TempDir()
+	filename := filepath.Join(tmpDir, "cli.rest")
+	content := `#!/usr/bin/env rest
+
+config {
+  no_flags = true
+}
+
+cli {
+  flags = {
+    dir = {
+      desc = "Directory"
+      short = "d"
+      default = "/tmp"
+      required = true
+    }
+    restart = {
+      desc = "Restart"
+      short = "r"
+      bool = true
+    }
+  }
+  fn = "print('ok')"
+}
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := rest.NewFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Parser.Config.NoFlags {
+		t.Fatal("expected config.no_flags to be true")
+	}
+
+	cli, err := r.Parser.CLI()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dirFlag, ok := cli.Flags["dir"]
+	if !ok {
+		t.Fatal("expected dir flag")
+	}
+	if dirFlag.Short != "d" || dirFlag.Default != "/tmp" || !dirFlag.Required || dirFlag.Desc != "Directory" {
+		t.Fatalf("unexpected dir flag: %+v", dirFlag)
+	}
+
+	restartFlag, ok := cli.Flags["restart"]
+	if !ok {
+		t.Fatal("expected restart flag")
+	}
+	if restartFlag.Short != "r" || !restartFlag.Bool || restartFlag.Desc != "Restart" {
+		t.Fatalf("unexpected restart flag: %+v", restartFlag)
+	}
+}

@@ -31,9 +31,11 @@ type HCLRequest struct {
 }
 
 type CLIFlag struct {
-	Desc    string `hcl:"desc"`
-	Default string `hcl:"default"`
-	Bool    bool   `hcl:"bool"`
+	Desc     string `hcl:"desc"`
+	Short    string `hcl:"short"`
+	Default  string `hcl:"default"`
+	Bool     bool   `hcl:"bool"`
+	Required bool   `hcl:"required"`
 }
 
 type CLI struct {
@@ -211,11 +213,17 @@ func (p *Parser) CLI() (CLI, error) {
 				if flagVal.Type().HasAttribute("desc") {
 					flag.Desc = flagVal.GetAttr("desc").AsString()
 				}
+				if flagVal.Type().HasAttribute("short") {
+					flag.Short = flagVal.GetAttr("short").AsString()
+				}
 				if flagVal.Type().HasAttribute("bool") {
 					flag.Bool = flagVal.GetAttr("bool").True()
 				}
 				if flagVal.Type().HasAttribute("default") {
 					flag.Default = flagVal.GetAttr("default").AsString()
+				}
+				if flagVal.Type().HasAttribute("required") {
+					flag.Required = flagVal.GetAttr("required").True()
 				}
 				cli.Flags[name] = flag
 			}
