@@ -102,3 +102,54 @@ Client:
 	More client logging
 ```
 
+
+**Create CLI tools**
+
+```hcl
+#!/usr/bin/env rest
+
+# disable regular rest cli flags
+config { no_flags = true }
+
+locals {
+  url = "http://localhost:8080"
+  name = "world"
+}
+
+cli {
+    flags = {
+        name = { 
+            desc = "Name to say hello to"
+            short = "n" # flag can be --name or -n, short is optional
+            # set default value (using local here can be anything)
+            default = locals.name
+        }
+    }
+    fn = <<LUA
+        if not cli.name then
+            error("name is required")
+        end
+        -- export the name to use in the request
+        rest.exports.name = cli.name
+        -- run the request
+        rest.label('say hello')
+    LUA
+}
+
+# basic GET request
+request "hello rest" {
+  url = "${locals.url}/get"
+    # try to use rest.exports.name or default to "world"
+  query = { name = try_exports("name", "world") }
+}
+```
+
+make the file executable and run it
+
+```sh
+chmod +x hello_rest.sh
+./hello_rest.sh --name "rest"
+# GET http://localhost:8080/get?name=rest
+```
+
+there are other options like a "loop" see [docs/CLIENT.md](doc/CLIENT.md) for more
