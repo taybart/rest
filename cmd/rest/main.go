@@ -12,6 +12,7 @@ import (
 	"github.com/taybart/rest"
 	"github.com/taybart/rest/file"
 	"github.com/taybart/rest/server"
+	"golang.org/x/term"
 )
 
 func usage(u args.Usage) {
@@ -249,7 +250,7 @@ func run() error {
 	}
 
 	var preloaded *rest.Rest
-	if targetFile != "" {
+	if targetFile != "" && targetFile != "-" {
 		if f, err := rest.NewFile(targetFile); err == nil {
 			preloaded = f
 		}
@@ -356,7 +357,11 @@ func run() error {
 	 * CLIENT *
 	 **********/
 	if !a.UserSet("file") {
-		return fmt.Errorf("missing required flag -f")
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			c.File = "-"
+		} else {
+			return fmt.Errorf("missing required flag -f")
+		}
 	}
 
 	f := preloaded

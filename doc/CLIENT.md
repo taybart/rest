@@ -21,7 +21,12 @@ rest -f FILE_NAME
 rest -f FILE_NAME -b BLOCK_NUMBER
 # run by label (request "LABEL_NAME" {)
 rest -f FILE_NAME -l LABLE_NAME
-
+# run from stdin / heredoc
+rest <<'EOF'
+request "test" {
+  url = "https://httpbin.org/get"
+}
+EOF
 ```
 
 You can also turn a rest file into an executable script by adding a shebang at the top:

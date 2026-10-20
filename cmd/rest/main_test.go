@@ -153,3 +153,46 @@ cli {
 		t.Fatalf("expected /my/dir:true, got %q", string(got))
 	}
 }
+
+func TestRunHeredocStdin(t *testing.T) {
+	origArgs := os.Args
+	origStdin := os.Stdin
+	defer func() {
+		os.Args = origArgs
+		os.Stdin = origStdin
+	}()
+
+	tmpDir := t.TempDir()
+	outFile := filepath.Join(tmpDir, "stdin_out.txt")
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := `cli {
+  fn = <<LUA
+    local f = io.open("` + outFile + `", "w")
+    f:write("from-stdin")
+    f:close()
+  LUA
+}
+`
+	if _, err := w.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+
+	os.Stdin = r
+	os.Args = []string{"rest"}
+	if err := run(); err != nil {
+		t.Fatalf("run() with stdin failed: %v", err)
+	}
+
+	got, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "from-stdin" {
+		t.Fatalf("expected from-stdin, got %q", string(got))
+	}
+}

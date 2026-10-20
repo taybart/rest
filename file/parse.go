@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
 	"path"
@@ -158,12 +159,21 @@ func stripShebang(src []byte) []byte {
 }
 
 func (p *Parser) read(filename string, root *Root) error {
-	src, err := os.ReadFile(filename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("file %s does not exist", filename)
+	var src []byte
+	var err error
+	if filename == "-" {
+		src, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read stdin: %w", err)
 		}
-		return fmt.Errorf("failed to read %s: %w", filename, err)
+	} else {
+		src, err = os.ReadFile(filename)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("file %s does not exist", filename)
+			}
+			return fmt.Errorf("failed to read %s: %w", filename, err)
+		}
 	}
 	src = stripShebang(src)
 	var diags hcl.Diagnostics
