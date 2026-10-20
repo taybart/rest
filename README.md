@@ -147,8 +147,8 @@ request "hello rest" {
 make the file executable and run it
 
 ```sh
-chmod +x hello_rest.sh
-./hello_rest.sh --name "rest"
+chmod +x hello.rest
+./hello.rest --name "rest"
 # GET http://localhost:8080/get?name=rest
 ```
 
