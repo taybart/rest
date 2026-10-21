@@ -122,6 +122,10 @@ print("Hello, " .. (cli.name or "world") .. "!")
 if cli.loud then
   print("LOUD MODE")
 end
+
+-- Remaining positional arguments are available on cli.rest (1-indexed table)
+-- and can be joined into a string with cli.rest:string() (defaults to " " separator)
+local query = cli.rest:string() -- or cli.rest:string(",") or tostring(cli.rest)
 ```
 
 **Disabling built-in rest flags (`no_flags`):** By default, flag names and short flags must not conflict with any built-in rest flags (e.g., `file`/`f`, `block`/`b`, `label`/`l`, `dir`/`d`, `serve`/`s`, etc.). To disable rest's built-in CLI flags for a file so your `cli` block can freely use any flag names or short flags, set `no_flags = true` in the `config` block:

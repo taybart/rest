@@ -267,14 +267,14 @@ func run() error {
 			if err != nil {
 				return err
 			}
-			cliFlagValues, helpRequested, err := parseCLIFlagsWithArgs(cliBlock.Flags, nil)
+			cliFlagValues, restArgs, helpRequested, err := parseCLIFlagsWithArgs(cliBlock.Flags, nil)
 			if err != nil {
 				return err
 			}
 			if helpRequested {
 				return nil
 			}
-			return runCLITool(preloaded, cliBlock, cliFlagValues)
+			return runCLITool(preloaded, cliBlock, cliFlagValues, restArgs)
 		}
 		return preloaded.RunFile(false)
 	}
@@ -294,7 +294,7 @@ func run() error {
 			return err
 		}
 		reserved := getReservedFlags(a)
-		_, _, err = parseCLIFlagsWithArgs(cliBlock.Flags, reserved)
+		_, _, _, err = parseCLIFlagsWithArgs(cliBlock.Flags, reserved)
 		return err
 	}
 
@@ -403,14 +403,14 @@ func run() error {
 				return err
 			}
 			reserved := getReservedFlags(a)
-			cliFlagValues, helpRequested, err := parseCLIFlagsWithArgs(cliBlock.Flags, reserved)
+			cliFlagValues, restArgs, helpRequested, err := parseCLIFlagsWithArgs(cliBlock.Flags, reserved)
 			if err != nil {
 				return err
 			}
 			if helpRequested {
 				return nil
 			}
-			return runCLITool(f, cliBlock, cliFlagValues)
+			return runCLITool(f, cliBlock, cliFlagValues, restArgs)
 		}
 		log.Debug("running file", c.File)
 		return f.RunFile(c.IgnoreFail)
@@ -431,24 +431,24 @@ func getReservedFlags(a args.App) map[string]bool {
 	return reserved
 }
 
-func parseCLIFlagsWithArgs(flags map[string]file.CLIFlag, reserved map[string]bool) (map[string]string, bool, error) {
+func parseCLIFlagsWithArgs(flags map[string]file.CLIFlag, reserved map[string]bool) (map[string]string, []string, bool, error) {
 	cliApp := args.App{
 		Args: make(map[string]*args.Arg, len(flags)),
 	}
 	for name, flagDef := range flags {
 		if reserved != nil {
 			if reserved[name] {
-				return nil, false, fmt.Errorf("cli flag %q conflicts with a built-in flag", name)
+				return nil, nil, false, fmt.Errorf("cli flag %q conflicts with a built-in flag", name)
 			}
 			if flagDef.Short != "" && reserved[flagDef.Short] {
-				return nil, false, fmt.Errorf("cli short flag %q conflicts with a built-in flag", flagDef.Short)
+				return nil, nil, false, fmt.Errorf("cli short flag %q conflicts with a built-in flag", flagDef.Short)
 			}
 		} else {
 			if name == "help" || name == "h" {
-				return nil, false, fmt.Errorf("cli flag %q conflicts with help flag", name)
+				return nil, nil, false, fmt.Errorf("cli flag %q conflicts with help flag", name)
 			}
 			if flagDef.Short == "h" {
-				return nil, false, fmt.Errorf("cli short flag %q conflicts with help flag", flagDef.Short)
+				return nil, nil, false, fmt.Errorf("cli short flag %q conflicts with help flag", flagDef.Short)
 			}
 		}
 		arg := &args.Arg{
@@ -466,9 +466,9 @@ func parseCLIFlagsWithArgs(flags map[string]file.CLIFlag, reserved map[string]bo
 
 	if err := cliApp.Parse(); err != nil {
 		if errors.Is(err, args.ErrUsageRequested) {
-			return nil, true, nil
+			return nil, nil, true, nil
 		}
-		return nil, false, err
+		return nil, nil, false, err
 	}
 
 	parsed := make(map[string]string)
@@ -485,7 +485,72 @@ func parseCLIFlagsWithArgs(flags map[string]file.CLIFlag, reserved map[string]bo
 			parsed[name] = arg.String()
 		}
 	}
-	return parsed, false, nil
+
+	restArgs := extractRemainingArgs(os.Args[1:], flags, reserved != nil)
+	return parsed, restArgs, false, nil
+}
+
+func extractRemainingArgs(rawArgs []string, flags map[string]file.CLIFlag, includeBuiltins bool) []string {
+	needsValue := make(map[string]bool)
+	doesNotNeedValue := make(map[string]bool)
+
+	if includeBuiltins {
+		for name, arg := range a.Args {
+			isBool := false
+			if _, ok := arg.Default.(bool); ok {
+				isBool = true
+			}
+			if !isBool {
+				needsValue[name] = true
+				if arg.Short != "" {
+					needsValue[arg.Short] = true
+				}
+				if arg.DoesNotNeedValue {
+					doesNotNeedValue[name] = true
+					if arg.Short != "" {
+						doesNotNeedValue[arg.Short] = true
+					}
+				}
+			}
+		}
+	}
+
+	for name, flagDef := range flags {
+		if !flagDef.Bool {
+			needsValue[name] = true
+			if flagDef.Short != "" {
+				needsValue[flagDef.Short] = true
+			}
+		}
+	}
+
+	var rest []string
+	for i := 0; i < len(rawArgs); i++ {
+		v := rawArgs[i]
+		if v == "--" {
+			rest = append(rest, rawArgs[i+1:]...)
+			break
+		}
+		if strings.HasPrefix(v, "-") && len(v) > 1 {
+			name := strings.TrimLeft(v, "-")
+			hasEquals := false
+			if idx := strings.IndexByte(name, '='); idx != -1 {
+				name = name[:idx]
+				hasEquals = true
+			}
+			if !hasEquals && needsValue[name] {
+				if i+1 < len(rawArgs) {
+					if doesNotNeedValue[name] && strings.HasPrefix(rawArgs[i+1], "-") {
+						continue
+					}
+					i++ // skip flag value
+				}
+			}
+			continue
+		}
+		rest = append(rest, v)
+	}
+	return rest
 }
 
 func parseServerResponse(responseFlag string) (*server.Response, error) {

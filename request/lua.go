@@ -81,6 +81,9 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 	})
 
 	exportsTable := l.NewTable()
+	if len(req.Exports) > 0 {
+		exportsTable = restlua.MapToLTable(l, req.Exports)
+	}
 
 	table := restlua.MakeLTable(l, map[string]lua.LValue{
 		"label":   lua.LString(req.Label),

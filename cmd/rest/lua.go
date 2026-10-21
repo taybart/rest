@@ -69,13 +69,46 @@ func mergeIntoExports(l *lua.LState, exports map[string]any) {
 	})
 }
 
-func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]string, flagDefs map[string]file.CLIFlag) error {
+func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]string, restArgs []string, flagDefs map[string]file.CLIFlag) error {
 
 	if exportsTable == nil {
 		exportsTable = l.NewTable()
 	}
 
 	cliTable := l.NewTable()
+
+	restTbl := l.NewTable()
+	for i, arg := range restArgs {
+		restTbl.RawSetInt(i+1, lua.LString(arg))
+	}
+	mt := l.NewTable()
+	idxTbl := l.NewTable()
+	joinFn := l.NewFunction(func(l *lua.LState) int {
+		tbl, ok := l.Get(1).(*lua.LTable)
+		if !ok {
+			l.Push(lua.LString(strings.Join(restArgs, " ")))
+			return 1
+		}
+		sep := " "
+		if l.GetTop() >= 2 && l.Get(2) != lua.LNil {
+			sep = l.ToString(2)
+		}
+		var parts []string
+		for i := 1; i <= tbl.MaxN(); i++ {
+			v := tbl.RawGetInt(i)
+			if v != lua.LNil {
+				parts = append(parts, lua.LVAsString(v))
+			}
+		}
+		l.Push(lua.LString(strings.Join(parts, sep)))
+		return 1
+	})
+	l.SetField(idxTbl, "string", joinFn)
+	l.SetField(mt, "__index", idxTbl)
+	l.SetField(mt, "__tostring", joinFn)
+	l.SetMetatable(restTbl, mt)
+	l.SetField(cliTable, "rest", restTbl)
+
 	for k, v := range cliFlags {
 		if flagDef, ok := flagDefs[k]; ok && flagDef.Bool {
 			l.SetField(cliTable, k, lua.LBool(v == "true"))
@@ -151,7 +184,7 @@ func execute(l *lua.LState, code string) error {
 	return nil
 }
 
-func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string) error {
+func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string, restArgs []string) error {
 	if cliBlock.Loop == nil && cliBlock.Fn == nil {
 		return errors.New("no handler fn or loop defined")
 	}
@@ -167,7 +200,7 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string) err
 	if err := restlua.RegisterModules(l); err != nil {
 		return err
 	}
-	if err := populateGlobalObject(l, f, cliFlags, cliBlock.Flags); err != nil {
+	if err := populateGlobalObject(l, f, cliFlags, restArgs, cliBlock.Flags); err != nil {
 		return err
 	}
 

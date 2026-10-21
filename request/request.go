@@ -46,6 +46,7 @@ type Request struct {
 	// parsed values
 	UserAgent string
 	Body      string
+	Exports   map[string]any
 
 	Built *http.Request
 

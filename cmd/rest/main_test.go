@@ -29,8 +29,8 @@ func TestParseCLIFlagsWithArgs_NoFlags(t *testing.T) {
 		},
 	}
 
-	os.Args = []string{"rest", "-d", "/custom/dir", "-r", "--script=app.sh"}
-	vals, help, err := parseCLIFlagsWithArgs(flags, nil)
+	os.Args = []string{"rest", "-d", "/custom/dir", "-r", "--script=app.sh", "what", "is", "the", "capital"}
+	vals, restArgs, help, err := parseCLIFlagsWithArgs(flags, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -45,6 +45,9 @@ func TestParseCLIFlagsWithArgs_NoFlags(t *testing.T) {
 	}
 	if vals["script"] != "app.sh" {
 		t.Fatalf("expected script=app.sh, got %q", vals["script"])
+	}
+	if len(restArgs) != 4 || restArgs[0] != "what" || restArgs[3] != "capital" {
+		t.Fatalf("unexpected restArgs: %v", restArgs)
 	}
 }
 
@@ -66,7 +69,7 @@ func TestParseCLIFlagsWithArgs_DefaultsAndHelp(t *testing.T) {
 	}
 
 	os.Args = []string{"rest"}
-	vals, help, err := parseCLIFlagsWithArgs(flags, nil)
+	vals, _, help, err := parseCLIFlagsWithArgs(flags, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -81,7 +84,7 @@ func TestParseCLIFlagsWithArgs_DefaultsAndHelp(t *testing.T) {
 	}
 
 	os.Args = []string{"rest", "-h"}
-	_, help, err = parseCLIFlagsWithArgs(flags, nil)
+	_, _, help, err = parseCLIFlagsWithArgs(flags, nil)
 	if err != nil {
 		t.Fatalf("unexpected error on -h: %v", err)
 	}
@@ -98,7 +101,7 @@ func TestParseCLIFlagsWithArgs_ReservedConflict(t *testing.T) {
 			Short: "d",
 		},
 	}
-	_, _, err := parseCLIFlagsWithArgs(flags, reserved)
+	_, _, _, err := parseCLIFlagsWithArgs(flags, reserved)
 	if err == nil {
 		t.Fatal("expected conflict error when short flag conflicts with built-in flag")
 	}
@@ -131,7 +134,7 @@ cli {
   }
   fn = <<LUA
     local f = io.open("` + outFile + `", "w")
-    f:write((cli.dir or "") .. ":" .. tostring(cli.restart == true))
+    f:write((cli.dir or "") .. ":" .. tostring(cli.restart == true) .. ":" .. cli.rest:string() .. ":" .. cli.rest[1])
     f:close()
   LUA
 }
@@ -140,7 +143,7 @@ cli {
 		t.Fatal(err)
 	}
 
-	os.Args = []string{"rest", scriptFile, "-d", "/my/dir", "-r"}
+	os.Args = []string{"rest", scriptFile, "-d", "/my/dir", "-r", "what", "is", "the", "capital"}
 	if err := run(); err != nil {
 		t.Fatalf("run() failed: %v", err)
 	}
@@ -149,8 +152,8 @@ cli {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != "/my/dir:true" {
-		t.Fatalf("expected /my/dir:true, got %q", string(got))
+	if string(got) != "/my/dir:true:what is the capital:what" {
+		t.Fatalf("expected /my/dir:true:what is the capital:what, got %q", string(got))
 	}
 }
 

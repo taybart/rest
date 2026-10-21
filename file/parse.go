@@ -95,12 +95,13 @@ func (r *Root) Add(root *Root, config request.Config) {
 }
 
 type Parser struct {
-	Ctx     *hcl.EvalContext
-	Files   map[string]*hcl.File
-	Root    *Root
-	Locals  map[string]cty.Value
-	Exports map[string]cty.Value
-	Config  request.Config
+	Ctx        *hcl.EvalContext
+	Files      map[string]*hcl.File
+	Root       *Root
+	Locals     map[string]cty.Value
+	Exports    map[string]cty.Value
+	RawExports map[string]any
+	Config     request.Config
 }
 
 func NewParser(filename string) (*Parser, error) {
@@ -108,10 +109,11 @@ func NewParser(filename string) (*Parser, error) {
 		Root: &Root{
 			filename: filename,
 		},
-		Config:  request.DefaultConfig(),
-		Files:   map[string]*hcl.File{},
-		Locals:  map[string]cty.Value{},
-		Exports: map[string]cty.Value{},
+		Config:     request.DefaultConfig(),
+		Files:      map[string]*hcl.File{},
+		Locals:     map[string]cty.Value{},
+		Exports:    map[string]cty.Value{},
+		RawExports: map[string]any{},
 	}
 
 	if err := p.read(filename, p.Root); err != nil {
@@ -329,6 +331,7 @@ func (p *Parser) Request(hreq *HCLRequest) (request.Request, error) {
 	if err := req.SetDefaults(p.Ctx); err != nil {
 		return req, err
 	}
+	req.Exports = p.RawExports
 	// make body look nice if its json
 	if json.Valid([]byte(req.Body)) {
 		var buf bytes.Buffer
@@ -418,6 +421,7 @@ func exportsToCty(exports map[string]any) map[string]cty.Value {
 }
 func (p *Parser) AddExportsCtx(exports map[string]any) {
 	for k, v := range exports {
+		p.RawExports[k] = v
 		p.Exports[k] = valueToCty(v)
 	}
 	p.Ctx.Variables["exports"] = cty.ObjectVal(p.Exports)
