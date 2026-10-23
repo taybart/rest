@@ -142,6 +142,8 @@ rest.req = {
 `rest.req` also provides helper methods (called with `:`):
 
 - `rest.req:path_value(key)` - get a route path parameter (e.g. `{id}` from `/user/{id}`)
+- `rest.req:query(key)` - get the first value of a query parameter (or `nil`)
+- `rest.req:query_values(key)` - get all values of a query parameter as a table (or `nil`)
 - `rest.req:header(key)` - case-insensitive lookup returning the first header value and matched key (or `nil`)
 - `rest.req:header_values(key)` - case-insensitive lookup returning all values for the header as a table and matched key (or `nil`)
 - `rest.req:bearer_token()` - extract the token from the `Authorization: Bearer <token>` header (or `nil`)
@@ -150,7 +152,8 @@ rest.req = {
 
 There are some global modules available in the lua runtime.
 
-- `json` - encode and decode json
+- `json` - encode and decode json (`json.encode(tbl)`, `json.decode(str)`)
+- `form` - encode and decode url-encoded form/query strings (`form.encode(tbl)`, `form.decode(str)`)
 - `colors` - adds terminal color escape codes and formatting functions for extra points
 - `inspect` - used to inspect lua values
 - `base64` - encode and decode base64

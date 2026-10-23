@@ -116,26 +116,37 @@ func TestHandlerFnPathValue(t *testing.T) {
 		Quiet: true,
 		Handlers: []*server.Handler{
 			{
-				Method: "GET",
+				Method: "POST",
 				Path:   "/user/{id}",
 				Fn: `
 					local id = rest.req:path_value("id")
 					local token = rest.req:bearer_token()
 					local custom = rest.req:header("x-custom")
+					local q = rest.req:query("filter")
+					local body = form.decode(rest.req.body)
 					return {
 						status = 200,
-						body = string.format("%s:%s:%s", id, token, custom),
+						body = form.encode({
+							id = id,
+							token = token,
+							custom = custom,
+							filter = q,
+							name = body.name,
+						}),
 					}
 				`,
 			},
 		},
 	})
 	defer ts.Close()
-	req, err := http.NewRequest("GET", ts.URL+"/user/42", nil)
+	req, err := http.NewRequest("POST", ts.URL+"/user/42?filter=active", strings.NewReader("name=alice+smith"))
 	if err != nil {
 		t.Fatalf("error creating request: %s", err)
 	}
 	req.Header.Set("Authorization", "Bearer secret-token")
 	req.Header.Set("X-Custom", "hello")
-	checkResponse(t, req, Response{StatusCode: http.StatusOK, Body: `42:secret-token:hello`})
+	checkResponse(t, req, Response{
+		StatusCode: http.StatusOK,
+		Body:       `custom=hello&filter=active&id=42&name=alice+smith&token=secret-token`,
+	})
 }

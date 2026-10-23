@@ -36,6 +36,8 @@ server {
       end
       -- get id from path
       local id = rest.req:path_value("id")
+      local q = rest.req:query("q")
+      print('q: '..q)
       return {
         status = 200,
         body = json.encode({ id = id, name = "Frankie Muniz" })
@@ -65,6 +67,7 @@ request "get auth token" {
 
 request "get user" {
   url          = "http://localhost:18080/user/5"
+  query        = { q = "fran" }
   bearer_token = exports.auth_token
   after        = <<LUA
     print('\n==='..rest.label..'===')
