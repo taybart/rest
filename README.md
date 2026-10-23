@@ -49,9 +49,9 @@ server {
             print(rest.req.body)
             return {
                 status = 200
-                body = {
+                body = json.encode({
                     msg = "success"
-                }
+                })
             }
         LUA
     }

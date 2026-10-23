@@ -120,9 +120,11 @@ func TestHandlerFnPathValue(t *testing.T) {
 				Path:   "/user/{id}",
 				Fn: `
 					local id = rest.req:path_value("id")
+					local token = rest.req:bearer_token()
+					local custom = rest.req:header("x-custom")
 					return {
 						status = 200,
-						body = json.encode({ id = id }),
+						body = string.format("%s:%s:%s", id, token, custom),
 					}
 				`,
 			},
@@ -133,5 +135,7 @@ func TestHandlerFnPathValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating request: %s", err)
 	}
-	checkResponse(t, req, Response{StatusCode: http.StatusOK, Body: `{"id":"42"}`})
+	req.Header.Set("Authorization", "Bearer secret-token")
+	req.Header.Set("X-Custom", "hello")
+	checkResponse(t, req, Response{StatusCode: http.StatusOK, Body: `42:secret-token:hello`})
 }

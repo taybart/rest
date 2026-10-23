@@ -22,7 +22,7 @@ request "use exports" {
   bearer_token = exports.auth_token
   after = <<LUA
     print('\n===' .. rest.label .. '===')
-    local auth_header, other = tools.get_req_header('Authorization')
+    local auth_header, other = rest.req:header('Authorization')
     if auth_header ~= 'Bearer this_is_an_auth_token' then
     	print(auth_header, other)
     	fail('missing or incorrect auth_token')
@@ -58,8 +58,8 @@ server {
   handler "GET" "/test" {
     fn = <<LUA
       local me = tonumber(kv.get('me'))
-      print('auth header: ' .. tools.get_req_header('Authorization'))
-      if tools.get_req_header('Authorization') ~= 'Bearer this_is_an_auth_token' then return 401, '' end
+      print('auth header: ' .. rest.req:header('Authorization'))
+      if rest.req:header('Authorization') ~= 'Bearer this_is_an_auth_token' then return 401, '' end
       me += 1
       kv.set('me', me)
       return 200, json.encode({ hello = me })

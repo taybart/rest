@@ -382,7 +382,8 @@ There are a couple of global libraries available to you:
 - `colors` - adds terminal color escape codes and formatting functions for extra points
 - `inspect` - used to inspect lua values
 - `base64` - encode and decode base64
-- `tools` - various helper functions, check out the [tools](https://github.com/taybart/rest/blob/main/request/lua/tools.lua) module for commented functions
+- `uuid` - generate and validate UUIDs
+- `tools` - various helper functions (such as `tools.expected()`), check out the [tools](https://github.com/taybart/rest/blob/main/lua/modules/tools.lua) module for commented functions
 
 Additionally there are a few global functions available to you:
 - `copy("value")` - copy a value to the clipboard, if the value is a table it will be marshalled to json
@@ -407,6 +408,11 @@ Hooks are also passed a `rest` table that contains the following:
 }
 ```
 
+`rest.req` methods:
+- `rest.req:header(key)` - case-insensitive lookup returning the first header value and matched key (or `nil`)
+- `rest.req:header_values(key)` - case-insensitive lookup returning a table of values and matched key (or `nil`)
+- `rest.req:bearer_token()` - extract the token from the `Authorization: Bearer <token>` header (or `nil`)
+
 `res` - the response object
 
 ```lua
@@ -418,6 +424,10 @@ Hooks are also passed a `rest` table that contains the following:
   dump = "" -- formatted full response in http format
 }
 ```
+
+`rest.res` methods:
+- `rest.res:header(key)` - case-insensitive lookup returning the first header value and matched key (or `nil`)
+- `rest.res:header_values(key)` - case-insensitive lookup returning a table of values and matched key (or `nil`)
 
 ### exports
 

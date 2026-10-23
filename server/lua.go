@@ -17,35 +17,6 @@ import (
 		- maybe add some go funcs for directly writing response and such
 */
 
-const reqUserDataKey = "__req"
-
-func checkRequest(l *lua.LState) *http.Request {
-	self := l.CheckTable(1)
-	mt, ok := l.GetMetatable(self).(*lua.LTable)
-	if !ok {
-		l.ArgError(1, "expected rest.req table (use ':' syntax, e.g. rest.req:path_value(...))")
-		return nil
-	}
-	ud, ok := l.GetField(mt, reqUserDataKey).(*lua.LUserData)
-	if !ok {
-		l.ArgError(1, "missing underlying http.Request")
-		return nil
-	}
-	req, ok := ud.Value.(*http.Request)
-	if !ok {
-		l.ArgError(1, "invalid underlying http.Request")
-		return nil
-	}
-	return req
-}
-
-func reqPathValue(l *lua.LState) int {
-	req := checkRequest(l)
-	id := l.CheckString(2)
-	l.Push(lua.LString(req.PathValue(id)))
-	return 1
-}
-
 func populateGlobalObject(l *lua.LState, req *http.Request) error {
 	defer req.Body.Close()
 	body, err := io.ReadAll(req.Body)
@@ -61,15 +32,7 @@ func populateGlobalObject(l *lua.LState, req *http.Request) error {
 		"body":    lua.LString(body),
 	}
 	reqTbl := restlua.MakeLTable(l, reqMap)
-
-	ud := l.NewUserData()
-	ud.Value = req
-	mt := l.NewTable()
-	l.SetField(mt, reqUserDataKey, ud)
-	l.SetField(mt, "__index", l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
-		"path_value": reqPathValue,
-	}))
-	l.SetMetatable(reqTbl, mt)
+	restlua.SetRequestMetatable(l, reqTbl, req)
 
 	table := restlua.MakeLTable(l, map[string]lua.LValue{
 		"path": lua.LString(req.URL.Path),

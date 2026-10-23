@@ -14,13 +14,13 @@ server {
       end
       return {
         status = 401,
-        json.encode({error = "invalid credentials"})
+        body = json.encode({error = "invalid credentials"})
       }
     LUA
   }
   handler "GET" "/user/{id}" {
     fn = <<LUA
-      local token = tools.get_req_bearer_token()
+      local token = rest.req:bearer_token()
       if not uuid.is_uuidv4(token) then
         return {
           status = 401,
@@ -47,10 +47,10 @@ server {
 
 ## Test Client
 request "get auth token" {
-  url = "http://localhost:18080/login"
+  url    = "http://localhost:18080/login"
   method = "POST"
-  body = { "username": "root", "password": "toor" }
-  after = <<LUA
+  body   = { "username" : "root", "password" : "toor" }
+  after  = <<LUA
     print('==='..rest.label..'===')
     print(rest.res.body)
     local body = json.decode(rest.res.body)
@@ -64,17 +64,17 @@ request "get auth token" {
 }
 
 request "get user" {
-  url = "http://localhost:18080/user/5"
+  url          = "http://localhost:18080/user/5"
   bearer_token = exports.auth_token
-  after = <<LUA
+  after        = <<LUA
     print('\n==='..rest.label..'===')
     inspect.print(json.decode(rest.res.body))
   LUA
 }
 request "get unknown" {
-  url = "http://localhost:18080/idk"
+  url          = "http://localhost:18080/idk"
   bearer_token = exports.auth_token
-  after = <<LUA
+  after        = <<LUA
     print('\n==='..rest.label..'===')
     print(rest.res.dump)
   LUA

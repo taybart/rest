@@ -60,6 +60,7 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 		})
 	}
 	reqTbl := restlua.MakeLTable(l, reqMap)
+	restlua.SetRequestMetatable(l, reqTbl, res.Request)
 
 	u, err := url.Parse(res.Request.URL.String())
 	if err != nil {
@@ -79,6 +80,7 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 		"cookies": restlua.MakeLTable(l, cookieMap),
 		"dump":    lua.LString(string(resdump)),
 	})
+	restlua.SetResponseMetatable(l, resTbl, res)
 
 	exportsTable := l.NewTable()
 	if len(req.Exports) > 0 {

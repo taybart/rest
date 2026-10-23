@@ -127,6 +127,25 @@ return {
 }
 ```
 
+Handler functions are passed a global `rest` table containing `rest.path` and `rest.req`:
+
+```lua
+rest.req = {
+    url = "http://localhost:18080/user/5",
+    method = "GET",
+    query = {},
+    headers = {},
+    body = "",
+}
+```
+
+`rest.req` also provides helper methods (called with `:`):
+
+- `rest.req:path_value(key)` - get a route path parameter (e.g. `{id}` from `/user/{id}`)
+- `rest.req:header(key)` - case-insensitive lookup returning the first header value and matched key (or `nil`)
+- `rest.req:header_values(key)` - case-insensitive lookup returning all values for the header as a table and matched key (or `nil`)
+- `rest.req:bearer_token()` - extract the token from the `Authorization: Bearer <token>` header (or `nil`)
+
 **Modules**
 
 There are some global modules available in the lua runtime.
@@ -135,8 +154,8 @@ There are some global modules available in the lua runtime.
 - `colors` - adds terminal color escape codes and formatting functions for extra points
 - `inspect` - used to inspect lua values
 - `base64` - encode and decode base64
+- `uuid` - generate and validate UUIDs
 - `tools` - various helper functions, check out the [tools](https://github.com/taybart/rest/blob/main/lua/modules/tools.lua) module for commented functions
-    - one call out is `tools.get_req_header`, but you can read the file to see the rest of the fuctions
 - `kv` - in-memory key/value store that persists between requests
     - `kv.get(key)` - get value from kv cache, returns nil if key doesn't exist
     - `kv.set(key, value)` - set a key's value, can be anything
