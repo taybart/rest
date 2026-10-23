@@ -110,3 +110,28 @@ func TestEcho(t *testing.T) {
 	}
 	checkResponse(t, req, Response{StatusCode: http.StatusOK, Body: `{"data": "hello"}`})
 }
+
+func TestHandlerFnPathValue(t *testing.T) {
+	ts := newServer(server.Config{
+		Quiet: true,
+		Handlers: []*server.Handler{
+			{
+				Method: "GET",
+				Path:   "/user/{id}",
+				Fn: `
+					local id = rest.req:path_value("id")
+					return {
+						status = 200,
+						body = json.encode({ id = id }),
+					}
+				`,
+			},
+		},
+	})
+	defer ts.Close()
+	req, err := http.NewRequest("GET", ts.URL+"/user/42", nil)
+	if err != nil {
+		t.Fatalf("error creating request: %s", err)
+	}
+	checkResponse(t, req, Response{StatusCode: http.StatusOK, Body: `{"id":"42"}`})
+}

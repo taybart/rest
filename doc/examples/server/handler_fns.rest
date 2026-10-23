@@ -35,7 +35,7 @@ server {
         }
       end
       -- get id from path
-      local id = s.path_value("id")
+      local id = rest.req:path_value("id")
       return {
         status = 200,
         body = json.encode({ id = id, name = "Frankie Muniz" })

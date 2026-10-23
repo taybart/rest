@@ -44,7 +44,8 @@ server {
     # or handled using a lua function
     handler "POST" "/upload/{id}" {
         fn = <<LUA
-            print(s.path_value("id")) -- get path values
+            -- get path values off of request table
+            print(rest.req:path_value("id"))
             print(rest.req.body)
             return {
                 status = 200
