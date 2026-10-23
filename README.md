@@ -1,6 +1,6 @@
 # Rest
 
-In need of a quick rest client or server? Easily done with rest using HCL configs. 
+In need of a quick rest client or server? Easily done with rest using HCL configs.
 
 Goes well with [rest.nvim](https://github.com/taybart/rest.nvim)
 
@@ -38,22 +38,28 @@ request "httpbin post" {
 **Server**
 ```hcl
 server {
-	address = "localhost:18080"
-	handler "GET" "/hello" { response { status = 226 } }
-	handler "POST" "/upload/{id}" {
-		fn = <<LUA
-			print(s.path_value("id")) -- get path values
-			print(rest.req.body)
-			return {
-				status = 200
-				body = {
-					msg = "success"
-				}
-			}
-		LUA
-	}
-	
-	response { status = 418	}
+    address = "localhost:18080"
+    # either defined in a response block
+    handler "GET" "/hello" { response { status = 226 } }
+    # or handled using a lua function
+    handler "POST" "/upload/{id}" {
+        fn = <<LUA
+            print(s.path_value("id")) -- get path values
+            print(rest.req.body)
+            return {
+                status = 200
+                body = {
+                    msg = "success"
+                }
+            }
+        LUA
+    }
+
+    # default response
+    response {
+        status = 418
+        body = { msg = "I'm a teapot" }
+    }
 }
 ```
 
@@ -72,7 +78,7 @@ locals {
 
 cli {
     flags = {
-        name = { 
+        name = {
             desc = "Name to say hello to"
             short = "n" # flag can be --name or -n, short is optional
             # set default value (using local here can be anything)
