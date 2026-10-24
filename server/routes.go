@@ -69,22 +69,27 @@ func (s *Server) CustomHandlerFn(handler *Handler) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if handler.Method == r.Method || handler.Method == "*" {
-			if handler.Proxy != "" {
-				proxy.ServeHTTP(w, r)
-				return
-			}
-			if handler.Fn != "" {
-				res, err := s.RunLuaHandler(handler.Fn, r, w)
+			if len(handler.Middleware) > 0 || handler.Fn != "" {
+				res, handled, err := s.RunLuaPipeline(handler, r, w)
 				if err != nil {
 					log.Error(err)
 					w.WriteHeader(http.StatusBadRequest)
-				} else {
+					return
+				}
+				if handled {
 					for k, v := range res.Headers {
 						w.Header().Add(k, v)
 					}
+					for _, c := range res.Cookies {
+						http.SetCookie(w, c)
+					}
 					w.WriteHeader(res.Status)
+					fmt.Fprint(w, string(res.Body))
+					return
 				}
-				fmt.Fprint(w, string(res.Body))
+			}
+			if handler.Proxy != "" {
+				proxy.ServeHTTP(w, r)
 				return
 			}
 			if handler.Response != nil {

@@ -1,7 +1,9 @@
 package server
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -12,16 +14,20 @@ import (
 
 /*
   TODO:
-		- Cookies
 		- maybe better return type
 		- maybe add some go funcs for directly writing response and such
 */
 
 func populateGlobalObject(l *lua.LState, req *http.Request) error {
-	defer req.Body.Close()
-	body, err := io.ReadAll(req.Body)
-	if err != nil {
-		return err
+	var body []byte
+	if req.Body != nil {
+		var err error
+		body, err = io.ReadAll(req.Body)
+		req.Body.Close()
+		if err != nil {
+			return err
+		}
+		req.Body = io.NopCloser(bytes.NewReader(body))
 	}
 
 	reqMap := map[string]lua.LValue{
@@ -37,6 +43,7 @@ func populateGlobalObject(l *lua.LState, req *http.Request) error {
 	table := restlua.MakeLTable(l, map[string]lua.LValue{
 		"path": lua.LString(req.URL.Path),
 		"req":  reqTbl,
+		"ctx":  l.NewTable(),
 	})
 	l.SetGlobal("rest", table)
 	return nil
@@ -100,8 +107,32 @@ func (s *Server) luaHelpers(l *lua.LState) error {
 	return nil
 }
 
-func (s *Server) RunLuaHandler(handler string, req *http.Request, w http.ResponseWriter) (Response, error) {
+func mapLuaResponse(l *lua.LState, luaRes *lua.LTable) (Response, error) {
+	res := Response{
+		Status: http.StatusOK,
+	}
+	var cookies []*http.Cookie
+	if cookiesTbl, ok := l.GetField(luaRes, "cookies").(*lua.LTable); ok {
+		cookies = restlua.ParseLuaCookies(cookiesTbl)
+		l.SetField(luaRes, "cookies", lua.LNil)
+	}
+	if err := gluamapper.Map(luaRes, &res); err != nil {
+		return res, err
+	}
+	res.Cookies = cookies
+	return res, nil
+}
 
+func (s *Server) findMiddleware(name string) (*Middleware, bool) {
+	for _, mw := range s.Config.Middlewares {
+		if mw.Name == name {
+			return mw, true
+		}
+	}
+	return nil, false
+}
+
+func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.ResponseWriter) (Response, bool, error) {
 	l := lua.NewState()
 	defer l.Close()
 
@@ -110,22 +141,51 @@ func (s *Server) RunLuaHandler(handler string, req *http.Request, w http.Respons
 	}
 
 	if err := restlua.RegisterModules(l); err != nil {
-		return res, err
+		return res, false, err
 	}
 	if err := populateGlobalObject(l, req); err != nil {
-		return res, err
+		return res, false, err
 	}
 	if err := s.luaHelpers(l); err != nil {
-		return res, err
-	}
-	if err := execute(l, handler); err != nil {
-		return res, err
+		return res, false, err
 	}
 
-	luaRes := l.Get(-1)
-	err := gluamapper.Map(luaRes.(*lua.LTable), &res)
-	if err != nil {
-		return res, err
+	for _, mwName := range handler.Middleware {
+		mw, ok := s.findMiddleware(mwName)
+		if !ok {
+			return res, false, fmt.Errorf("middleware %q not found", mwName)
+		}
+		l.SetTop(0)
+		if err := execute(l, mw.Fn); err != nil {
+			return res, false, err
+		}
+		if l.GetTop() > 0 && l.Get(-1) != lua.LNil {
+			luaRes, ok := l.Get(-1).(*lua.LTable)
+			if !ok {
+				return res, false, fmt.Errorf("middleware %q must return a response table or nil", mwName)
+			}
+			mapped, err := mapLuaResponse(l, luaRes)
+			return mapped, true, err
+		}
 	}
-	return res, nil
+
+	if handler.Fn != "" {
+		l.SetTop(0)
+		if err := execute(l, handler.Fn); err != nil {
+			return res, false, err
+		}
+		luaRes, ok := l.Get(-1).(*lua.LTable)
+		if !ok {
+			return res, false, errors.New("handler fn must return a table")
+		}
+		mapped, err := mapLuaResponse(l, luaRes)
+		return mapped, true, err
+	}
+
+	return res, false, nil
+}
+
+func (s *Server) RunLuaHandler(handler string, req *http.Request, w http.ResponseWriter) (Response, error) {
+	res, _, err := s.RunLuaPipeline(&Handler{Fn: handler}, req, w)
+	return res, err
 }

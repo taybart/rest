@@ -1,26 +1,10 @@
 # Server
 server {
   address = "localhost:18080"
-  handler "POST" "/login" {
+
+  middleware "auth" {
     fn = <<LUA
-      local body = json.decode(rest.req.body)
-      if body.username == "root" and body.password == "toor" then
-        local token = uuid.newv4()
-        kv.set('last_token', token)  -- in memory key value cache
-        return {
-          status = 200,
-          body = json.encode({token = token})
-        }
-      end
-      return {
-        status = 401,
-        body = json.encode({error = "invalid credentials"})
-      }
-    LUA
-  }
-  handler "GET" "/user/{id}" {
-    fn = <<LUA
-      local token = rest.req:bearer_token()
+      local token = rest.req:cookie("token") or rest.req:bearer_token()
       if not uuid.is_uuidv4(token) then
         return {
           status = 401,
@@ -34,6 +18,40 @@ server {
           body = json.encode({error = "invalid credentials"})
         }
       end
+      rest.ctx.token = token
+    LUA
+  }
+
+  handler "POST" "/login" {
+    fn = <<LUA
+      local body = json.decode(rest.req.body)
+      if body.username == "root" and body.password == "toor" then
+        local token = uuid.newv4()
+        kv.set('last_token', token)  -- in memory key value cache
+        return {
+          status = 200,
+          cookies = {
+            token = {
+              value = token,
+              path = "/",
+              http_only = true,
+              same_site = "strict",
+              secure = true,
+            },
+          },
+          body = json.encode({token = token})
+        }
+      end
+      return {
+        status = 401,
+        body = json.encode({error = "invalid credentials"})
+      }
+    LUA
+  }
+  handler "GET" "/user/{id}" {
+    middleware = ["auth"]
+    fn = <<LUA
+      print('GOT COOKIE: '..inspect(rest.req.cookies))
       -- get id from path
       local id = rest.req:path_value("id")
       local q = rest.req:query("q")
@@ -52,8 +70,16 @@ request "get auth token" {
   url    = "http://localhost:18080/login"
   method = "POST"
   body   = { "username" : "root", "password" : "toor" }
-  after  = <<LUA
+  # expect {
+  #   status = 200
+  #   body   = json_enc({ token = "{{uuidv4}}" })
+  # }
+  after = <<LUA
     print('==='..rest.label..'===')
+    if not tools.expected() then
+      return
+    end
+    print(("COOKIE-CRISP %s"):format(inspect(rest.res.cookies)))
     print(rest.res.body)
     local body = json.decode(rest.res.body)
     if not body.token  then

@@ -273,8 +273,20 @@ func (p *Parser) Server() (server.Config, error) {
 		}
 		serv.Response.Body = json.RawMessage(b)
 	}
+	mwNames := make(map[string]bool, len(serv.Middlewares))
+	for _, mw := range serv.Middlewares {
+		if mwNames[mw.Name] {
+			return serv, fmt.Errorf("duplicate middleware %q", mw.Name)
+		}
+		mwNames[mw.Name] = true
+	}
 	if len(serv.Handlers) != 0 {
 		for k, handler := range serv.Handlers {
+			for _, mwName := range handler.Middleware {
+				if !mwNames[mwName] {
+					return serv, fmt.Errorf("handler %s %s: middleware %q not found", handler.Method, handler.Path, mwName)
+				}
+			}
 			if handler.Response != nil {
 				b, err := p.marshalBody(handler.Response.BodyHCL)
 				if err != nil {

@@ -117,17 +117,28 @@ server {
 ### Handler functions
 
 The handler function has access to the same lua tools as the client after hook.
-The return must be a table (its the same type as the response block in HCL):
+The return must be a table (its the same type as the response block in HCL, plus an optional `cookies` table):
 ex:
 ```lua
 return {
     status = 200,
-    headers = { ["Set-Cookie"] = "test=1" }
+    headers = { ["X-Custom"] = "test" },
+    cookies = {
+        token = {
+            value = "secret",
+            path = "/",
+            http_only = true,
+            same_site = "strict", -- "lax", "strict", "none", "default"
+            secure = true,
+            max_age = 3600,
+        },
+        theme = "dark", -- shorthand for simple key=value cookies
+    },
     body = json.encode({msg = "hello world"}),
 }
 ```
 
-Handler functions are passed a global `rest` table containing `rest.path` and `rest.req`:
+Handler functions are passed a global `rest` table containing `rest.path`, `rest.ctx`, and `rest.req`:
 
 ```lua
 rest.req = {
@@ -135,7 +146,48 @@ rest.req = {
     method = "GET",
     query = {},
     headers = {},
+    cookies = {},
     body = "",
+}
+```
+
+### Middleware
+
+You can define reusable `middleware` blocks in `server` and reference them on any `handler` via `middleware = ["name"]` (including `fn`, `response`, and `proxy` handlers).
+
+- If a middleware returns `nil` (or nothing), execution proceeds to the next middleware or handler.
+- If a middleware returns a response table (e.g. `return { status = 401, body = ... }`), it short-circuits the request and sends that response immediately.
+- Middleware and handler `fn` scripts share `rest.ctx` (a table) for passing values downstream within the same request.
+
+```hcl
+server {
+    address = "localhost:18080"
+
+    middleware "auth" {
+        fn = <<LUA
+            local token = rest.req:cookie("token") or rest.req:bearer_token()
+            if token ~= kv.get("last_token") then
+                return {
+                    status = 401,
+                    body = json.encode({ error = "unauthorized" }),
+                }
+            end
+            rest.ctx.token = token
+        LUA
+    }
+
+    handler "GET" "/user/{id}" {
+        middleware = ["auth"]
+        fn = <<LUA
+            return {
+                status = 200,
+                body = json.encode({
+                    id = rest.req:path_value("id"),
+                    token = rest.ctx.token,
+                }),
+            }
+        LUA
+    }
 }
 ```
 
@@ -146,6 +198,7 @@ rest.req = {
 - `rest.req:query_values(key)` - get all values of a query parameter as a table (or `nil`)
 - `rest.req:header(key)` - case-insensitive lookup returning the first header value and matched key (or `nil`)
 - `rest.req:header_values(key)` - case-insensitive lookup returning all values for the header as a table and matched key (or `nil`)
+- `rest.req:cookie(name)` - get the value of a request cookie by name (or `nil`)
 - `rest.req:bearer_token()` - extract the token from the `Authorization: Bearer <token>` header (or `nil`)
 
 **Modules**

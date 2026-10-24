@@ -168,6 +168,18 @@ func reqQueryValues(l *lua.LState) int {
 	return 1
 }
 
+func reqCookie(l *lua.LState) int {
+	req := checkRequest(l)
+	name := l.CheckString(2)
+	c, err := req.Cookie(name)
+	if err != nil || c == nil {
+		l.Push(lua.LNil)
+		return 1
+	}
+	l.Push(lua.LString(c.Value))
+	return 1
+}
+
 func resHeader(l *lua.LState) int {
 	res := checkResponse(l)
 	key := l.CheckString(2)
@@ -180,10 +192,134 @@ func resHeaderValues(l *lua.LState) int {
 	return pushHeaderValues(l, res.Header, key)
 }
 
+func sameSiteToString(s http.SameSite) string {
+	switch s {
+	case http.SameSiteDefaultMode:
+		return "default"
+	case http.SameSiteLaxMode:
+		return "lax"
+	case http.SameSiteStrictMode:
+		return "strict"
+	case http.SameSiteNoneMode:
+		return "none"
+	default:
+		return ""
+	}
+}
+
+func parseSameSite(s string) http.SameSite {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "default":
+		return http.SameSiteDefaultMode
+	case "lax":
+		return http.SameSiteLaxMode
+	case "strict":
+		return http.SameSiteStrictMode
+	case "none":
+		return http.SameSiteNoneMode
+	default:
+		return 0
+	}
+}
+
+func resCookie(l *lua.LState) int {
+	self := l.CheckTable(1)
+	res := checkResponse(l)
+	name := l.CheckString(2)
+	for _, c := range res.Cookies() {
+		if c.Name == name {
+			l.Push(lua.LString(c.Value))
+			details := MakeLTable(l, map[string]lua.LValue{
+				"name":      lua.LString(c.Name),
+				"value":     lua.LString(c.Value),
+				"path":      lua.LString(c.Path),
+				"domain":    lua.LString(c.Domain),
+				"max_age":   lua.LNumber(c.MaxAge),
+				"secure":    lua.LBool(c.Secure),
+				"http_only": lua.LBool(c.HttpOnly),
+				"same_site": lua.LString(sameSiteToString(c.SameSite)),
+				"raw":       lua.LString(c.Raw),
+			})
+			l.Push(details)
+			return 2
+		}
+	}
+	if cookiesTbl, ok := l.GetField(self, "cookies").(*lua.LTable); ok {
+		if val := l.GetField(cookiesTbl, name); val != lua.LNil {
+			l.Push(val)
+			return 1
+		}
+	}
+	l.Push(lua.LNil)
+	return 1
+}
+
+// ParseLuaCookies converts a Lua cookies table (either map of name -> string/table
+// or array of cookie tables) into a slice of *http.Cookie.
+func ParseLuaCookies(tbl *lua.LTable) []*http.Cookie {
+	var cookies []*http.Cookie
+	tbl.ForEach(func(k, v lua.LValue) {
+		switch val := v.(type) {
+		case *lua.LTable:
+			c := &http.Cookie{}
+			if k.Type() == lua.LTString {
+				c.Name = k.String()
+			}
+			val.ForEach(func(ck, cv lua.LValue) {
+				switch strings.ToLower(ck.String()) {
+				case "name":
+					c.Name = cv.String()
+				case "value":
+					c.Value = cv.String()
+				case "path":
+					c.Path = cv.String()
+				case "domain":
+					c.Domain = cv.String()
+				case "max_age", "maxage":
+					if n, ok := cv.(lua.LNumber); ok {
+						c.MaxAge = int(n)
+					}
+				case "secure":
+					c.Secure = lua.LVAsBool(cv)
+				case "http_only", "httponly":
+					c.HttpOnly = lua.LVAsBool(cv)
+				case "same_site", "samesite":
+					c.SameSite = parseSameSite(cv.String())
+				}
+			})
+			if c.Name != "" {
+				cookies = append(cookies, c)
+			}
+		case *lua.LNilType:
+			// skip nil
+		default:
+			if k.Type() == lua.LTString {
+				cookies = append(cookies, &http.Cookie{
+					Name:  k.String(),
+					Value: val.String(),
+				})
+			}
+		}
+	})
+	return cookies
+}
+
+// MakeCookiesTable converts a slice of *http.Cookie into a Lua table mapping cookie name to value.
+func MakeCookiesTable(l *lua.LState, cookies []*http.Cookie) *lua.LTable {
+	cookieMap := make(map[string]lua.LValue, len(cookies))
+	for _, c := range cookies {
+		cookieMap[c.Name] = lua.LString(c.Value)
+	}
+	return MakeLTable(l, cookieMap)
+}
+
 // SetRequestMetatable attaches the underlying *http.Request as hidden userdata
-// and registers request helper methods (path_value, query, query_values, header, header_values, bearer_token)
+// and registers request helper methods (path_value, query, query_values, header, header_values, cookie, bearer_token)
 // on reqTbl.
 func SetRequestMetatable(l *lua.LState, reqTbl *lua.LTable, req *http.Request) {
+	if l.GetField(reqTbl, "cookies") == lua.LNil {
+		l.SetField(reqTbl, "cookies", MakeCookiesTable(l, req.Cookies()))
+	}
 	ud := l.NewUserData()
 	ud.Value = req
 	mt := l.NewTable()
@@ -194,6 +330,7 @@ func SetRequestMetatable(l *lua.LState, reqTbl *lua.LTable, req *http.Request) {
 		"query_values":  reqQueryValues,
 		"header":        reqHeader,
 		"header_values": reqHeaderValues,
+		"cookie":        reqCookie,
 		"bearer_token":  reqBearerToken,
 	}))
 	l.SetMetatable(reqTbl, mt)
@@ -207,7 +344,7 @@ func SetRequestMetatable(l *lua.LState, reqTbl *lua.LTable, req *http.Request) {
 }
 
 // SetResponseMetatable attaches the underlying *http.Response as hidden userdata
-// and registers response helper methods (header, header_values) on resTbl.
+// and registers response helper methods (header, header_values, cookie) on resTbl.
 func SetResponseMetatable(l *lua.LState, resTbl *lua.LTable, res *http.Response) {
 	ud := l.NewUserData()
 	ud.Value = res
@@ -216,6 +353,7 @@ func SetResponseMetatable(l *lua.LState, resTbl *lua.LTable, res *http.Response)
 	l.SetField(mt, "__index", l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
 		"header":        resHeader,
 		"header_values": resHeaderValues,
+		"cookie":        resCookie,
 	}))
 	l.SetMetatable(resTbl, mt)
 }

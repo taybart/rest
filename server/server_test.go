@@ -13,8 +13,9 @@ import (
 )
 
 type Response struct {
-	StatusCode int    `json:"status"`
-	Body       string `json:"body"`
+	StatusCode int               `json:"status"`
+	Headers    map[string]string `json:"headers"`
+	Body       string            `json:"body"`
 }
 
 func checkResponse(t *testing.T, req *http.Request, expected Response) {
@@ -24,6 +25,11 @@ func checkResponse(t *testing.T, req *http.Request, expected Response) {
 	}
 	if res.StatusCode != expected.StatusCode {
 		t.Errorf("expected status code %d, got %d", expected.StatusCode, res.StatusCode)
+	}
+	for k, v := range expected.Headers {
+		if got := res.Header.Get(k); got != v {
+			t.Errorf("expected header %s=%q, got %q", k, v, got)
+		}
 	}
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
@@ -123,14 +129,25 @@ func TestHandlerFnPathValue(t *testing.T) {
 					local token = rest.req:bearer_token()
 					local custom = rest.req:header("x-custom")
 					local q = rest.req:query("filter")
+					local session = rest.req:cookie("session")
 					local body = form.decode(rest.req.body)
 					return {
 						status = 200,
+						cookies = {
+							token = {
+								value = token,
+								path = "/",
+								http_only = true,
+								same_site = "strict",
+								secure = true,
+							},
+						},
 						body = form.encode({
 							id = id,
 							token = token,
 							custom = custom,
 							filter = q,
+							session = session,
 							name = body.name,
 						}),
 					}
@@ -145,8 +162,68 @@ func TestHandlerFnPathValue(t *testing.T) {
 	}
 	req.Header.Set("Authorization", "Bearer secret-token")
 	req.Header.Set("X-Custom", "hello")
+	req.AddCookie(&http.Cookie{Name: "session", Value: "abc123"})
 	checkResponse(t, req, Response{
 		StatusCode: http.StatusOK,
-		Body:       `custom=hello&filter=active&id=42&name=alice+smith&token=secret-token`,
+		Headers: map[string]string{
+			"Set-Cookie": "token=secret-token; Path=/; HttpOnly; Secure; SameSite=Strict",
+		},
+		Body: `custom=hello&filter=active&id=42&name=alice+smith&session=abc123&token=secret-token`,
+	})
+}
+
+func TestMiddleware(t *testing.T) {
+	ts := newServer(server.Config{
+		Quiet: true,
+		Middlewares: []*server.Middleware{
+			{
+				Name: "auth",
+				Fn: `
+					local token = rest.req:cookie("token") or rest.req:bearer_token()
+					if token ~= "valid-token" then
+						return {
+							status = 401,
+							body = "unauthorized",
+						}
+					end
+					rest.ctx.user = "frankie"
+				`,
+			},
+		},
+		Handlers: []*server.Handler{
+			{
+				Method:     "GET",
+				Path:       "/user/{id}",
+				Middleware: []string{"auth"},
+				Fn: `
+					return {
+						status = 200,
+						body = rest.req:path_value("id") .. ":" .. rest.ctx.user,
+					}
+				`,
+			},
+		},
+	})
+	defer ts.Close()
+
+	// 1. Unauthorized request short-circuits in middleware
+	unauthReq, err := http.NewRequest("GET", ts.URL+"/user/7", nil)
+	if err != nil {
+		t.Fatalf("error creating request: %s", err)
+	}
+	checkResponse(t, unauthReq, Response{
+		StatusCode: http.StatusUnauthorized,
+		Body:       "unauthorized",
+	})
+
+	// 2. Authorized request via cookie passes rest.ctx to handler
+	authReq, err := http.NewRequest("GET", ts.URL+"/user/7", nil)
+	if err != nil {
+		t.Fatalf("error creating request: %s", err)
+	}
+	authReq.AddCookie(&http.Cookie{Name: "token", Value: "valid-token"})
+	checkResponse(t, authReq, Response{
+		StatusCode: http.StatusOK,
+		Body:       "7:frankie",
 	})
 }

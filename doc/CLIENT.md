@@ -236,6 +236,7 @@ Hooks are also passed a `rest` table that contains the following:
 - `rest.req:query_values(key)` - get a table of values for a query parameter (or `nil`)
 - `rest.req:header(key)` - case-insensitive lookup returning the first header value and matched key (or `nil`)
 - `rest.req:header_values(key)` - case-insensitive lookup returning a table of values and matched key (or `nil`)
+- `rest.req:cookie(name)` - get the value of a request cookie by name (or `nil`)
 - `rest.req:bearer_token()` - extract the token from the `Authorization: Bearer <token>` header (or `nil`)
 
 `res` - the response object
@@ -253,6 +254,7 @@ Hooks are also passed a `rest` table that contains the following:
 `rest.res` methods:
 - `rest.res:header(key)` - case-insensitive lookup returning the first header value and matched key (or `nil`)
 - `rest.res:header_values(key)` - case-insensitive lookup returning a table of values and matched key (or `nil`)
+- `rest.res:cookie(name)` - get the value of a response cookie by name (and a second return value with cookie attributes when set via `Set-Cookie`)
 
 ### exports
 

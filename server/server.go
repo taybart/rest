@@ -25,16 +25,23 @@ type Response struct {
 	// Path    string          `json:"path" hcl:"path,optional"`
 	// Method  string          `json:"method" hcl:"method,optional"`
 	Headers map[string]string `json:"headers" hcl:"headers,optional"`
+	Cookies []*http.Cookie    `json:"-"`
 	Body    json.RawMessage   `json:"body"`
 	BodyHCL hcl.Expression    `hcl:"body,optional"`
 }
+type Middleware struct {
+	Name string `json:"name" hcl:"name,label"`
+	Fn   string `json:"fn" hcl:"fn"`
+}
+
 type Handler struct {
-	Method   string    `json:"method" hcl:"method,label"`
-	Path     string    `json:"path" hcl:"path,label"`
-	Fn       string    `json:"fn" hcl:"fn,optional"`
-	Proxy    string    `json:"proxy" hcl:"proxy,optional"`
-	WS       bool      `json:"ws" hcl:"ws,optional"`
-	Response *Response `hcl:"response,block"`
+	Method     string    `json:"method" hcl:"method,label"`
+	Path       string    `json:"path" hcl:"path,label"`
+	Middleware []string  `json:"middleware" hcl:"middleware,optional"`
+	Fn         string    `json:"fn" hcl:"fn,optional"`
+	Proxy      string    `json:"proxy" hcl:"proxy,optional"`
+	WS         bool      `json:"ws" hcl:"ws,optional"`
+	Response   *Response `hcl:"response,block"`
 }
 
 type Server struct {
@@ -53,9 +60,10 @@ type Config struct {
 	Cors     bool      `hcl:"cors,optional"`
 	TLS      string    `hcl:"tls,optional"`
 	// serve https with this machine's tailscale cert (needs the tailscale cli)
-	Tailscale bool       `hcl:"tailscale,optional"`
-	Handlers  []*Handler `hcl:"handler,block"`
-	SPA       bool       `hcl:"spa,optional"`
+	Tailscale   bool          `hcl:"tailscale,optional"`
+	Middlewares []*Middleware `hcl:"middleware,block"`
+	Handlers    []*Handler    `hcl:"handler,block"`
+	SPA         bool          `hcl:"spa,optional"`
 }
 
 func New(c Config) Server {
