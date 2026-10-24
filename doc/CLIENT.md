@@ -129,6 +129,8 @@ request "my request" {
   }
 
   # body can look like a json object or a regular hcl map or a string
+  # maps/objects are marshalled to JSON by default, or url-encoded automatically
+  # if headers includes Content-Type = "application/x-www-form-urlencoded"
   body = { test: "body" } # or body = { test = "body" }
 
   # cookies can be set for a single request

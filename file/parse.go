@@ -318,9 +318,12 @@ func (p *Parser) Request(hreq *HCLRequest) (request.Request, error) {
 	}
 
 	var err error
-	req.Body, err = p.marshalBody(req.BodyHCL)
+	body, err := p.marshalRequestBody(req.BodyHCL, req.Headers)
 	if err != nil {
 		return req, err
+	}
+	if body != "" {
+		req.Body = body
 	}
 	if req.Expect != nil {
 		req.Expect.Body, err = p.marshalBody(req.Expect.BodyHCL)
@@ -469,6 +472,32 @@ func (p *Parser) decode(body hcl.Body, to any) error {
 		return errors.New("error decoding hcl body")
 	}
 	return nil
+}
+
+func isFormContentType(headers map[string]string) bool {
+	for k, v := range headers {
+		if strings.EqualFold(k, "Content-Type") {
+			ct := strings.ToLower(strings.TrimSpace(v))
+			if strings.HasPrefix(ct, "application/x-www-form-urlencoded") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (p *Parser) marshalRequestBody(bodyHCL hcl.Expression, headers map[string]string) (string, error) {
+	if isFormContentType(headers) {
+		bodyVal, diags := bodyHCL.Value(p.Ctx)
+		if diags.HasErrors() {
+			p.writeDiags(diags)
+			return "", errors.New("could not decode body")
+		}
+		if bodyVal.Type().IsMapType() || bodyVal.Type().IsObjectType() {
+			return encodeFormValue(bodyVal)
+		}
+	}
+	return p.marshalBody(bodyHCL)
 }
 
 // marshalBody turns hcl expressions into a formatted json blob or go string

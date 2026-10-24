@@ -267,3 +267,53 @@ func TestTryExportsArrayAndTypes(t *testing.T) {
 		t.Fatalf("unexpected exported body: %s", req.Body)
 	}
 }
+
+func TestFormHeaderBodyParse(t *testing.T) {
+	tmpDir := t.TempDir()
+	filename := filepath.Join(tmpDir, "form.rest")
+	content := `request "form_auto" {
+  url = "http://localhost:18080/login"
+  method = "POST"
+  headers = {
+    "Content-Type" = "application/x-www-form-urlencoded"
+  }
+  body = {
+    username = "alice"
+    count    = 2
+    tags     = ["a", "b"]
+  }
+}
+
+request "json_default" {
+  url = "http://localhost:18080/login"
+  method = "POST"
+  body = {
+    username = "alice"
+  }
+}
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := rest.NewFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	formReq, err := r.Request("form_auto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if formReq.Body != "count=2&tags=a&tags=b&username=alice" {
+		t.Fatalf("unexpected form body: %s", formReq.Body)
+	}
+
+	jsonReq, err := r.Request("json_default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jsonReq.Body != `{"username":"alice"}` {
+		t.Fatalf("unexpected json body: %s", jsonReq.Body)
+	}
+}

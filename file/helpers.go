@@ -206,6 +206,53 @@ func makeJSONEncodeFunc() function.Function {
 	})
 }
 
+func ctyScalarToString(v cty.Value) (string, error) {
+	v, _ = v.Unmark()
+	switch v.Type() {
+	case cty.String:
+		return v.AsString(), nil
+	case cty.Number:
+		return v.AsBigFloat().Text('f', -1), nil
+	case cty.Bool:
+		return strconv.FormatBool(v.True()), nil
+	default:
+		return "", fmt.Errorf("form value must be string, number, or bool, got %s", v.Type().FriendlyName())
+	}
+}
+
+func encodeFormValue(valuesArg cty.Value) (string, error) {
+	valuesArg, _ = valuesArg.Unmark()
+	if !valuesArg.Type().IsMapType() && !valuesArg.Type().IsObjectType() {
+		return "", fmt.Errorf("values must be a map or object, got %s", valuesArg.Type().FriendlyName())
+	}
+	valuesMap := valuesArg.AsValueMap()
+	data := url.Values{}
+	for k, v := range valuesMap {
+		v, _ = v.Unmark()
+		if v.IsNull() {
+			continue
+		}
+		if v.Type().IsTupleType() || v.Type().IsListType() {
+			it := v.ElementIterator()
+			for it.Next() {
+				_, elem := it.Element()
+				s, err := ctyScalarToString(elem)
+				if err != nil {
+					return "", err
+				}
+				data.Add(k, s)
+			}
+			continue
+		}
+		s, err := ctyScalarToString(v)
+		if err != nil {
+			return "", err
+		}
+		data.Set(k, s)
+	}
+	return data.Encode(), nil
+}
+
 func makeFormFunc() function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
@@ -217,19 +264,11 @@ func makeFormFunc() function.Function {
 		},
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			valuesArg := args[0]
-
-			if valuesArg.Type().IsMapType() || valuesArg.Type().IsObjectType() {
-				valuesMap := valuesArg.AsValueMap()
-				data := url.Values{}
-				for k, v := range valuesMap {
-					data.Set(k, v.AsString())
-				}
-
-				return cty.StringVal(data.Encode()), nil
+			encoded, err := encodeFormValue(args[0])
+			if err != nil {
+				return cty.NilVal, err
 			}
-
-			return cty.NilVal, fmt.Errorf("values must be a list or map, got %s", valuesArg.Type().FriendlyName())
+			return cty.StringVal(encoded), nil
 		},
 	})
 }
