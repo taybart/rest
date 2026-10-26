@@ -42,7 +42,7 @@ func usage(u args.Usage) {
 var (
 	a = args.App{
 		Name:    "Rest",
-		Version: "v0.9.4",
+		Version: "v0.10.0",
 		Author:  "taybart",
 		About:   "all the rest",
 		Args: map[string]*args.Arg{
