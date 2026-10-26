@@ -16,6 +16,7 @@ import (
 type Expect struct {
 	Status  int               `hcl:"status,optional"`
 	Headers map[string]string `hcl:"headers,optional"`
+	Exact   bool              `hcl:"exact,optional"`
 	Body    string
 	BodyHCL hcl.Expression `hcl:"body,optional"`
 }
@@ -32,8 +33,9 @@ type Request struct {
 	Headers     map[string]string `hcl:"headers,optional"`
 	Cookies     map[string]string `hcl:"cookies,optional"`
 	Query       map[string]string `hcl:"query,optional"`
-	After       string            `hcl:"after,optional"`
-	CopyFrom    string            `hcl:"copy_from,optional"`
+	AfterHCL    hcl.Expression    `hcl:"after,optional"`
+	After       string
+	CopyFrom    string `hcl:"copy_from,optional"`
 	// extras
 	Expect       *Expect `hcl:"expect,block"`
 	ExpectStatus int     `hcl:"expect,optional"`
@@ -209,6 +211,7 @@ func (r *Request) CombineFrom(from Request) {
 			r.Expect.Status = from.Expect.Status
 			r.Expect.Body = from.Expect.Body
 			r.Expect.Headers = from.Expect.Headers
+			r.Expect.Exact = from.Expect.Exact
 		}
 	}
 	if r.ExpectStatus == 0 {

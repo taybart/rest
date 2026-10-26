@@ -3,7 +3,6 @@ package client
 
 import (
 	"crypto/tls"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -85,57 +84,17 @@ func (c *Client) CheckExpectation(r request.Request, res *http.Response) (string
 	if err != nil {
 		return "", err
 	}
-	if r.Expect != nil {
-		if r.Expect.Status != 0 {
-			if res.StatusCode != r.Expect.Status {
-				return string(dumped), fmt.Errorf(
-					`request "%s": unexpected response code %d != %d`,
-					r.Label, r.Expect.Status, res.StatusCode)
-			}
+	var body string
+	if r.Expect != nil && len(r.Expect.Body) != 0 {
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			return "", err
 		}
-		if len(r.Expect.Body) != 0 {
-			body, err := io.ReadAll(res.Body)
-			if err != nil {
-				return "", err
-			}
-			defer res.Body.Close()
-
-			if r.Expect.Body != string(body) {
-				return string(dumped), fmt.Errorf(
-					`request "%s": unexpected response body %s != %s`,
-					r.Label, r.Expect.Body, string(body))
-			}
-		}
-		if len(r.Expect.Headers) != 0 {
-			for k, v := range r.Expect.Headers {
-				values := res.Header.Values(k)
-				if len(values) == 0 {
-					return string(dumped), fmt.Errorf(
-						`request "%s": required response header "%s" not present`,
-						r.Label, k)
-				}
-				matches := false
-				lastValue := ""
-				for _, value := range values {
-					lastValue = value
-					if value == v {
-						matches = true
-					}
-				}
-				if !matches {
-					// small assumption that header is standalone for usablilty
-					return string(dumped), fmt.Errorf(
-						`request "%s": unexpected response header [%s] %s != %s`,
-						r.Label, k, v, lastValue)
-				}
-			}
-		}
-	} else if r.ExpectStatus != 0 {
-		if res.StatusCode != r.ExpectStatus {
-			return string(dumped), fmt.Errorf(
-				`request "%s": unexpected response code %d != %d`,
-				r.Label, r.ExpectStatus, res.StatusCode)
-		}
+		defer res.Body.Close()
+		body = string(b)
+	}
+	if err := request.CheckExpectation(r.Label, r.Expect, r.ExpectStatus, res.StatusCode, res.Header, body); err != nil {
+		return string(dumped), err
 	}
 	return string(dumped), nil
 }

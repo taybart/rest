@@ -2,6 +2,20 @@
 server {
   address = "localhost:18080"
 
+  kv = {
+    db = {
+      users = {
+        1 = { name = "Bryan Cranston", role = "dad" },
+        4 = { name = "Frankie Muniz", role = "middle" },
+      },
+    }
+  }
+
+  # optional one-time lua setup hook on server start:
+  setup = <<LUA
+    kv.set('boot_time', os.time())
+  LUA
+
   middleware "auth" {
     fn = <<LUA
       local token = rest.req:cookie("token") or rest.req:bearer_token()
@@ -50,15 +64,23 @@ server {
   }
   handler "GET" "/user/{id}" {
     middleware = ["auth"]
-    fn = <<LUA
+    fn         = <<LUA
       print('GOT COOKIE: '..inspect(rest.req.cookies))
       -- get id from path
       local id = rest.req:path_value("id")
       local q = rest.req:query("q")
       print('q: '..q)
+      local db = kv.get("db")
+      local user = db.users[id]
+      if not user then
+        return {
+          status = 404,
+          body = json.encode({ error = "user not found" })
+        }
+      end
       return {
         status = 200,
-        body = json.encode({ id = id, name = "Frankie Muniz" })
+        body = json.encode({ id = id, name = user.name, role = user.role })
       }
     LUA
   }
@@ -66,45 +88,23 @@ server {
 
 
 ## Test Client
-request "get auth token" {
+request "login" {
   url    = "http://localhost:18080/login"
   method = "POST"
   body   = { "username" : "root", "password" : "toor" }
-  # expect {
-  #   status = 200
-  #   body   = json_enc({ token = "{{uuidv4}}" })
-  # }
-  after = <<LUA
-    print('==='..rest.label..'===')
-    if not tools.expected() then
-      return
-    end
-    print(("COOKIE-CRISP %s"):format(inspect(rest.res.cookies)))
-    print(rest.res.body)
-    local body = json.decode(rest.res.body)
-    if not body.token  then
-      fail('no auth_token returned')
-      return
-    end
-    rest.exports.auth_token = body.token
-    print('got new auth_token: '..rest.exports.auth_token)
-  LUA
+  expect { status = 200 body = { token = is.uuidv4 } }
+  after = [
+    lib.expected,
+    export_res({ auth_token = "token" }),
+  ]
 }
 
 request "get user" {
-  url          = "http://localhost:18080/user/5"
-  query        = { q = "fran" }
-  bearer_token = exports.auth_token
-  after        = <<LUA
-    print('\n==='..rest.label..'===')
-    inspect.print(json.decode(rest.res.body))
-  LUA
-}
-request "get unknown" {
-  url          = "http://localhost:18080/idk"
-  bearer_token = exports.auth_token
-  after        = <<LUA
-    print('\n==='..rest.label..'===')
-    print(rest.res.dump)
-  LUA
+  url   = "http://localhost:18080/user/4"
+  query = { q = "fran" }
+  # cookie will come along if this is the second request block after "login" so 
+  # we don't actually need to include the token as a bearer token
+  # bearer_token = exports.auth_token
+  expect = 200
+  after  = [lib.print_label, lib.inspect_res]
 }

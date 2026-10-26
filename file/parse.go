@@ -42,7 +42,6 @@ type CLIFlag struct {
 type CLI struct {
 	Fn        *string `hcl:"fn,optional"`
 	Loop      *string `hcl:"loop,optional"`
-	LoopSetup *string `hcl:"loop_setup,optional"`
 	Flags     map[string]CLIFlag
 	FlagsBody hcl.Body `hcl:",remain"`
 }
@@ -273,6 +272,13 @@ func (p *Parser) Server() (server.Config, error) {
 		}
 		serv.Response.Body = json.RawMessage(b)
 	}
+	if serv.KVHCL != nil {
+		kv, err := p.marshalKV(serv.KVHCL)
+		if err != nil {
+			return serv, err
+		}
+		serv.KV = kv
+	}
 	mwNames := make(map[string]bool, len(serv.Middlewares))
 	for _, mw := range serv.Middlewares {
 		if mwNames[mw.Name] {
@@ -312,6 +318,12 @@ func (p *Parser) Request(hreq *HCLRequest) (request.Request, error) {
 		req.Skip = true
 	}
 
+	after, err := p.marshalAfter(req.AfterHCL)
+	if err != nil {
+		return req, err
+	}
+	req.After = after
+
 	if req.CopyFrom != "" {
 		var copyFromBody *HCLRequest
 		for _, h := range p.Root.Requests {
@@ -329,7 +341,6 @@ func (p *Parser) Request(hreq *HCLRequest) (request.Request, error) {
 		req.CombineFrom(copyFrom)
 	}
 
-	var err error
 	body, err := p.marshalRequestBody(req.BodyHCL, req.Headers)
 	if err != nil {
 		return req, err
@@ -448,13 +459,20 @@ func (p *Parser) makeContext() {
 		Variables: map[string]cty.Value{
 			"locals":  cty.ObjectVal(p.Locals),
 			"exports": cty.ObjectVal(p.Exports),
+			"lib":     makeLibObject(),
+			"is":      makeIsObject(),
 		},
 		Functions: map[string]function.Function{
 			"b64_dec":     makeBase64DecodeFunc(),
 			"b64_enc":     makeBase64EncodeFunc(),
 			"btmpl":       makeTemplateFunc(),
+			"copy_res":    makeLuaHookFunc("tools.copy_res"),
 			"env":         makeEnvFunc(),
+			"export_res":  makeLuaHookFunc("tools.export_res"),
 			"form":        makeFormFunc(),
+			"inspect_req": makeLuaHookFunc("tools.inspect_req"),
+			"inspect_res": makeLuaHookFunc("tools.inspect_res"),
+			"is":          makeIsFunc(),
 			"json_dec":    makeJSONDecodeFunc(),
 			"json_enc":    makeJSONEncodeFunc(),
 			"nanoid":      makeNanoIDFunc(),
@@ -557,4 +575,67 @@ func (p *Parser) marshalBody(bodyHCL hcl.Expression) (string, error) {
 	}
 
 	return "", nil
+}
+
+func (p *Parser) marshalAfter(afterHCL hcl.Expression) (string, error) {
+	if afterHCL == nil {
+		return "", nil
+	}
+	afterVal, diags := afterHCL.Value(p.Ctx)
+	if diags.HasErrors() {
+		p.writeDiags(diags)
+		return "", errors.New("could not decode after")
+	}
+	afterVal, _ = afterVal.Unmark()
+	if afterVal.IsNull() {
+		return "", nil
+	}
+	if afterVal.Type() == cty.String {
+		return afterVal.AsString(), nil
+	}
+	if afterVal.Type().IsTupleType() || afterVal.Type().IsListType() {
+		var parts []string
+		it := afterVal.ElementIterator()
+		for it.Next() {
+			_, elem := it.Element()
+			elem, _ = elem.Unmark()
+			if elem.IsNull() {
+				continue
+			}
+			if elem.Type() != cty.String {
+				return "", fmt.Errorf("after list elements must be strings, got %s", elem.Type().FriendlyName())
+			}
+			parts = append(parts, elem.AsString())
+		}
+		return strings.Join(parts, "\n"), nil
+	}
+	return "", fmt.Errorf("after must be a string or list of strings, got %s", afterVal.Type().FriendlyName())
+}
+
+func (p *Parser) marshalKV(kvHCL hcl.Expression) (map[string]any, error) {
+	if kvHCL == nil {
+		return nil, nil
+	}
+	kvVal, diags := kvHCL.Value(p.Ctx)
+	if diags.HasErrors() {
+		p.writeDiags(diags)
+		return nil, errors.New("could not decode server kv")
+	}
+	kvVal, _ = kvVal.Unmark()
+	if kvVal.IsNull() {
+		return nil, nil
+	}
+	if !kvVal.Type().IsMapType() && !kvVal.Type().IsObjectType() {
+		return nil, fmt.Errorf("server kv must be a map or object, got %s", kvVal.Type().FriendlyName())
+	}
+	simple := ctyjson.SimpleJSONValue{Value: kvVal}
+	jsonBytes, err := simple.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]any
+	if err := json.Unmarshal(jsonBytes, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

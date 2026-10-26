@@ -145,13 +145,19 @@ request "my request" {
     status = 200 # response must have status code
     headers = { # response must contain these headers (only checks provided headers)
       "x-custom-header" = "custom-header"
+      "x-request-id"    = is.uuid
     }
-    body = { # response must have this body
-      "test": "response"
+    body = { # response must match this JSON shape and values
+      "test": "response",
+      "token": is.uuidv4,
+      "count": is.int,
+      "code": is("regex:^[A-Z]{3}-[0-9]+$")
     }
+    # optional: set exact = true to require raw byte-for-byte body string equality
+    # exact = true
   }
 
-  # is a string, heredoc (<<IDENT ... IDENT) is a good way to set it
+  # is a string (or list of strings), heredoc (<<IDENT ... IDENT) is a good way to set it
   # using LUA as the ident can make some editors highlight the code better
   after = "see after hooks below"
 }
@@ -169,6 +175,14 @@ There are a few functions that can be used in a rest file:
 - `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
 - `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map (currently only map[string]strings are supported)
 - `raw("CONNECT token")` - mark a [socket](#sockets) playbook entry to be sent as a raw text frame instead of being JSON encoded
+- `inspect_res("id", "name")` / `inspect_res(["id", "name"])` / `inspect_res({ user_id = "user.id" })` - after hook helper that decodes the JSON response body and prints selected fields (supports dot-paths)
+- `inspect_req("id", "name")` - after hook helper that decodes the JSON request body and prints selected fields
+- `export_res("id", "name")` / `export_res({ token = "auth.token" })` - after hook helper that exports fields from the JSON response body into `rest.exports`
+- `copy_res("token")` - after hook helper that copies a field from the JSON response body (or the whole body if no key is passed) to the clipboard
+- `is.<type>` / `is("...")` - expectation matchers for `expect { body = ... }` and `expect { headers = ... }`:
+  - `is.uuid`, `is.uuidv4`, `is.nanoid`, `is.email`, `is.url`
+  - `is.string`, `is.number`, `is.int`, `is.bool`, `is.array`, `is.object`, `is.null`, `is.any`, `is.not_empty`
+  - `is("regex:<pattern>")` or `is("regex", "<pattern>")` - match a string against a regular expression
 
 For example (more examples in [examples/client](examples/client)):
 
@@ -197,6 +211,38 @@ request "my request" {
 ## After Hooks
 
 Hooks are defined in the `after` field. They are lua functions that are executed after the response is received. They can be used to do fancy lua stuff.
+
+### Pre-canned Hooks (`lib`) and Hook Functions
+
+For common tasks, you don't need to write a `<<LUA` block. You can use the built-in `lib` table, hook functions, or pass a list of hooks to run in sequence:
+
+- `lib.print_req_res` - print the full HTTP dump of both request and response
+- `lib.print_req` - print the HTTP request dump
+- `lib.print_res` - print the HTTP response dump
+- `lib.print_body` - print the raw response body
+- `lib.inspect_res` - JSON-decode and `inspect.print` the response body
+- `lib.inspect_req` - JSON-decode and `inspect.print` the request body
+- `lib.expected` - run `tools.expected()` to validate the `expect` block/status
+
+```hcl
+request "login" {
+  url    = "http://localhost:8080/login"
+  method = "POST"
+  expect = 200
+  after  = [
+    lib.expected,
+    inspect_res("id", "name"),
+    export_res({ token = "auth.token" }),
+  ]
+}
+
+request "debug" {
+  url   = "http://localhost:8080/debug"
+  after = lib.print_req_res
+}
+```
+
+### Lua Runtime
 
 There are a couple of global libraries available to you:
 
@@ -375,16 +421,13 @@ The `cli` block turns a rest file into an interactive command-line tool. When a 
 
 ```hcl
 cli {
-  # optional: lua code to run once before the loop starts
-  loop_setup = "local state = {}"
-
   # required without fn: lua code to run in a loop until it breaks or errors (more below)
   loop = <<LUA
     print("Hello from the CLI!")
     break
   LUA
 
-  # required without loop: a "one off" handler, superceeds loop
+  # required without loop: runs instead of loop (call rest.loop() from fn to enter the loop)
   fn = <<LUA
     if cli.loud then -- loud is a boolean defined below
         print(("Hello %s from the cli!"):format(cli.name or "world")) -- name is a flag defined below
@@ -477,16 +520,17 @@ flags = {
 
 ### CLI Loop
 
-The `loop` field contains Lua code that runs in a `while true do ... end` loop. The code can read from `io.read()`, write to `io.write()`, and use any of the standard Lua libraries or rest-provided globals.
+The `loop` field contains Lua code that runs in a `while true do ... end` loop. For each iteration, `rest` reads a line into the `input` variable (stopping on EOF) and provides a `::continue::` label at the end of the loop.
 
-The `loop_setup` field is optional and runs once before the loop begins. It's useful for initializing state.
+When both `fn` and `loop` are defined, `fn` runs first as an override. From inside `fn`, you can run one-off setup or flag checks and call `rest.loop()` to enter the defined `loop`.
 
 ```hcl
 cli {
-  loop_setup = "local history = {}"
+  fn = <<LUA
+    history = {}
+    rest.loop()
+  LUA
   loop = <<LUA
-    io.write("> ")
-    local input = io.read()
     if input == "quit" then
       break -- quit the loop
     end
@@ -501,12 +545,13 @@ cli {
 
 #### Custom Prompt
 
-You can customize the REPL prompt by setting the global `PROMPT` variable in `loop_setup`. This is useful for showing state like the current mode or context.
+You can customize the REPL prompt by setting the global `PROMPT` variable (for example in `fn` before calling `rest.loop()`, or dynamically inside `loop`). This is useful for showing state like the current mode or context.
 
 ```hcl
 cli {
-  loop_setup = <<LUA
+  fn = <<LUA
     PROMPT = "myapp> "
+    rest.loop()
   LUA
   loop = <<LUA
     -- input is automatically read using the custom prompt
@@ -525,7 +570,10 @@ cli {
       bool = false
     }
   }
-  loop_setup = "local conversation = {}"
+  fn = <<LUA
+    conversation = {}
+    rest.loop()
+  LUA
   loop = <<LUA
     if input == 'echo' then
       inspect.print(conversation)

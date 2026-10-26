@@ -538,3 +538,81 @@ func replaceNamedPlaceholders(template string, values cty.Value) (cty.Value, err
 	// fmt.Println(result)
 	return cty.StringVal(result), nil
 }
+
+func makeLibObject() cty.Value {
+	return cty.ObjectVal(map[string]cty.Value{
+		"print_label":   cty.StringVal(`print(('\n===%s==='):format(rest.label))`),
+		"print_req_res": cty.StringVal("print(rest.req.dump)\nprint(rest.res.dump)"),
+		"print_req":     cty.StringVal("print(rest.req.dump)"),
+		"print_res":     cty.StringVal("print(rest.res.dump)"),
+		"print_body":    cty.StringVal("print(rest.res.body)"),
+		"inspect_res":   cty.StringVal("tools.inspect_res()"),
+		"inspect_req":   cty.StringVal("tools.inspect_req()"),
+		"expected":      cty.StringVal("tools.expected()"),
+	})
+}
+
+func makeIsObject() cty.Value {
+	rules := []string{
+		"uuid", "uuidv4", "nanoid",
+		"string", "number", "int", "integer",
+		"bool", "boolean", "array", "list",
+		"object", "map", "null", "nil",
+		"any", "not_empty", "nonempty",
+		"email", "url", "uri",
+	}
+	vals := make(map[string]cty.Value, len(rules))
+	for _, r := range rules {
+		vals[r] = cty.StringVal(request.IsToken(r))
+	}
+	return cty.ObjectVal(vals)
+}
+
+func makeIsFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name: "rule",
+				Type: cty.String,
+			},
+		},
+		VarParam: &function.Parameter{
+			Name: "arg",
+			Type: cty.String,
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			rule := args[0].AsString()
+			if len(args) > 1 {
+				rule = rule + ":" + args[1].AsString()
+			}
+			if err := request.ValidateIsRule(rule); err != nil {
+				return cty.NilVal, err
+			}
+			return cty.StringVal(request.IsToken(rule)), nil
+		},
+	})
+}
+
+func makeLuaHookFunc(luaFn string) function.Function {
+	return function.New(&function.Spec{
+		VarParam: &function.Parameter{
+			Name:             "args",
+			Type:             cty.DynamicPseudoType,
+			AllowDynamicType: true,
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			var luaArgs []string
+			for _, arg := range args {
+				arg, _ = arg.Unmark()
+				b, err := ctyjson.SimpleJSONValue{Value: arg}.MarshalJSON()
+				if err != nil {
+					return cty.StringVal(""), err
+				}
+				luaArgs = append(luaArgs, fmt.Sprintf("json.decode(%q)", string(b)))
+			}
+			return cty.StringVal(fmt.Sprintf("%s(%s)", luaFn, strings.Join(luaArgs, ", "))), nil
+		},
+	})
+}

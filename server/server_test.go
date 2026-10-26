@@ -227,3 +227,48 @@ func TestMiddleware(t *testing.T) {
 		Body:       "7:frankie",
 	})
 }
+
+func TestServerKVAndSetup(t *testing.T) {
+	ts := newServer(server.Config{
+		Quiet: true,
+		KV: map[string]any{
+			"db": map[string]any{
+				"users": map[string]any{
+					"1": map[string]any{"name": "Bryan Cranston", "age": float64(30)},
+					"4": map[string]any{"name": "Frankie Muniz", "age": float64(15)},
+				},
+			},
+		},
+		Setup: `
+			kv.set("greeting", "hello")
+		`,
+		Handlers: []*server.Handler{
+			{
+				Method: "GET",
+				Path:   "/user/{id}",
+				Fn: `
+					local id = rest.req:path_value("id")
+					local db = kv.get("db")
+					local user = db.users[id]
+					if not user then
+						return { status = 404, body = "not found" }
+					end
+					return {
+						status = 200,
+						body = kv.get("greeting") .. ":" .. user.name .. ":" .. tostring(user.age),
+					}
+				`,
+			},
+		},
+	})
+	defer ts.Close()
+
+	req, err := http.NewRequest("GET", ts.URL+"/user/4", nil)
+	if err != nil {
+		t.Fatalf("error creating request: %s", err)
+	}
+	checkResponse(t, req, Response{
+		StatusCode: http.StatusOK,
+		Body:       "hello:Frankie Muniz:15",
+	})
+}

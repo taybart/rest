@@ -89,7 +89,7 @@ func RegisterModules(l *lua.LState) error {
 	return nil
 }
 
-func lValueToAny(value lua.LValue) any {
+func LValueToAny(value lua.LValue) any {
 	switch v := value.(type) {
 	case lua.LString:
 		return string(v)
@@ -124,7 +124,7 @@ func lTableToValue(table *lua.LTable) any {
 	if isSeq && count == maxn {
 		arr := make([]any, maxn)
 		for i := 1; i <= maxn; i++ {
-			arr[i-1] = lValueToAny(table.RawGetInt(i))
+			arr[i-1] = LValueToAny(table.RawGetInt(i))
 		}
 		return arr
 	}
@@ -136,13 +136,13 @@ func LTableToMap(table *lua.LTable) map[string]any {
 
 	table.ForEach(func(key, value lua.LValue) {
 		keyStr := lua.LVAsString(key)
-		result[keyStr] = lValueToAny(value)
+		result[keyStr] = LValueToAny(value)
 	})
 
 	return result
 }
 
-func anyToLValue(state *lua.LState, value any) lua.LValue {
+func AnyToLValue(state *lua.LState, value any) lua.LValue {
 	switch v := value.(type) {
 	case string:
 		return lua.LString(v)
@@ -155,7 +155,7 @@ func anyToLValue(state *lua.LState, value any) lua.LValue {
 	case []any:
 		tbl := state.NewTable()
 		for i, item := range v {
-			tbl.RawSetInt(i+1, anyToLValue(state, item))
+			tbl.RawSetInt(i+1, AnyToLValue(state, item))
 		}
 		return tbl
 	case map[string]any:
@@ -171,13 +171,8 @@ func MapToLTable(state *lua.LState, data map[string]any) *lua.LTable {
 	table := state.NewTable()
 
 	for key, value := range data {
-		lval := anyToLValue(state, value)
-
-		if i, err := strconv.Atoi(key); err == nil {
-			table.RawSetInt(i, lval)
-		} else {
-			table.RawSetString(key, lval)
-		}
+		lval := AnyToLValue(state, value)
+		table.RawSetString(key, lval)
 	}
 
 	return table

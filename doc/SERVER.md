@@ -151,6 +151,29 @@ rest.req = {
 }
 ```
 
+### Seeding State (`kv` and `setup`)
+
+You can pre-populate the in-memory `kv` cache declaratively in HCL with `kv = { ... }`, or run one-time startup logic with `setup = <<LUA ... LUA` (or both—`kv` is loaded first, then `setup` runs):
+
+```hcl
+server {
+    address = "localhost:18080"
+
+    kv = {
+        db = {
+            users = {
+                1 = { name = "Bryan Cranston", role = "dad" },
+                4 = { name = "Frankie Muniz", role = "middle" },
+            }
+        }
+    }
+
+    setup = <<LUA
+        kv.set("boot_token", uuid.newv4())
+    LUA
+}
+```
+
 ### Middleware
 
 You can define reusable `middleware` blocks in `server` and reference them on any `handler` via `middleware = ["name"]` (including `fn`, `response`, and `proxy` handlers).
@@ -212,8 +235,10 @@ There are some global modules available in the lua runtime.
 - `base64` - encode and decode base64
 - `uuid` - generate and validate UUIDs
 - `tools` - various helper functions, check out the [tools](https://github.com/taybart/rest/blob/main/lua/modules/tools.lua) module for commented functions
-- `kv` - in-memory key/value store that persists between requests
+- `kv` - in-memory key/value store that persists between requests (concurrency-safe)
     - `kv.get(key)` - get value from kv cache, returns nil if key doesn't exist
-    - `kv.set(key, value)` - set a key's value, can be anything
+    - `kv.set(key, value)` - set a key's value, can be any Lua value or nested table (passing `nil` deletes the key)
+    - `kv.del(key)` - delete a key from the kv cache
+    - `kv.all()` - return a table of all key/value pairs in the kv cache
 
 See [examples/server](./examples/server) for a more detailed examples

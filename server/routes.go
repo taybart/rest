@@ -16,6 +16,9 @@ import (
 )
 
 func (s *Server) Routes(server *http.Server) {
+	if err := s.initKV(); err != nil {
+		log.Error(err)
+	}
 	s.Router.HandleFunc("/__quit__", s.HandleQuit(server))
 
 	if s.Config.Dir != "" {

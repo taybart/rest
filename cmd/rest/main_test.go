@@ -199,3 +199,58 @@ func TestRunHeredocStdin(t *testing.T) {
 		t.Fatalf("expected from-stdin, got %q", string(got))
 	}
 }
+
+func TestRunCLIFnCallsRestLoop(t *testing.T) {
+	origArgs := os.Args
+	origStdin := os.Stdin
+	defer func() {
+		os.Args = origArgs
+		os.Stdin = origStdin
+	}()
+
+	tmpDir := t.TempDir()
+	outFile := filepath.Join(tmpDir, "loop_out.txt")
+	scriptFile := filepath.Join(tmpDir, "loop.rest")
+	content := `cli {
+  fn = <<LUA
+    history = { "init" }
+    rest.loop()
+    local f = io.open("` + outFile + `", "w")
+    f:write(table.concat(history, ","))
+    f:close()
+  LUA
+  loop = <<LUA
+    if input == "quit" then
+      break
+    end
+    table.insert(history, input)
+  LUA
+}
+`
+	if err := os.WriteFile(scriptFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("first\nsecond\nquit\n")); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+
+	os.Stdin = r
+	os.Args = []string{"rest", "-f", scriptFile}
+	if err := run(); err != nil {
+		t.Fatalf("run() failed: %v", err)
+	}
+
+	got, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "init,first,second" {
+		t.Fatalf("expected init,first,second, got %q", string(got))
+	}
+}

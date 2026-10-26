@@ -52,6 +52,7 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 		reqMap["expect"] = restlua.MakeLTable(l, map[string]lua.LValue{
 			"status":  lua.LNumber(req.Expect.Status),
 			"body":    lua.LString(req.Expect.Body),
+			"exact":   lua.LBool(req.Expect.Exact),
 			"headers": restlua.MakeLTableFromMap(l, req.Expect.Headers),
 		})
 	} else if req.ExpectStatus != 0 {
@@ -94,6 +95,35 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 		"exports": exportsTable,
 	})
 	l.SetGlobal("rest", table)
+	l.SetGlobal("__rest_check_expectation", l.NewFunction(func(l *lua.LState) int {
+		var exp *Expect
+		expectStatus := req.ExpectStatus
+		if restTbl, ok := l.GetGlobal("rest").(*lua.LTable); ok {
+			if rTbl, ok := l.GetField(restTbl, "req").(*lua.LTable); ok {
+				if eTbl, ok := l.GetField(rTbl, "expect").(*lua.LTable); ok {
+					exp = &Expect{
+						Status: int(lua.LVAsNumber(l.GetField(eTbl, "status"))),
+						Body:   lua.LVAsString(l.GetField(eTbl, "body")),
+						Exact:  lua.LVAsBool(l.GetField(eTbl, "exact")),
+					}
+					if hTbl, ok := l.GetField(eTbl, "headers").(*lua.LTable); ok {
+						headers := map[string]string{}
+						hTbl.ForEach(func(k, v lua.LValue) {
+							headers[lua.LVAsString(k)] = lua.LVAsString(v)
+						})
+						exp.Headers = headers
+					}
+				}
+			}
+		}
+		if err := CheckExpectation(req.Label, exp, expectStatus, res.StatusCode, res.Header, string(body)); err != nil {
+			l.Push(lua.LBool(false))
+			l.Push(lua.LString(err.Error()))
+			return 2
+		}
+		l.Push(lua.LBool(true))
+		return 1
+	}))
 	return nil
 }
 

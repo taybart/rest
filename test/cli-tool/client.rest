@@ -12,7 +12,10 @@ cli {
       bool = false
     } 
   }
-  loop_setup = "local conversation = {}"
+  fn = <<LUA
+    conversation = {}
+    rest.loop()
+  LUA
   // TODO: reevaluate this
   loop = <<LUA
     	if input == 'echo' then

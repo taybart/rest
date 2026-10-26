@@ -69,7 +69,7 @@ func mergeIntoExports(l *lua.LState, exports map[string]any) {
 	})
 }
 
-func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]string, restArgs []string, flagDefs map[string]file.CLIFlag) error {
+func populateGlobalObject(l *lua.LState, f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string, restArgs []string) error {
 
 	if exportsTable == nil {
 		exportsTable = l.NewTable()
@@ -110,7 +110,7 @@ func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]strin
 	l.SetField(cliTable, "rest", restTbl)
 
 	for k, v := range cliFlags {
-		if flagDef, ok := flagDefs[k]; ok && flagDef.Bool {
+		if flagDef, ok := cliBlock.Flags[k]; ok && flagDef.Bool {
 			l.SetField(cliTable, k, lua.LBool(v == "true"))
 		} else {
 			l.SetField(cliTable, k, lua.LString(v))
@@ -161,11 +161,22 @@ func populateGlobalObject(l *lua.LState, f *rest.Rest, cliFlags map[string]strin
 		mergeIntoExports(l, exports)
 		return 0 /* number of results */
 	}
+	lDoLoop := func(l *lua.LState) int {
+		if cliBlock.Loop == nil {
+			l.RaiseError("no loop defined in cli block")
+			return 0
+		}
+		if err := runLoop(l, *cliBlock.Loop); err != nil {
+			l.RaiseError("%s", err.Error())
+		}
+		return 0
+	}
 
 	l.SetGlobal("rest", restlua.MakeLTable(l, map[string]lua.LValue{
 		"file":    l.NewFunction(lDoFile),
 		"label":   l.NewFunction(lDoLabel),
 		"block":   l.NewFunction(lDoIndex),
+		"loop":    l.NewFunction(lDoLoop),
 		"exports": exportsTable,
 	}))
 
@@ -184,36 +195,9 @@ func execute(l *lua.LState, code string) error {
 	return nil
 }
 
-func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string, restArgs []string) error {
-	if cliBlock.Loop == nil && cliBlock.Fn == nil {
-		return errors.New("no handler fn or loop defined")
-	}
-
-	var err error
-	rclient, err = client.New(f.Parser.Config)
-	if err != nil {
-		return err
-	}
-	l := lua.NewState()
-	defer l.Close()
-
-	if err := restlua.RegisterModules(l); err != nil {
-		return err
-	}
-	if err := populateGlobalObject(l, f, cliFlags, restArgs, cliBlock.Flags); err != nil {
-		return err
-	}
-
-	if cliBlock.Fn != nil {
-		return execute(l, *cliBlock.Fn)
-	}
-
-	loopSetup := ""
-	if cliBlock.LoopSetup != nil {
-		loopSetup = *cliBlock.LoopSetup
-	}
-
+func runLoop(l *lua.LState, loopCode string) error {
 	repl := client.NewREPL(true)
+	reader := bufio.NewReader(os.Stdin)
 	readlineFn := func(l *lua.LState) int {
 		prompt := "> "
 		if l.GetTop() >= 1 {
@@ -234,7 +218,6 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string, res
 			}
 		} else {
 			fmt.Print(prompt)
-			reader := bufio.NewReader(os.Stdin)
 			var err error
 			input, err = reader.ReadString('\n')
 			if err != nil {
@@ -251,16 +234,38 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string, res
 	}
 	l.SetGlobal("__rest_readline", l.NewFunction(readlineFn))
 
-	if err := execute(l, fmt.Sprintf(`
-		%s
+	return execute(l, fmt.Sprintf(`
 		while true do
 			local input = __rest_readline(PROMPT or "> ")
 			if input == nil then break end
 			%s
     	::continue::
-		end`, loopSetup, *cliBlock.Loop)); err != nil {
+		end`, loopCode))
+}
+
+func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string, restArgs []string) error {
+	if cliBlock.Loop == nil && cliBlock.Fn == nil {
+		return errors.New("no handler fn or loop defined")
+	}
+
+	var err error
+	rclient, err = client.New(f.Parser.Config)
+	if err != nil {
+		return err
+	}
+	l := lua.NewState()
+	defer l.Close()
+
+	if err := restlua.RegisterModules(l); err != nil {
+		return err
+	}
+	if err := populateGlobalObject(l, f, cliBlock, cliFlags, restArgs); err != nil {
 		return err
 	}
 
-	return nil
+	if cliBlock.Fn != nil {
+		return execute(l, *cliBlock.Fn)
+	}
+
+	return runLoop(l, *cliBlock.Loop)
 }

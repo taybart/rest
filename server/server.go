@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
@@ -48,6 +49,9 @@ type Server struct {
 	Server *http.Server
 	Router *http.ServeMux
 	Config Config
+	kvMu   sync.RWMutex
+	kvOnce sync.Once
+	kv     map[string]any
 }
 
 type Config struct {
@@ -60,10 +64,13 @@ type Config struct {
 	Cors     bool      `hcl:"cors,optional"`
 	TLS      string    `hcl:"tls,optional"`
 	// serve https with this machine's tailscale cert (needs the tailscale cli)
-	Tailscale   bool          `hcl:"tailscale,optional"`
-	Middlewares []*Middleware `hcl:"middleware,block"`
-	Handlers    []*Handler    `hcl:"handler,block"`
-	SPA         bool          `hcl:"spa,optional"`
+	Tailscale   bool           `hcl:"tailscale,optional"`
+	Setup       string         `hcl:"setup,optional"`
+	KV          map[string]any `json:"-"`
+	KVHCL       hcl.Expression `hcl:"kv,optional"`
+	Middlewares []*Middleware  `hcl:"middleware,block"`
+	Handlers    []*Handler     `hcl:"handler,block"`
+	SPA         bool           `hcl:"spa,optional"`
 }
 
 func New(c Config) Server {

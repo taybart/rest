@@ -67,17 +67,31 @@ func execute(l *lua.LState, code string) error {
 	return cleanError
 }
 
-// this is goofy and probably not necessary
-var kv map[string]lua.LValue
+func (s *Server) initKV() error {
+	var initErr error
+	s.kvOnce.Do(func() {
+		s.kvMu.Lock()
+		s.kv = make(map[string]any, len(s.Config.KV))
+		for k, v := range s.Config.KV {
+			s.kv[k] = v
+		}
+		s.kvMu.Unlock()
 
-func kvCacheLoader(l *lua.LState) int {
-	if len(kv) == 0 {
-		kv = make(map[string]lua.LValue)
-	}
+		if s.Config.Setup != "" {
+			initErr = s.RunLuaSetup()
+		}
+	})
+	return initErr
+}
+
+func (s *Server) kvCacheLoader(l *lua.LState) int {
 	get := func(l *lua.LState) int {
 		key := l.ToString(1)
-		if v := kv[key]; v != nil {
-			l.Push(v)
+		s.kvMu.RLock()
+		v, ok := s.kv[key]
+		s.kvMu.RUnlock()
+		if ok && v != nil {
+			l.Push(restlua.AnyToLValue(l, v))
 		} else {
 			l.Push(lua.LNil)
 		}
@@ -86,25 +100,63 @@ func kvCacheLoader(l *lua.LState) int {
 	set := func(l *lua.LState) int {
 		key := l.ToString(1)
 		value := l.Get(2)
-		kv[key] = value
+		goVal := restlua.LValueToAny(value)
+		s.kvMu.Lock()
+		if s.kv == nil {
+			s.kv = make(map[string]any)
+		}
+		if goVal == nil {
+			delete(s.kv, key)
+		} else {
+			s.kv[key] = goVal
+		}
+		s.kvMu.Unlock()
 		return 0
+	}
+	del := func(l *lua.LState) int {
+		key := l.ToString(1)
+		s.kvMu.Lock()
+		delete(s.kv, key)
+		s.kvMu.Unlock()
+		return 0
+	}
+	all := func(l *lua.LState) int {
+		s.kvMu.RLock()
+		snapshot := make(map[string]any, len(s.kv))
+		for k, v := range s.kv {
+			snapshot[k] = v
+		}
+		s.kvMu.RUnlock()
+		l.Push(restlua.MapToLTable(l, snapshot))
+		return 1
 	}
 	l.SetGlobal("kv", restlua.MakeLTable(l, map[string]lua.LValue{
 		"get": l.NewFunction(get),
 		"set": l.NewFunction(set),
+		"del": l.NewFunction(del),
+		"all": l.NewFunction(all),
 	}))
-	// mod := l.SetFuncs(l.NewTable(), map[string]lua.LGFunction{
-	// 	"get": get,
-	// 	"set": set,
-	// })
-	// l.Push(mod)
 	return 1
 }
 
 func (s *Server) luaHelpers(l *lua.LState) error {
-	kvCacheLoader(l)
-	// l.PreloadModule("kv", kvCacheLoader)
+	_ = s.initKV()
+	s.kvCacheLoader(l)
 	return nil
+}
+
+func (s *Server) RunLuaSetup() error {
+	if s.Config.Setup == "" {
+		return nil
+	}
+	l := lua.NewState()
+	defer l.Close()
+
+	if err := restlua.RegisterModules(l); err != nil {
+		return err
+	}
+	s.kvCacheLoader(l)
+	return execute(l, s.Config.Setup)
 }
 
 func mapLuaResponse(l *lua.LState, luaRes *lua.LTable) (Response, error) {

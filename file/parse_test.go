@@ -317,3 +317,83 @@ request "json_default" {
 		t.Fatalf("unexpected json body: %s", jsonReq.Body)
 	}
 }
+
+func TestServerKVAndSetupParse(t *testing.T) {
+	r, err := rest.NewFile("../doc/examples/server/handler_fns.rest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, err := r.Parser.Server()
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, ok := srv.KV["db"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected db map in server KV, got %#v", srv.KV)
+	}
+	users, ok := db["users"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected users map in db, got %#v", db["users"])
+	}
+	u4, ok := users["4"].(map[string]any)
+	if !ok || u4["name"] != "Frankie Muniz" {
+		t.Fatalf("expected user 4 to be Frankie Muniz, got %#v", users["4"])
+	}
+}
+
+func TestLibAndHookFuncsParse(t *testing.T) {
+	tmpDir := t.TempDir()
+	filename := filepath.Join(tmpDir, "hooks.rest")
+	content := `request "precanned" {
+  url   = "http://localhost:18080/test"
+  after = lib.print_req_res
+}
+
+request "inspect_fn" {
+  url   = "http://localhost:18080/test"
+  after = inspect_res("id", "name")
+}
+
+request "combined_list" {
+  url   = "http://localhost:18080/test"
+  after = [
+    lib.expected,
+    inspect_res(["id", "name"]),
+    export_res({ user_id = "user.id" }),
+  ]
+}
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := rest.NewFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	precanned, err := r.Request("precanned")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if precanned.After != "print(rest.req.dump)\nprint(rest.res.dump)" {
+		t.Fatalf("unexpected precanned after: %q", precanned.After)
+	}
+
+	inspectReq, err := r.Request("inspect_fn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inspectReq.After != `tools.inspect_res(json.decode("\"id\""), json.decode("\"name\""))` {
+		t.Fatalf("unexpected inspect_fn after: %q", inspectReq.After)
+	}
+
+	combined, err := r.Request("combined_list")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCombined := "tools.expected()\ntools.inspect_res(json.decode(\"[\\\"id\\\",\\\"name\\\"]\"))\ntools.export_res(json.decode(\"{\\\"user_id\\\":\\\"user.id\\\"}\"))"
+	if combined.After != wantCombined {
+		t.Fatalf("unexpected combined after:\ngot:  %q\nwant: %q", combined.After, wantCombined)
+	}
+}
