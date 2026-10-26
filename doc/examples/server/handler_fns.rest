@@ -2,6 +2,7 @@
 server {
   address = "localhost:18080"
 
+  # optional prepopulate the kv cache so there is something to look up
   kv = {
     db = {
       users = {
@@ -12,25 +13,18 @@ server {
   }
 
   # optional one-time lua setup hook on server start:
-  setup = <<LUA
-    kv.set('boot_time', os.time())
-  LUA
+  # setup = <<LUA
+  #   kv.set('boot_time', os.time())
+  # LUA
 
   middleware "auth" {
     fn = <<LUA
       local token = rest.req:cookie("token") or rest.req:bearer_token()
       if not uuid.is_uuidv4(token) then
-        return {
-          status = 401,
-          body = json.encode({error = "missing credentials"})
-        }
+        return { status = 401, body = json.encode({error = "missing credentials"}) }
       end
-      local last_token = kv.get('last_token')
-      if last_token ~= token then
-        return {
-          status = 401,
-          body = json.encode({error = "invalid credentials"})
-        }
+      if kv.get('last_token') ~= token then
+        return { status = 401, body = json.encode({error = "invalid credentials"}) }
       end
       rest.ctx.token = token
     LUA
@@ -56,32 +50,44 @@ server {
           body = json.encode({token = token})
         }
       end
-      return {
-        status = 401,
-        body = json.encode({error = "invalid credentials"})
-      }
+      return { status = 401, body = json.encode({error = "invalid credentials"}) }
     LUA
   }
-  handler "GET" "/user/{id}" {
+  handler "GET" "/user" {
     middleware = ["auth"]
     fn         = <<LUA
-      print('GOT COOKIE: '..inspect(rest.req.cookies))
-      -- get id from path
-      local id = rest.req:path_value("id")
       local q = rest.req:query("q")
-      print('q: '..q)
       local db = kv.get("db")
-      local user = db.users[id]
+      local user
+      for id, user in pairs(db.users) do
+      print(id, inspect(user))
+      if q and user.name:lower():find(q:lower()) then
+      return {
+        status = 200,
+        body = json.encode({ id = id, name = user.name, role = user.role })
+      }
+      end
+      end
       if not user then
         return {
           status = 404,
           body = json.encode({ error = "user not found" })
         }
       end
-      return {
-        status = 200,
-        body = json.encode({ id = id, name = user.name, role = user.role })
-      }
+    LUA
+  }
+  handler "GET" "/user/{id}" {
+    middleware = ["auth"]
+    fn         = <<LUA
+      -- get id from path
+      local id = rest.req:path_value("id")
+      local db = kv.get("db")
+      local user = db.users[id]
+      if not user then
+        return { status = 404, body = json.encode({ error = "user not found" }) }
+      end
+      local res = json.encode({ id = id, name = user.name, role = user.role })
+      return { status = 200, body = res }
     LUA
   }
 }
@@ -91,20 +97,34 @@ server {
 request "login" {
   url    = "http://localhost:18080/login"
   method = "POST"
-  body   = { "username" : "root", "password" : "toor" }
-  expect { status = 200 body = { token = is.uuidv4 } }
+  body   = { username = "root", password = "toor" }
+  expect {
+    status = 200
+    # check that the body shape has token with a uuid in it
+    body = { token = is.uuidv4 }
+  }
   after = [
     lib.expected,
-    export_res({ auth_token = "token" }),
+    # if we wanted to just export the token for use as a bearer but
+    # we are using cookies so this is not needed
+    # export_res({ auth_token = "token" }),
   ]
 }
 
-request "get user" {
-  url   = "http://localhost:18080/user/4"
+request "get user by query" {
+  url   = "http://localhost:18080/user"
   query = { q = "fran" }
-  # cookie will come along if this is the second request block after "login" so 
+  # cookie will come along if this is comes after "login" so
   # we don't actually need to include the token as a bearer token
   # bearer_token = exports.auth_token
   expect = 200
-  after  = [lib.print_label, lib.inspect_res]
+  after  = [lib.expected, lib.print_label, lib.inspect_res]
+}
+request "get user by id" {
+  url = "http://localhost:18080/user/4"
+  expect {
+    status = 200
+    body   = { id = "4", name = "Frankie Muniz", role = "middle" }
+  }
+  after = [lib.expected, lib.print_label, lib.inspect_res]
 }
