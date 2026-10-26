@@ -255,7 +255,7 @@ There are a couple of global libraries available to you:
 - `form` - encode and decode url-encoded form/query strings (`form.encode(tbl)`, `form.decode(str)`)
 - `colors` - adds terminal color escape codes and formatting functions for extra points
 - `inspect` - used to inspect lua values
-- `base64` - encode and decode base64
+- `base64` - encode and decode base64 (`base64.encode(str [, { url = true, raw = true }])`, `base64.decode(str)`)
 - `uuid` - generate and validate UUIDs
 - `tools` - various helper functions (such as `tools.expected()`), check out the [tools](https://github.com/taybart/rest/blob/main/lua/modules/tools.lua) module for commented functions
 

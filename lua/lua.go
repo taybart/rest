@@ -34,7 +34,6 @@ func preloadModule(l *lua.LState, name, filename string) error {
 
 func RegisterModules(l *lua.LState) error {
 	libs := map[string]string{
-		"base64":  "base64.lua",
 		"colors":  "colors.lua",
 		"inspect": "inspect.lua",
 		"json":    "json.lua",
@@ -46,6 +45,7 @@ func RegisterModules(l *lua.LState) error {
 			return err
 		}
 	}
+	registerBase64Module(l)
 	registerFormModule(l)
 	registerJWTModule(l)
 	// TODO: maybe add vim module that can somehow reach out to the plugin
