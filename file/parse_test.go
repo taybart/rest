@@ -351,15 +351,15 @@ func TestLibAndHookFuncsParse(t *testing.T) {
 
 request "inspect_fn" {
   url   = "http://localhost:18080/test"
-  after = inspect_res("id", "name")
+  after = lib::inspect_res("id", "name")
 }
 
 request "combined_list" {
   url   = "http://localhost:18080/test"
   after = [
     lib.expected,
-    inspect_res(["id", "name"]),
-    export_res({ user_id = "user.id" }),
+    lib::inspect_res(["id", "name"]),
+    lib::export_res({ user_id = "user.id" }),
   ]
 }
 `

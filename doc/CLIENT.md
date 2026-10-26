@@ -175,10 +175,10 @@ There are a few functions that can be used in a rest file:
 - `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
 - `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map (currently only map[string]strings are supported)
 - `raw("CONNECT token")` - mark a [socket](#sockets) playbook entry to be sent as a raw text frame instead of being JSON encoded
-- `inspect_res("id", "name")` / `inspect_res(["id", "name"])` / `inspect_res({ user_id = "user.id" })` - after hook helper that decodes the JSON response body and prints selected fields (supports dot-paths)
-- `inspect_req("id", "name")` - after hook helper that decodes the JSON request body and prints selected fields
-- `export_res("id", "name")` / `export_res({ token = "auth.token" })` - after hook helper that exports fields from the JSON response body into `rest.exports`
-- `copy_res("token")` - after hook helper that copies a field from the JSON response body (or the whole body if no key is passed) to the clipboard
+- `lib::inspect_res("id", "name")` / `lib::inspect_res(["id", "name"])` / `lib::inspect_res({ user_id = "user.id" })` - after hook helper that decodes the JSON response body and prints selected fields (supports dot-paths)
+- `lib::inspect_req("id", "name")` - after hook helper that decodes the JSON request body and prints selected fields
+- `lib::export_res("id", "name")` / `lib::export_res({ token = "auth.token" })` - after hook helper that exports fields from the JSON response body into `rest.exports`
+- `lib::copy_res("token")` - after hook helper that copies a field from the JSON response body (or the whole body if no key is passed) to the clipboard
 - `is.<type>` / `is("...")` - expectation matchers for `expect { body = ... }` and `expect { headers = ... }`:
   - `is.uuid`, `is.uuidv4`, `is.nanoid`, `is.email`, `is.url`
   - `is.string`, `is.number`, `is.int`, `is.bool`, `is.array`, `is.object`, `is.null`, `is.any`, `is.not_empty`
@@ -231,8 +231,8 @@ request "login" {
   expect = 200
   after  = [
     lib.expected,
-    inspect_res("id", "name"),
-    export_res({ token = "auth.token" }),
+    lib::inspect_res("id", "name"),
+    lib::export_res({ token = "auth.token" }),
   ]
 }
 

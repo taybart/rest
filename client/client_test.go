@@ -122,8 +122,8 @@ func TestLibHookExecution(t *testing.T) {
   expect = 200
   after  = [
     lib.expected,
-    inspect_res("id", "name"),
-    export_res({ token = "user.token", user_id = "id" }),
+    lib::inspect_res("id", "name"),
+    lib::export_res({ token = "user.token", user_id = "id" }),
   ]
 }
 `, srv.URL)
