@@ -128,19 +128,20 @@ request "get profile" {
 
 ### Built-in HCL Functions & Matchers
 - **Environment & Files:** `env("VAR")`, `read("./path/to/file")`
-- **Encoding & Templates:** `json_enc(map)`, `json_dec(str)`, `form(map)`, `btmpl(str, map_or_list)`, `tmpl(str, map)`
+- **Encoding & Templates:** `json_enc(map)`, `json_dec(str)`, `jwt_sign(claims, secret [, opts])` / `jwt_enc(...)`, `jwt_dec(token)`, `form(map)`, `btmpl(str, map_or_list)`, `tmpl(str, map)`
 - **Exports:** `exports.<key>` (or `rest.exports.<key>`), `try_exports("key", "default")`
 - **Pre-canned `after` hooks (`lib`):**
   - `lib.expected` — checks the `expect` status/block and fails the run on mismatch (always include in `after` when both `expect` and `after` are set, as custom `after` hooks override automatic `expect` checking unless `lib.expected` or `tools.expected()` is called)
-  - `lib.inspect_res`, `lib.inspect_req` — JSON-decode and pretty-print response/request body
+  - `lib.inspect_res`, `lib.inspect_req`, `lib.inspect_jwt` — decode and pretty-print response/request body or JWT
   - `lib.print_req_res`, `lib.print_req`, `lib.print_res`, `lib.print_body`, `lib.print_label`
 - **Hook helper functions (usable directly in `after = [...]`):**
-  - `inspect_res("id", "nested.field")` or `inspect_res({ alias = "nested.field" })`
-  - `inspect_req("field")`
-  - `export_res("id", "token")` or `export_res({ auth_token = "auth.token" })`
-  - `copy_res("token")` (copies field or whole body to clipboard)
+  - `lib::inspect_res("id", "nested.field")` or `lib::inspect_res({ alias = "nested.field" })`
+  - `lib::inspect_req("field")`
+  - `lib::inspect_jwt()` or `lib::inspect_jwt("auth.token", "sub", "role")`
+  - `lib::export_res("id", "token")` or `lib::export_res({ auth_token = "auth.token" })`
+  - `lib::copy_res("token")` (copies field or whole body to clipboard)
 - **`expect` matchers (`is`):**
-  - `is.uuid`, `is.uuidv4`, `is.nanoid`, `is.email`, `is.url`
+  - `is.uuid`, `is.uuidv4`, `is.nanoid`, `is.jwt`, `is.email`, `is.url`
   - `is.string`, `is.number`, `is.int`, `is.bool`, `is.array`, `is.object`, `is.null`, `is.any`, `is.not_empty`
   - `is("regex:<pattern>")` or `is("regex", "<pattern>")`
 
@@ -149,7 +150,7 @@ request "get profile" {
 ## Custom Lua in `after` Hooks
 
 When writing `after = <<LUA ... LUA`:
-- **Globals:** `json` (`encode`/`decode`), `form` (`encode`/`decode`), `inspect` (`inspect(v)`, `inspect.print(v)`), `colors`, `base64`, `uuid` (`newv4`, `is_uuid`, `is_uuidv4`), `tools` (`tools.expected()`), `copy(val)`, `fail(msg)`.
+- **Globals:** `json` (`encode`/`decode`), `jwt` (`sign`/`encode`, `decode`, `verify`, `is_valid`), `form` (`encode`/`decode`), `inspect` (`inspect(v)`, `inspect.print(v)`), `colors`, `base64`, `uuid` (`newv4`, `is_uuid`, `is_uuidv4`), `tools` (`tools.expected()`), `copy(val)`, `fail(msg)`.
 - **Request & Response (`rest.req`, `rest.res`):**
   - Fields: `rest.req.body`, `rest.req.headers`, `rest.req.cookies`, `rest.req.method`, `rest.req.query`, `rest.req.url`, `rest.req.dump`
   - Fields: `rest.res.body`, `rest.res.headers`, `rest.res.cookies`, `rest.res.status`, `rest.res.dump`

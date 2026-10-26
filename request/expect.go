@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	restlua "github.com/taybart/rest/lua"
 )
 
 const IsPrefix = "\x00__rest_is__:"
@@ -24,7 +25,7 @@ func IsToken(rule string) string {
 
 func ValidateIsRule(rule string) error {
 	switch strings.ToLower(strings.TrimSpace(rule)) {
-	case "uuid", "uuidv4", "nanoid",
+	case "uuid", "uuidv4", "nanoid", "jwt",
 		"string", "number", "int", "integer",
 		"bool", "boolean", "array", "list",
 		"object", "map", "null", "nil",
@@ -270,6 +271,12 @@ func matchIsRule(path, rule string, actual any) error {
 		s, ok := actual.(string)
 		if !ok || !nanoidRegex.MatchString(s) {
 			return fmt.Errorf("%s: expected nanoid, got %s", path, formatJSONVal(actual))
+		}
+		return nil
+	case "jwt":
+		s, ok := actual.(string)
+		if !ok || !restlua.IsJWT(s) {
+			return fmt.Errorf("%s: expected jwt, got %s", path, formatJSONVal(actual))
 		}
 		return nil
 	case "email":

@@ -272,3 +272,97 @@ func TestServerKVAndSetup(t *testing.T) {
 		Body:       "hello:Frankie Muniz:15",
 	})
 }
+
+func TestJWTServerAndMiddleware(t *testing.T) {
+	ts := newServer(server.Config{
+		Quiet: true,
+		Setup: `
+			kv.set("jwt_secret", "super-secret-key")
+		`,
+		Middlewares: []*server.Middleware{
+			{
+				Name: "jwt_auth",
+				Fn: `
+					local token = rest.req:bearer_token()
+					if not token then
+						return { status = 401, body = "missing token" }
+					end
+					local claims, err = jwt.verify(token, kv.get("jwt_secret"))
+					if not claims then
+						return { status = 401, body = err }
+					end
+					rest.ctx.claims = claims
+				`,
+			},
+		},
+		Handlers: []*server.Handler{
+			{
+				Method: "POST",
+				Path:   "/login",
+				Fn: `
+					local body = json.decode(rest.req.body)
+					local token = jwt.sign({ sub = body.user, role = "admin" }, kv.get("jwt_secret"), { expires_in = 300 })
+					return {
+						status = 200,
+						body = json.encode({ token = token }),
+					}
+				`,
+			},
+			{
+				Method:     "GET",
+				Path:       "/me",
+				Middleware: []string{"jwt_auth"},
+				Fn: `
+					return {
+						status = 200,
+						body = rest.ctx.claims.sub .. ":" .. rest.ctx.claims.role,
+					}
+				`,
+			},
+		},
+	})
+	defer ts.Close()
+
+	// 1. Login to get a signed JWT
+	loginReq, err := http.NewRequest("POST", ts.URL+"/login", strings.NewReader(`{"user":"malcolm"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	loginRes, err := http.DefaultClient.Do(loginReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loginRes.Body.Close()
+	var loginPayload struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(loginRes.Body).Decode(&loginPayload); err != nil {
+		t.Fatal(err)
+	}
+	if loginPayload.Token == "" {
+		t.Fatal("expected non-empty jwt token")
+	}
+
+	// 2. Call /me with valid JWT
+	meReq, err := http.NewRequest("GET", ts.URL+"/me", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meReq.Header.Set("Authorization", "Bearer "+loginPayload.Token)
+	checkResponse(t, meReq, Response{
+		StatusCode: http.StatusOK,
+		Body:       "malcolm:admin",
+	})
+
+	// 3. Call /me with tampered JWT
+	badReq, err := http.NewRequest("GET", ts.URL+"/me", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	badReq.Header.Set("Authorization", "Bearer "+loginPayload.Token+"tampered")
+	checkResponse(t, badReq, Response{
+		StatusCode: http.StatusUnauthorized,
+		Body:       `invalid jwt signature`,
+	})
+}
+

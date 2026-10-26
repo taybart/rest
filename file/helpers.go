@@ -2,6 +2,7 @@ package file
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	gonanoid "github.com/matoous/go-nanoid/v2"
+	restlua "github.com/taybart/rest/lua"
 	"github.com/taybart/rest/request"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
@@ -548,13 +550,14 @@ func makeLibObject() cty.Value {
 		"print_body":    cty.StringVal("print(rest.res.body)"),
 		"inspect_res":   cty.StringVal("tools.inspect_res()"),
 		"inspect_req":   cty.StringVal("tools.inspect_req()"),
+		"inspect_jwt":   cty.StringVal("tools.inspect_jwt()"),
 		"expected":      cty.StringVal("tools.expected()"),
 	})
 }
 
 func makeIsObject() cty.Value {
 	rules := []string{
-		"uuid", "uuidv4", "nanoid",
+		"uuid", "uuidv4", "nanoid", "jwt",
 		"string", "number", "int", "integer",
 		"bool", "boolean", "array", "list",
 		"object", "map", "null", "nil",
@@ -590,6 +593,123 @@ func makeIsFunc() function.Function {
 				return cty.NilVal, err
 			}
 			return cty.StringVal(request.IsToken(rule)), nil
+		},
+	})
+}
+
+func ctyToMap(val cty.Value) (map[string]any, error) {
+	val, _ = val.Unmark()
+	if !val.Type().IsMapType() && !val.Type().IsObjectType() {
+		return nil, fmt.Errorf("expected map or object, got %s", val.Type().FriendlyName())
+	}
+	jsonBytes, err := ctyjson.SimpleJSONValue{Value: val}.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]any
+	if err := json.Unmarshal(jsonBytes, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func makeJWTSignFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name:             "claims",
+				Type:             cty.DynamicPseudoType,
+				AllowDynamicType: true,
+				AllowMarked:      true,
+			},
+			{
+				Name:        "secret",
+				Type:        cty.String,
+				AllowMarked: true,
+			},
+		},
+		VarParam: &function.Parameter{
+			Name:             "opts",
+			Type:             cty.DynamicPseudoType,
+			AllowDynamicType: true,
+			AllowMarked:      true,
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			claims, err := ctyToMap(args[0])
+			if err != nil {
+				return cty.StringVal(""), fmt.Errorf("jwt_sign claims: %w", err)
+			}
+			secretVal, _ := args[1].Unmark()
+			secret := secretVal.AsString()
+
+			var opts restlua.JWTOptions
+			if len(args) > 2 {
+				optArg, _ := args[2].Unmark()
+				if !optArg.IsNull() {
+					if optArg.Type() == cty.String {
+						opts.Algorithm = optArg.AsString()
+					} else if optArg.Type().IsMapType() || optArg.Type().IsObjectType() {
+						optMap, err := ctyToMap(optArg)
+						if err != nil {
+							return cty.StringVal(""), fmt.Errorf("jwt_sign opts: %w", err)
+						}
+						if alg, ok := optMap["alg"].(string); ok {
+							opts.Algorithm = alg
+						}
+						if expIn, ok := optMap["expires_in"].(float64); ok {
+							opts.ExpiresIn = expIn
+						} else if ttl, ok := optMap["ttl"].(float64); ok {
+							opts.ExpiresIn = ttl
+						}
+						if hdr, ok := optMap["header"].(map[string]any); ok {
+							opts.Header = hdr
+						} else if hdr, ok := optMap["headers"].(map[string]any); ok {
+							opts.Header = hdr
+						}
+					} else {
+						return cty.StringVal(""), fmt.Errorf("jwt_sign opts must be a string algorithm or map/object, got %s", optArg.Type().FriendlyName())
+					}
+				}
+			}
+
+			token, err := restlua.SignJWT(claims, secret, opts)
+			if err != nil {
+				return cty.StringVal(""), err
+			}
+			return cty.StringVal(token), nil
+		},
+	})
+}
+
+func makeJWTDecodeFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name:             "token",
+				Type:             cty.String,
+				AllowDynamicType: true,
+				AllowMarked:      true,
+			},
+		},
+		Type: func(args []cty.Value) (cty.Type, error) {
+			if !args[0].IsKnown() {
+				return cty.DynamicPseudoType, nil
+			}
+			tokArg, _ := args[0].Unmark()
+			claims, _, _, err := restlua.DecodeJWT(tokArg.AsString())
+			if err != nil {
+				return cty.DynamicPseudoType, nil
+			}
+			return valueToCty(claims).Type(), nil
+		},
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			tokArg, _ := args[0].Unmark()
+			claims, _, _, err := restlua.DecodeJWT(tokArg.AsString())
+			if err != nil {
+				return cty.DynamicVal, err
+			}
+			return valueToCty(claims), nil
 		},
 	})
 }

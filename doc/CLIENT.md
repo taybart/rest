@@ -171,16 +171,19 @@ There are a few functions that can be used in a rest file:
 - `read("./filepath")` - read a file into the rest file, this will just be read into a string so it can be used anywhere (ex. request body,
 - `json_enc({key = "value"})` - turn an HCL table into a string value, useful for templates
 - `json_dec("{\"string\": \"json\"}")` - turn an string into a table value
+- `jwt_sign({sub = "123", role = "admin"}, "secret", {alg = "HS256", expires_in = 3600})` (or `jwt_enc(...)`) - sign a JWT token (supports `HS256`/`384`/`512`, `RS256`/`384`/`512`, `ES256`/`384`/`512`, `EdDSA`)
+- `jwt_dec(token)` - decode a JWT's claims into an HCL object without verifying the signature
 - `form({key = "value"}")` - turn map value into a url-encoded form string
 - `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
 - `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map (currently only map[string]strings are supported)
 - `raw("CONNECT token")` - mark a [socket](#sockets) playbook entry to be sent as a raw text frame instead of being JSON encoded
 - `lib::inspect_res("id", "name")` / `lib::inspect_res(["id", "name"])` / `lib::inspect_res({ user_id = "user.id" })` - after hook helper that decodes the JSON response body and prints selected fields (supports dot-paths)
 - `lib::inspect_req("id", "name")` - after hook helper that decodes the JSON request body and prints selected fields
+- `lib::inspect_jwt()` / `lib::inspect_jwt("auth.token", "sub", "role")` - after hook helper that decodes and pretty-prints a JWT from the response or request bearer token
 - `lib::export_res("id", "name")` / `lib::export_res({ token = "auth.token" })` - after hook helper that exports fields from the JSON response body into `rest.exports`
 - `lib::copy_res("token")` - after hook helper that copies a field from the JSON response body (or the whole body if no key is passed) to the clipboard
 - `is.<type>` / `is("...")` - expectation matchers for `expect { body = ... }` and `expect { headers = ... }`:
-  - `is.uuid`, `is.uuidv4`, `is.nanoid`, `is.email`, `is.url`
+  - `is.uuid`, `is.uuidv4`, `is.nanoid`, `is.jwt`, `is.email`, `is.url`
   - `is.string`, `is.number`, `is.int`, `is.bool`, `is.array`, `is.object`, `is.null`, `is.any`, `is.not_empty`
   - `is("regex:<pattern>")` or `is("regex", "<pattern>")` - match a string against a regular expression
 
@@ -222,6 +225,7 @@ For common tasks, you don't need to write a `<<LUA` block. You can use the built
 - `lib.print_body` - print the raw response body
 - `lib.inspect_res` - JSON-decode and `inspect.print` the response body
 - `lib.inspect_req` - JSON-decode and `inspect.print` the request body
+- `lib.inspect_jwt` - decode and `inspect.print` the JWT header and claims from the response or request bearer token
 - `lib.expected` - run `tools.expected()` to validate the `expect` block/status
 
 ```hcl
@@ -247,6 +251,7 @@ request "debug" {
 There are a couple of global libraries available to you:
 
 - `json` - encode and decode json (`json.encode(tbl)`, `json.decode(str)`)
+- `jwt` - sign, decode, and verify JWTs (`jwt.sign(claims, secret [, opts])`, `jwt.decode(token)`, `jwt.verify(token, secret [, opts])`, `jwt.is_valid(token [, secret, opts])`)
 - `form` - encode and decode url-encoded form/query strings (`form.encode(tbl)`, `form.decode(str)`)
 - `colors` - adds terminal color escape codes and formatting functions for extra points
 - `inspect` - used to inspect lua values

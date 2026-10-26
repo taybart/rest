@@ -229,6 +229,7 @@ server {
 There are some global modules available in the lua runtime.
 
 - `json` - encode and decode json (`json.encode(tbl)`, `json.decode(str)`)
+- `jwt` - sign, decode, and verify JWTs (`jwt.sign(claims, secret [, opts])`, `jwt.decode(token)`, `jwt.verify(token, secret [, opts])`, `jwt.is_valid(token [, secret, opts])`)
 - `form` - encode and decode url-encoded form/query strings (`form.encode(tbl)`, `form.decode(str)`)
 - `colors` - adds terminal color escape codes and formatting functions for extra points
 - `inspect` - used to inspect lua values

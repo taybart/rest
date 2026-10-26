@@ -397,3 +397,56 @@ request "combined_list" {
 		t.Fatalf("unexpected combined after:\ngot:  %q\nwant: %q", combined.After, wantCombined)
 	}
 }
+
+func TestJWTFunctionsAndExpectParse(t *testing.T) {
+	tmpDir := t.TempDir()
+	filename := filepath.Join(tmpDir, "jwt.rest")
+	content := `locals {
+  token = jwt_sign({ sub = "user-42", role = "admin" }, "my-secret")
+}
+
+request "admin" {
+  url          = "http://localhost:18080/users/${jwt_dec(locals.token).sub}"
+  bearer_token = locals.token
+  body = {
+    role = jwt_dec(locals.token).role
+  }
+  expect {
+    status = 200
+    body = {
+      token = is.jwt
+    }
+  }
+  after = [
+    lib.expected,
+    lib.inspect_jwt,
+  ]
+}
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := rest.NewFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := r.Request("admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.URL != "http://localhost:18080/users/user-42" {
+		t.Fatalf("unexpected url: %s", req.URL)
+	}
+	if req.Body != `{"role":"admin"}` {
+		t.Fatalf("unexpected body: %s", req.Body)
+	}
+	if err := request.MatchExpectedBody(req.Expect.Body, `{"token":"`+req.BearerToken+`"}`, false); err != nil {
+		t.Fatalf("expected is.jwt matcher to pass, got: %v", err)
+	}
+	if err := request.MatchExpectedBody(req.Expect.Body, `{"token":"not-a-jwt"}`, false); err == nil {
+		t.Fatal("expected is.jwt matcher to fail on invalid jwt")
+	}
+}
+

@@ -99,4 +99,44 @@ function M.copy_res(key)
   copy(get_path(body, key))
 end
 
+local function find_jwt_token(key)
+  if rest.res ~= nil and rest.res.body ~= nil and rest.res.body ~= '' then
+    if jwt.is_valid(rest.res.body) then
+      return rest.res.body
+    end
+    local ok, body = pcall(json.decode, rest.res.body)
+    if ok and type(body) == 'table' then
+      if type(key) == 'string' and key ~= '' then
+        local val = get_path(body, key)
+        if type(val) == 'string' then return val end
+      else
+        for _, candidate in ipairs({ 'token', 'access_token', 'jwt', 'id_token' }) do
+          if type(body[candidate]) == 'string' and jwt.is_valid(body[candidate]) then
+            return body[candidate]
+          end
+        end
+      end
+    end
+  end
+  if rest.req ~= nil and rest.req.bearer_token then
+    local tok = rest.req:bearer_token()
+    if tok and jwt.is_valid(tok) then return tok end
+  end
+  return nil
+end
+
+function M.inspect_jwt(key, ...)
+  local tok = find_jwt_token(key)
+  if not tok then
+    print('no jwt token found')
+    return
+  end
+  local claims, header = jwt.decode(tok)
+  if select('#', ...) > 0 then
+    inspect.print(select_fields(claims, ...))
+    return
+  end
+  inspect.print({ header = header, claims = claims })
+end
+
 return M
