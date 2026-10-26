@@ -60,13 +60,12 @@ server {
       local db = kv.get("db")
       local user
       for id, user in pairs(db.users) do
-      print(id, inspect(user))
-      if q and user.name:lower():find(q:lower()) then
-      return {
-        status = 200,
-        body = json.encode({ id = id, name = user.name, role = user.role })
-      }
-      end
+        if q and user.name:lower():find(q:lower()) then
+          return {
+            status = 200,
+            body = json.encode({ id = id, name = user.name, role = user.role })
+          }
+        end
       end
       if not user then
         return {
@@ -113,12 +112,15 @@ request "login" {
 
 request "get user by query" {
   url   = "http://localhost:18080/user"
-  query = { q = "fran" }
+  query = { q = "cran" }
   # cookie will come along if this is comes after "login" so
   # we don't actually need to include the token as a bearer token
   # bearer_token = exports.auth_token
-  expect = 200
-  after  = [lib.expected, lib.print_label, lib.inspect_res]
+  expect {
+    status = 200
+    body   = { id = "1", name = "Bryan Cranston", role = "dad" }
+  }
+  after = [lib.expected, lib.print_label, lib.inspect_res]
 }
 request "get user by id" {
   url = "http://localhost:18080/user/4"
