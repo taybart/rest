@@ -78,6 +78,7 @@ config {
   namespace_imports      = true  # prefixes imported request labels with `filename::label`
   skip_imported          = false # set true when importing a shared library of base requests
   no_flags               = false # set true in executable `cli` scripts so custom flags can use any name
+  default_content_type   = true  # automatically adds Content-Type = "application/json" for JSON bodies when no Content-Type header is set
 }
 
 # Note: locals are preprocessed across the file; the last value assigned to a key wins globally.

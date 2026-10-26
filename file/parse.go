@@ -306,6 +306,20 @@ func (p *Parser) Server() (server.Config, error) {
 }
 
 func (p *Parser) Request(hreq *HCLRequest) (request.Request, error) {
+	req, err := p.request(hreq)
+	if err != nil {
+		return req, err
+	}
+	if p.Config.DefaultContentType && json.Valid([]byte(req.Body)) && !hasContentTypeHeader(req.Headers) {
+		if req.Headers == nil {
+			req.Headers = make(map[string]string)
+		}
+		req.Headers["Content-Type"] = "application/json"
+	}
+	return req, nil
+}
+
+func (p *Parser) request(hreq *HCLRequest) (request.Request, error) {
 	if hreq == nil {
 		return request.Request{}, fmt.Errorf("request not found")
 	}
@@ -334,7 +348,7 @@ func (p *Parser) Request(hreq *HCLRequest) (request.Request, error) {
 		if copyFromBody == nil {
 			return req, fmt.Errorf("request (%s) copy_from not found: %s", hreq.Label, req.CopyFrom)
 		}
-		copyFrom, err := p.Request(copyFromBody)
+		copyFrom, err := p.request(copyFromBody)
 		if err != nil {
 			return req, err
 		}
@@ -506,6 +520,15 @@ func (p *Parser) decode(body hcl.Body, to any) error {
 		return errors.New("error decoding hcl body")
 	}
 	return nil
+}
+
+func hasContentTypeHeader(headers map[string]string) bool {
+	for k := range headers {
+		if strings.EqualFold(k, "Content-Type") {
+			return true
+		}
+	}
+	return false
 }
 
 func isFormContentType(headers map[string]string) bool {

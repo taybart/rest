@@ -8,6 +8,7 @@ type Config struct {
 	NamespaceImports    bool   `hcl:"namespace_imports,optional"`
 	SkipImported        bool   `hcl:"skip_imported,optional"`
 	NoFlags             bool   `hcl:"no_flags,optional"`
+	DefaultContentType  bool   `hcl:"default_content_type,optional"`
 }
 
 func DefaultConfig() Config {
@@ -19,5 +20,6 @@ func DefaultConfig() Config {
 		NamespaceImports:    true,
 		SkipImported:        false,
 		NoFlags:             false,
+		DefaultContentType:  true,
 	}
 }

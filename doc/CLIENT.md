@@ -70,6 +70,8 @@ config {
   skip_imported = false
   # disable built-in rest CLI flags so the cli {} block owns all flags
   no_flags = false
+  # automatically set Content-Type = "application/json" when body is JSON and no Content-Type header is specified
+  default_content_type = true
 }
 ```
 
@@ -129,8 +131,9 @@ request "my request" {
   }
 
   # body can look like a json object or a regular hcl map or a string
-  # maps/objects are marshalled to JSON by default, or url-encoded automatically
-  # if headers includes Content-Type = "application/x-www-form-urlencoded"
+  # maps/objects are marshalled to JSON by default (and Content-Type = "application/json"
+  # is added automatically unless another Content-Type header is set or default_content_type = false),
+  # or url-encoded automatically if headers includes Content-Type = "application/x-www-form-urlencoded"
   body = { test: "body" } # or body = { test = "body" }
 
   # cookies can be set for a single request

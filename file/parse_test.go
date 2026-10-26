@@ -316,6 +316,45 @@ request "json_default" {
 	if jsonReq.Body != `{"username":"alice"}` {
 		t.Fatalf("unexpected json body: %s", jsonReq.Body)
 	}
+	if jsonReq.Headers["Content-Type"] != "application/json" {
+		t.Fatalf("expected default Content-Type application/json, got: %q", jsonReq.Headers["Content-Type"])
+	}
+}
+
+func TestDefaultContentTypeConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	filename := filepath.Join(tmpDir, "no_default_ct.rest")
+	content := `config {
+  default_content_type = false
+}
+
+request "json_no_ct" {
+  url    = "http://localhost:18080/login"
+  method = "POST"
+  body   = {
+    username = "alice"
+  }
+}
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := rest.NewFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := r.Request("json_no_ct")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.Body != `{"username":"alice"}` {
+		t.Fatalf("unexpected json body: %s", req.Body)
+	}
+	if _, ok := req.Headers["Content-Type"]; ok {
+		t.Fatalf("expected no Content-Type header when default_content_type = false, got: %v", req.Headers)
+	}
 }
 
 func TestServerKVAndSetupParse(t *testing.T) {
