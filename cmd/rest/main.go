@@ -42,8 +42,8 @@ func usage(u args.Usage) {
 var (
 	a = args.App{
 		Name:    "Rest",
-		Version: "v0.9.3",
-		Author:  "taybart <taybart@email.com>",
+		Version: "v0.9.4",
+		Author:  "taybart",
 		About:   "all the rest",
 		Args: map[string]*args.Arg{
 			/*** cli ***/
