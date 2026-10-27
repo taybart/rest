@@ -29,7 +29,7 @@ func usage(u args.Usage) {
 	}
 
 	var usage strings.Builder
-	fmt.Fprintf(&usage, "%s\t\t=== Rest Easy ===\n%s", log.BoldBlue, log.Reset)
+	fmt.Fprintf(&usage, "%sRest %s\n%s", log.BoldBlue, u.Version, log.Reset)
 	fmt.Fprintf(&usage, "%sCLI:\n%s", log.BoldGreen, log.Reset)
 	u.BuildFlagString(&usage, cli)
 	fmt.Fprintf(&usage, "%sServer:\n%s", log.BoldGreen, log.Reset)
@@ -42,7 +42,7 @@ func usage(u args.Usage) {
 var (
 	a = args.App{
 		Name:    "Rest",
-		Version: "v0.10.0",
+		Version: "v0.10.1",
 		Author:  "taybart",
 		About:   "all the rest",
 		Args: map[string]*args.Arg{
@@ -360,7 +360,9 @@ func run() error {
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
 			c.File = "-"
 		} else {
-			return fmt.Errorf("missing required flag -f")
+			fmt.Printf("%smissing required flag -f <file> %s\n\n", log.BoldRed, log.Reset)
+			a.Usage()
+			return nil
 		}
 	}
 
