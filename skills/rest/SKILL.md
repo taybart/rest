@@ -89,20 +89,17 @@ locals {
 
 ### `request` Blocks, `expect`, and `after` Hooks
 ```hcl
-request "base" {
-  skip    = true # template request; won't run during `rest -f`, can be inherited via copy_from
-  headers = { "X-App" = "demo" }
-}
-
 request "login" {
-  copy_from = "base" # or "imported_file::label" when namespace_imports = true
-  url       = "${locals.base_url}/login"
-  method    = "POST"
-  body      = { username = "root", password = "secret" }
+  url    = "${locals.base_url}/login"
+  method = "POST"
+  # Map/object bodies are JSON-encoded and set `Content-Type: application/json` automatically
+  body   = { username = "root", password = "secret" }
 
   expect {
     status  = 200
     headers = { "content-type" = "application/json" }
+    # Note: every key returned in a JSON object must be matched in `expect.body`
+    # (use `is.any`, `is.object`, etc. for fields you don't care about), or it fails with `unexpected field`.
     body    = {
       token = is.uuidv4
       id    = is.int
@@ -127,8 +124,11 @@ request "get profile" {
 }
 ```
 
+- **Template requests (`skip = true` & `copy_from`):** A request with `skip = true` won't run during `rest -f` and can be inherited via `copy_from = "label"` (or `"imported_file::label"` when `namespace_imports = true`). Only create a base request when sharing multiple fields (such as auth, headers, method, and `after` hooks) across several requests or importing a request library — for a shared URL prefix or reusable payload map, use `locals` instead.
+
 ### Built-in HCL Functions & Matchers
 - **Environment & Files:** `env("VAR")`, `read("./path/to/file")`
+- **IDs:** `uuid()`, `ulid()`, `nanoid([size [, alphabet]])`
 - **Encoding & Templates:** `json_enc(map)`, `json_dec(str)`, `jwt_sign(claims, secret [, opts])` / `jwt_enc(...)`, `jwt_dec(token)`, `form(map)`, `btmpl(str, map_or_list)`, `tmpl(str, map)`
 - **Exports:** `exports.<key>` (or `rest.exports.<key>`), `try_exports("key", "default")`
 - **Pre-canned `after` hooks (`lib`):**
@@ -142,7 +142,7 @@ request "get profile" {
   - `lib::export_res("id", "token")` or `lib::export_res({ auth_token = "auth.token" })`
   - `lib::copy_res("token")` (copies field or whole body to clipboard)
 - **`expect` matchers (`is`):**
-  - `is.uuid`, `is.uuidv4`, `is.nanoid`, `is.jwt`, `is.email`, `is.url`
+  - `is.uuid`, `is.uuidv4`, `is.ulid`, `is.nanoid`, `is.jwt`, `is.email`, `is.url`
   - `is.string`, `is.number`, `is.int`, `is.bool`, `is.array`, `is.object`, `is.null`, `is.any`, `is.not_empty`
   - `is("regex:<pattern>")` or `is("regex", "<pattern>")`
 
@@ -151,7 +151,7 @@ request "get profile" {
 ## Custom Lua in `after` Hooks
 
 When writing `after = <<LUA ... LUA`:
-- **Globals:** `json` (`encode`/`decode`), `jwt` (`sign`/`encode`, `decode`, `verify`, `is_valid`), `form` (`encode`/`decode`), `inspect` (`inspect(v)`, `inspect.print(v)`), `colors`, `base64` (`encode(str [, opts])`, `decode(str)`), `uuid` (`newv4`, `is_uuid`, `is_uuidv4`), `tools` (`tools.expected()`), `copy(val)`, `fail(msg)`.
+- **Globals:** `json` (`encode`/`decode`), `jwt` (`sign`/`encode`, `decode`, `verify`, `is_valid`), `form` (`encode`/`decode`), `inspect` (`inspect(v)`, `inspect.print(v)`), `colors`, `base64` (`encode(str [, opts])`, `decode(str)`), `uuid` (`newv4`, `is_uuid`, `is_uuidv4`), `ulid` (`new([ms])` / `ulid([ms])`, `is_ulid`, `timestamp`), `nanoid` (`new([size [, alphabet]])` / `nanoid(...)`, `is_nanoid(str [, size])`), `tools` (`tools.expected()`), `copy(val)`, `fail(msg)`.
 - **Request & Response (`rest.req`, `rest.res`):**
   - Fields: `rest.req.body`, `rest.req.headers`, `rest.req.cookies`, `rest.req.method`, `rest.req.query`, `rest.req.url`, `rest.req.dump`
   - Fields: `rest.res.body`, `rest.res.headers`, `rest.res.cookies`, `rest.res.status`, `rest.res.dump`

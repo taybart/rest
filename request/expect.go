@@ -25,7 +25,7 @@ func IsToken(rule string) string {
 
 func ValidateIsRule(rule string) error {
 	switch strings.ToLower(strings.TrimSpace(rule)) {
-	case "uuid", "uuidv4", "nanoid", "jwt",
+	case "uuid", "uuidv4", "ulid", "nanoid", "jwt",
 		"string", "number", "int", "integer",
 		"bool", "boolean", "array", "list",
 		"object", "map", "null", "nil",
@@ -265,6 +265,12 @@ func matchIsRule(path, rule string, actual any) error {
 		u, err := uuid.Parse(s)
 		if err != nil || u.Version() != 4 {
 			return fmt.Errorf("%s: expected uuidv4, got %s", path, formatJSONVal(actual))
+		}
+		return nil
+	case "ulid":
+		s, ok := actual.(string)
+		if !ok || !restlua.IsULID(s) {
+			return fmt.Errorf("%s: expected ulid, got %s", path, formatJSONVal(actual))
 		}
 		return nil
 	case "nanoid":

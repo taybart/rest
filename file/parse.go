@@ -499,6 +499,7 @@ func (p *Parser) makeContext() {
 			"tmpl":             makeGoTemplateFunc(),
 			"try_exports":      makeTryExportsFunc(p.Exports),
 			"trim":             makeTrimFunc(),
+			"ulid":             makeULIDFunc(),
 			"uuid":             makeUUIDFunc(),
 		},
 	}

@@ -186,7 +186,7 @@ There are a few functions that can be used in a rest file:
 - `lib::export_res("id", "name")` / `lib::export_res({ token = "auth.token" })` - after hook helper that exports fields from the JSON response body into `rest.exports`
 - `lib::copy_res("token")` - after hook helper that copies a field from the JSON response body (or the whole body if no key is passed) to the clipboard
 - `is.<type>` / `is("...")` - expectation matchers for `expect { body = ... }` and `expect { headers = ... }`:
-  - `is.uuid`, `is.uuidv4`, `is.nanoid`, `is.jwt`, `is.email`, `is.url`
+  - `is.uuid`, `is.uuidv4`, `is.ulid`, `is.nanoid`, `is.jwt`, `is.email`, `is.url`
   - `is.string`, `is.number`, `is.int`, `is.bool`, `is.array`, `is.object`, `is.null`, `is.any`, `is.not_empty`
   - `is("regex:<pattern>")` or `is("regex", "<pattern>")` - match a string against a regular expression
 
@@ -259,7 +259,9 @@ There are a couple of global libraries available to you:
 - `colors` - adds terminal color escape codes and formatting functions for extra points
 - `inspect` - used to inspect lua values
 - `base64` - encode and decode base64 (`base64.encode(str [, { url = true, raw = true }])`, `base64.decode(str)`)
-- `uuid` - generate and validate UUIDs
+- `uuid` - generate and validate UUIDs (`uuid.newv4()`, `uuid.is_uuid(str)`, `uuid.is_uuidv4(str)`)
+- `ulid` - generate and validate ULIDs (`ulid.new([ms])` or `ulid([ms])`, `ulid.is_ulid(str)`, `ulid.timestamp(str)`)
+- `nanoid` - generate and validate NanoIDs (`nanoid.new([size [, alphabet]])` or `nanoid([size [, alphabet]])`, `nanoid.is_nanoid(str [, size])`)
 - `tools` - various helper functions (such as `tools.expected()`), check out the [tools](https://github.com/taybart/rest/blob/main/lua/modules/tools.lua) module for commented functions
 
 Additionally there are a few global functions available to you:

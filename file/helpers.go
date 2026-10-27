@@ -285,6 +285,16 @@ func makeUUIDFunc() function.Function {
 	})
 }
 
+func makeULIDFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{},
+		Type:   function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			return cty.StringVal(restlua.NewULID()), nil
+		},
+	})
+}
+
 func makeNanoIDFunc() function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{
@@ -557,7 +567,7 @@ func makeLibObject() cty.Value {
 
 func makeIsObject() cty.Value {
 	rules := []string{
-		"uuid", "uuidv4", "nanoid", "jwt",
+		"uuid", "uuidv4", "ulid", "nanoid", "jwt",
 		"string", "number", "int", "integer",
 		"bool", "boolean", "array", "list",
 		"object", "map", "null", "nil",

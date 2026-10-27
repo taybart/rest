@@ -48,6 +48,8 @@ func RegisterModules(l *lua.LState) error {
 	registerFormModule(l)
 	registerJSONModule(l)
 	registerJWTModule(l)
+	registerNanoIDModule(l)
+	registerULIDModule(l)
 	registerUUIDModule(l)
 	// TODO: maybe add vim module that can somehow reach out to the plugin
 	//       this would be nice for copy to just add a vim.notify('success')

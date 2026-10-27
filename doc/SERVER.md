@@ -234,7 +234,9 @@ There are some global modules available in the lua runtime.
 - `colors` - adds terminal color escape codes and formatting functions for extra points
 - `inspect` - used to inspect lua values
 - `base64` - encode and decode base64 (`base64.encode(str [, { url = true, raw = true }])`, `base64.decode(str)`)
-- `uuid` - generate and validate UUIDs
+- `uuid` - generate and validate UUIDs (`uuid.newv4()`, `uuid.is_uuid(str)`, `uuid.is_uuidv4(str)`)
+- `ulid` - generate and validate ULIDs (`ulid.new([ms])` or `ulid([ms])`, `ulid.is_ulid(str)`, `ulid.timestamp(str)`)
+- `nanoid` - generate and validate NanoIDs (`nanoid.new([size [, alphabet]])` or `nanoid([size [, alphabet]])`, `nanoid.is_nanoid(str [, size])`)
 - `tools` - various helper functions, check out the [tools](https://github.com/taybart/rest/blob/main/lua/modules/tools.lua) module for commented functions
 - `kv` - in-memory key/value store that persists between requests (concurrency-safe)
     - `kv.get(key)` - get value from kv cache, returns nil if key doesn't exist
