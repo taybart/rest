@@ -3,7 +3,6 @@ package templates
 
 import (
 	"bytes"
-	"go/format"
 	"io"
 	"net/url"
 	"strings"
@@ -123,14 +122,6 @@ func (r *RequestTemplate) Execute(wr io.Writer, filename string, reqs map[string
 		"Code":     code.String(),
 		"Labels":   labels,
 	})
-	if r.Name == "go" {
-		formatted, err := format.Source(client.Bytes())
-		if err != nil {
-			return err
-		}
-		_, err = wr.Write(formatted)
-		return err
-	}
 	_, err := wr.Write(client.Bytes())
 	return err
 }

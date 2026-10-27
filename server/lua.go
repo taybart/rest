@@ -2,13 +2,14 @@ package server
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	restlua "github.com/taybart/rest/lua"
-	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -163,16 +164,49 @@ func mapLuaResponse(l *lua.LState, luaRes *lua.LTable) (Response, error) {
 	res := Response{
 		Status: http.StatusOK,
 	}
-	var cookies []*http.Cookie
 	if cookiesTbl, ok := l.GetField(luaRes, "cookies").(*lua.LTable); ok {
-		cookies = restlua.ParseLuaCookies(cookiesTbl)
-		l.SetField(luaRes, "cookies", lua.LNil)
+		res.Cookies = restlua.ParseLuaCookies(cookiesTbl)
 	}
-	if err := gluamapper.Map(luaRes, &res); err != nil {
-		return res, err
-	}
-	res.Cookies = cookies
-	return res, nil
+	var mapErr error
+	luaRes.ForEach(func(k, v lua.LValue) {
+		if mapErr != nil {
+			return
+		}
+		switch strings.ToLower(k.String()) {
+		case "status":
+			if num, ok := v.(lua.LNumber); ok {
+				res.Status = int(num)
+			} else {
+				mapErr = fmt.Errorf("expected number for status, got %s", v.Type().String())
+			}
+		case "headers":
+			if tbl, ok := v.(*lua.LTable); ok {
+				res.Headers = make(map[string]string)
+				tbl.ForEach(func(hk, hv lua.LValue) {
+					res.Headers[hk.String()] = hv.String()
+				})
+			} else if v != lua.LNil {
+				mapErr = fmt.Errorf("expected table for headers, got %s", v.Type().String())
+			}
+		case "body":
+			switch b := v.(type) {
+			case lua.LString:
+				res.Body = json.RawMessage(b)
+			case *lua.LTable:
+				encoded, err := json.Marshal(restlua.LValueToAny(b))
+				if err != nil {
+					mapErr = err
+					return
+				}
+				res.Body = json.RawMessage(encoded)
+			case *lua.LNilType:
+				// leave empty
+			default:
+				res.Body = json.RawMessage(b.String())
+			}
+		}
+	})
+	return res, mapErr
 }
 
 func (s *Server) findMiddleware(name string) (*Middleware, bool) {

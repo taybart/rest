@@ -2,14 +2,15 @@
 package restlua
 
 import (
-	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
+	"os/exec"
+	"runtime"
 	"strconv"
+	"strings"
 
 	lua "github.com/yuin/gopher-lua"
-	"golang.design/x/clipboard"
 )
 
 //go:embed modules/*
@@ -36,9 +37,7 @@ func RegisterModules(l *lua.LState) error {
 	libs := map[string]string{
 		"colors":  "colors.lua",
 		"inspect": "inspect.lua",
-		"json":    "json.lua",
 		"tools":   "tools.lua",
-		"uuid":    "uuid.lua",
 	}
 	for name, filename := range libs {
 		if err := preloadModule(l, name, filename); err != nil {
@@ -47,17 +46,13 @@ func RegisterModules(l *lua.LState) error {
 	}
 	registerBase64Module(l)
 	registerFormModule(l)
+	registerJSONModule(l)
 	registerJWTModule(l)
+	registerUUIDModule(l)
 	// TODO: maybe add vim module that can somehow reach out to the plugin
 	//       this would be nice for copy to just add a vim.notify('success')
 
 	l.SetGlobal("copy", l.NewFunction(func(l *lua.LState) int {
-		if err := clipboard.Init(); err != nil {
-			fmt.Println(err)
-			l.Push(lua.LBool(false))
-			return 1
-		}
-
 		toCopy := l.Get(1)
 
 		var result string
@@ -82,12 +77,38 @@ func RegisterModules(l *lua.LState) error {
 			result = toCopy.String()
 		}
 
-		clipboard.Write(context.TODO(), clipboard.FmtText, []byte(result))
+		if err := writeClipboard(result); err != nil {
+			fmt.Println(err)
+			l.Push(lua.LBool(false))
+			return 1
+		}
 		l.Push(lua.LBool(true))
 		return 1
 	}))
 
 	return nil
+}
+
+func writeClipboard(text string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("pbcopy")
+	case "windows":
+		cmd = exec.Command("clip")
+	default:
+		if _, err := exec.LookPath("wl-copy"); err == nil {
+			cmd = exec.Command("wl-copy")
+		} else if _, err := exec.LookPath("xclip"); err == nil {
+			cmd = exec.Command("xclip", "-selection", "clipboard")
+		} else if _, err := exec.LookPath("xsel"); err == nil {
+			cmd = exec.Command("xsel", "--clipboard", "--input")
+		} else {
+			return fmt.Errorf("no clipboard utility found (install wl-copy, xclip, or xsel)")
+		}
+	}
+	cmd.Stdin = strings.NewReader(text)
+	return cmd.Run()
 }
 
 func LValueToAny(value lua.LValue) any {

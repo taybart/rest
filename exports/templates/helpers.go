@@ -9,8 +9,6 @@ import (
 
 	"github.com/taybart/log"
 	"github.com/zclconf/go-cty/cty"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 var stdFns = template.FuncMap{
@@ -23,12 +21,15 @@ var stdFns = template.FuncMap{
 	"camelcase": func(s string) string {
 		s = regexp.MustCompile("[^a-zA-Z0-9_ ]+").ReplaceAllString(s, "")
 		s = strings.ReplaceAll(s, "_", " ")
-		s = cases.Title(language.AmericanEnglish, cases.NoLower).String(s)
-		s = strings.ReplaceAll(s, " ", "")
-		if len(s) > 0 {
-			s = strings.ToLower(s[:1]) + s[1:]
+		words := strings.Fields(s)
+		for i, w := range words {
+			if i == 0 {
+				words[i] = strings.ToLower(w[:1]) + w[1:]
+			} else {
+				words[i] = strings.ToUpper(w[:1]) + w[1:]
+			}
 		}
-		return s
+		return strings.Join(words, "")
 	},
 	"json": func(headers map[string]string, body string) string {
 		if headers["Content-Type"] == "application/json" {
