@@ -66,6 +66,11 @@ local function select_fields(body, ...)
   return out
 end
 
+function M.dump()
+  print(rest.req.dump .. '\n')
+  print(rest.res.dump)
+end
+
 function M.inspect_res(...)
   local body = json.decode(rest.res.body)
   inspect.print(select_fields(body, ...))

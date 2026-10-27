@@ -385,7 +385,7 @@ func TestLibAndHookFuncsParse(t *testing.T) {
 	filename := filepath.Join(tmpDir, "hooks.rest")
 	content := `request "precanned" {
   url   = "http://localhost:18080/test"
-  after = lib.print_req_res
+  after = lib.dump
 }
 
 request "inspect_fn" {
@@ -415,7 +415,7 @@ request "combined_list" {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if precanned.After != "print(rest.req.dump)\nprint(rest.res.dump)" {
+	if precanned.After != "print(rest.req.dump..'\\n')\nprint(rest.res.dump)" {
 		t.Fatalf("unexpected precanned after: %q", precanned.After)
 	}
 

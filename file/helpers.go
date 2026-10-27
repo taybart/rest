@@ -553,15 +553,15 @@ func replaceNamedPlaceholders(template string, values cty.Value) (cty.Value, err
 
 func makeLibObject() cty.Value {
 	return cty.ObjectVal(map[string]cty.Value{
-		"print_label":   cty.StringVal(`print(('\n===%s==='):format(rest.label))`),
-		"print_req_res": cty.StringVal("print(rest.req.dump)\nprint(rest.res.dump)"),
-		"print_req":     cty.StringVal("print(rest.req.dump)"),
-		"print_res":     cty.StringVal("print(rest.res.dump)"),
-		"print_body":    cty.StringVal("print(rest.res.body)"),
-		"inspect_res":   cty.StringVal("tools.inspect_res()"),
-		"inspect_req":   cty.StringVal("tools.inspect_req()"),
-		"inspect_jwt":   cty.StringVal("tools.inspect_jwt()"),
-		"expected":      cty.StringVal("tools.expected()"),
+		"print_label": cty.StringVal(`print(('\n===%s==='):format(rest.label))`),
+		"dump":        cty.StringVal("print(rest.req.dump..'\\n')\nprint(rest.res.dump)"),
+		"print_req":   cty.StringVal("print(rest.req.dump)"),
+		"print_res":   cty.StringVal("print(rest.res.dump)"),
+		"print_body":  cty.StringVal("print(rest.res.body)"),
+		"inspect_res": cty.StringVal("tools.inspect_res()"),
+		"inspect_req": cty.StringVal("tools.inspect_req()"),
+		"inspect_jwt": cty.StringVal("tools.inspect_jwt()"),
+		"expected":    cty.StringVal("tools.expected()"),
 	})
 }
 

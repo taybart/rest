@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/taybart/rest"
@@ -119,11 +120,15 @@ func TestLibHookExecution(t *testing.T) {
 	filename := filepath.Join(tmpDir, "hooks.rest")
 	content := fmt.Sprintf(`request "test_hooks" {
   url    = %q
+  method = "POST"
+  body   = { hello = "world" }
   expect = 200
   after  = [
     lib.expected,
+    lib.dump,
     lib::inspect_res("id", "name"),
     lib::export_res({ token = "user.token", user_id = "id" }),
+    "rest.exports.req_dump = rest.req.dump",
   ]
 }
 `, srv.URL)
@@ -156,6 +161,10 @@ func TestLibHookExecution(t *testing.T) {
 	}
 	if exports["user_id"] != float64(42) {
 		t.Fatalf("expected exported user_id 42, got %v", exports["user_id"])
+	}
+	reqDump, _ := exports["req_dump"].(string)
+	if !strings.Contains(reqDump, `{"hello":"world"}`) {
+		t.Fatalf("expected rest.req.dump to contain request body, got: %q", reqDump)
 	}
 }
 

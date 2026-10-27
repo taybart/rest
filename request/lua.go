@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 
 	restlua "github.com/taybart/rest/lua"
 	lua "github.com/yuin/gopher-lua"
@@ -27,6 +28,15 @@ func syncExportsTable(l *lua.LState) error {
 
 func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar http.CookieJar) error {
 	defer res.Body.Close()
+	if res.Request.GetBody != nil {
+		bodyCopy, err := res.Request.GetBody()
+		if err != nil {
+			return err
+		}
+		res.Request.Body = bodyCopy
+	} else if req.Body != "" {
+		res.Request.Body = io.NopCloser(strings.NewReader(req.Body))
+	}
 	reqdump, err := httputil.DumpRequest(res.Request, true)
 	if err != nil {
 		return err

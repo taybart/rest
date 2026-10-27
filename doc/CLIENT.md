@@ -222,7 +222,7 @@ Hooks are defined in the `after` field. They are lua functions that are executed
 
 For common tasks, you don't need to write a `<<LUA` block. You can use the built-in `lib` table, hook functions, or pass a list of hooks to run in sequence:
 
-- `lib.print_req_res` - print the full HTTP dump of both request and response
+- `lib.dump` - print the full HTTP dump of both request and response
 - `lib.print_req` - print the HTTP request dump
 - `lib.print_res` - print the HTTP response dump
 - `lib.print_body` - print the raw response body
@@ -245,7 +245,7 @@ request "login" {
 
 request "debug" {
   url   = "http://localhost:8080/debug"
-  after = lib.print_req_res
+  after = lib.dump
 }
 ```
 

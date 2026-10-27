@@ -134,7 +134,7 @@ request "get profile" {
 - **Pre-canned `after` hooks (`lib`):**
   - `lib.expected` — checks the `expect` status/block and fails the run on mismatch (always include in `after` when both `expect` and `after` are set, as custom `after` hooks override automatic `expect` checking unless `lib.expected` or `tools.expected()` is called)
   - `lib.inspect_res`, `lib.inspect_req`, `lib.inspect_jwt` — decode and pretty-print response/request body or JWT
-  - `lib.print_req_res`, `lib.print_req`, `lib.print_res`, `lib.print_body`, `lib.print_label`
+  - `lib.dump`, `lib.print_req`, `lib.print_res`, `lib.print_body`, `lib.print_label`
 - **Hook helper functions (usable directly in `after = [...]`):**
   - `lib::inspect_res("id", "nested.field")` or `lib::inspect_res({ alias = "nested.field" })`
   - `lib::inspect_req("field")`
