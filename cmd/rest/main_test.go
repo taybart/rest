@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -252,5 +255,57 @@ func TestRunCLIFnCallsRestLoop(t *testing.T) {
 	}
 	if string(got) != "init,first,second" {
 		t.Fatalf("expected init,first,second, got %q", string(got))
+	}
+}
+
+func TestRunFlagsOverrideNoFlags(t *testing.T) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	var hit string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hit = r.URL.Path
+		fmt.Fprint(w, `{"ok":true}`)
+	}))
+	defer srv.Close()
+
+	tmpDir := t.TempDir()
+	scriptFile := filepath.Join(tmpDir, "run.rest")
+	content := `#!/usr/bin/env rest
+
+config {
+  no_flags = true
+}
+
+cli {
+  flags = {
+    dir = {
+      desc = "The directory"
+      short = "d"
+    }
+  }
+  fn = <<LUA
+    rest.label("default_cli")
+  LUA
+}
+
+request "default_cli" {
+  url = "` + srv.URL + `/default_cli"
+}
+
+request "specific_label" {
+  url = "` + srv.URL + `/specific_label"
+}
+`
+	if err := os.WriteFile(scriptFile, []byte(content), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	os.Args = []string{"rest", "--flags", "-nc", "-f", scriptFile, "-l", "specific_label"}
+	if err := run(); err != nil {
+		t.Fatalf("run() with --flags failed: %v", err)
+	}
+	if hit != "/specific_label" {
+		t.Fatalf("expected /specific_label to be hit when --flags -l specific_label is used, got %q", hit)
 	}
 }

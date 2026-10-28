@@ -502,7 +502,7 @@ end
 local query = cli.rest:string() -- or cli.rest:string(",") or tostring(cli.rest)
 ```
 
-**Disabling built-in rest flags (`no_flags`):** By default, flag names and short flags must not conflict with any built-in rest flags (e.g., `file`/`f`, `block`/`b`, `label`/`l`, `dir`/`d`, `serve`/`s`, etc.). To disable rest's built-in CLI flags for a file so your `cli` block can freely use any flag names or short flags, set `no_flags = true` in the `config` block:
+**Disabling built-in rest flags (`no_flags`):** By default, flag names and short flags must not conflict with any built-in rest flags (e.g., `file`/`f`, `block`/`b`, `label`/`l`, `dir`/`d`, `serve`/`s`, etc.). To disable rest's built-in CLI flags for a file so your `cli` block can freely use any flag names or short flags, set `no_flags = true` in the `config` block (pass `--flags` on the command line to override `no_flags` and use standard `rest` flags like `-l` or `-b`):
 
 ```hcl
 config {

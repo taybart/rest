@@ -17,7 +17,7 @@ import (
 
 func usage(u args.Usage) {
 	cli := []string{
-		"no-color", "list",
+		"no-color", "list", "flags",
 	}
 	server := []string{
 		"addr", "serve", "dir", "spa", "file",
@@ -64,6 +64,10 @@ var (
 			},
 			"list": {
 				Help:    "List labels in file",
+				Default: false,
+			},
+			"flags": {
+				Help:    "Force built-in flags (overrides config.no_flags)",
 				Default: false,
 			},
 
@@ -144,6 +148,7 @@ var (
 		NoColor bool `arg:"no-color"`
 		Quiet   bool `arg:"quiet"`
 		Verbose bool `arg:"verbose"`
+		Flags   bool `arg:"flags"`
 
 		// server
 		Addr      string `arg:"addr"`
@@ -237,6 +242,15 @@ func hasHelpFlag(args []string) bool {
 	return false
 }
 
+func hasFlagsOverride(args []string) bool {
+	for _, arg := range args {
+		if arg == "--flags" || arg == "-flags" {
+			return true
+		}
+	}
+	return false
+}
+
 func run() error {
 
 	log.SetNoTime()
@@ -256,7 +270,9 @@ func run() error {
 		}
 	}
 
-	if preloaded != nil && preloaded.Parser.Config.NoFlags {
+	flagsOverride := hasFlagsOverride(os.Args[1:])
+
+	if preloaded != nil && preloaded.Parser.Config.NoFlags && !flagsOverride {
 		if isShebang {
 			os.Args = append([]string{os.Args[0]}, os.Args[2:]...)
 		} else {
@@ -288,7 +304,7 @@ func run() error {
 	}
 
 	// If file has a CLI block and user passed -h/--help, let the CLI block's args parser print help
-	if preloaded != nil && preloaded.Parser.Root.CLI != nil && hasHelpFlag(os.Args[1:]) {
+	if preloaded != nil && preloaded.Parser.Root.CLI != nil && hasHelpFlag(os.Args[1:]) && !flagsOverride {
 		cliBlock, err := preloaded.Parser.CLI()
 		if err != nil {
 			return err
@@ -399,7 +415,7 @@ func run() error {
 		log.Debug("running request", c.Label, "on file", c.File)
 		return f.RunLabel(c.Label)
 	} else {
-		if f.Parser.Root.CLI != nil {
+		if f.Parser.Root.CLI != nil && !c.Flags {
 			cliBlock, err := f.Parser.CLI()
 			if err != nil {
 				return err

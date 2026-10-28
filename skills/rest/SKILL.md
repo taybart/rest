@@ -22,7 +22,9 @@ For full reference documentation and working examples, read:
 rest -f api.rest
 
 # Run a single request by label or 0-based index
+# (use --flags to override config.no_flags = true on CLI scripts)
 rest -f api.rest -l "login"
+rest --flags -f script.rest -l "specific_label"
 rest -f api.rest -b 0
 
 # List request labels in a file
