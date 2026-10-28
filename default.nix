@@ -8,7 +8,7 @@ pkgs.buildGoModule rec {
   pname = "rest";
   inherit version;
   src = self;
-  vendorHash = "sha256-lX69/KtXnsZ7ZPUq38JlccfeeT4BGD3OJ7AYMFK4M/A=";
+  vendorHash = "sha256-Ab4blba407zAHKkU5vN9ByIecNhzAVXPylSqvUHgSKQ=";
 
   env = {
     CGO_ENABLED = "0";
