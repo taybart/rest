@@ -344,7 +344,6 @@ func TestRunCLIErde(t *testing.T) {
 	tmpDir := t.TempDir()
 	outFile := filepath.Join(tmpDir, "erde_out.txt")
 	scriptFile := filepath.Join(tmpDir, "erde.rest")
-	// no config lang, so the heredoc markers pick erde
 	content := `request "user" {
   url = "` + ts.URL + `"
   after = <<ERDE
@@ -397,15 +396,5 @@ cli {
 	}
 	if string(got) != "missing,first,frankie:200" {
 		t.Fatalf("expected missing,first,frankie:200, got %q", string(got))
-	}
-}
-
-func TestRunUnknownLang(t *testing.T) {
-	scriptFile := filepath.Join(t.TempDir(), "bad.rest")
-	if err := os.WriteFile(scriptFile, []byte("config {\n  lang = \"python\"\n}\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := file.NewParser(scriptFile); err == nil {
-		t.Fatal("expected error for unknown lang")
 	}
 }

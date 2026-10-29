@@ -81,7 +81,6 @@ config {
   skip_imported          = false # set true when importing a shared library of base requests
   no_flags               = false # set true in executable `cli` scripts so custom flags can use any name
   default_content_type   = true  # automatically adds Content-Type = "application/json" for JSON bodies when no Content-Type header is set
-  # lang                 = "erde" # force the script language ("lua" or "erde") for after/cli/server code. Unset: <<LUA / <<ERDE heredoc markers pick it per script, default lua. In erde, "{x}" interpolates, use '...' for literal braces
 }
 
 # Note: locals are preprocessed across the file; the last value assigned to a key wins globally.
@@ -154,6 +153,7 @@ request "get profile" {
 ## Custom Lua in `after` Hooks
 
 When writing `after = <<LUA ... LUA`:
+- **Erde:** use `<<ERDE ... ERDE` (or `<<-ERDE`) to write any script (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`) in [erde](https://erde-lang.github.io) instead. Any other heredoc marker or plain string is lua. Same globals. In erde, `"{x}"` interpolates; use `'...'` for literal braces.
 - **Globals:** `json` (`encode`/`decode`), `jwt` (`sign`/`encode`, `decode`, `verify`, `is_valid`), `form` (`encode`/`decode`), `inspect` (`inspect(v)`, `inspect.print(v)`), `colors`, `base64` (`encode(str [, opts])`, `decode(str)`), `uuid` (`newv4`, `is_uuid`, `is_uuidv4`), `ulid` (`new([ms])` / `ulid([ms])`, `is_ulid`, `timestamp`), `nanoid` (`new([size [, alphabet]])` / `nanoid(...)`, `is_nanoid(str [, size])`), `tools` (`tools.expected()`), `copy(val)`, `fail(msg)`.
 - **Request & Response (`rest.req`, `rest.res`):**
   - Fields: `rest.req.body`, `rest.req.headers`, `rest.req.cookies`, `rest.req.method`, `rest.req.query`, `rest.req.url`, `rest.req.dump`

@@ -556,7 +556,6 @@ cli {
 `
 	tests := []struct {
 		name   string
-		config string
 		reqs   map[string]string
 		setup  string
 		mw     string
@@ -571,27 +570,11 @@ cli {
 			},
 			setup: "erde", mw: "lua", hdl: []string{"erde", "lua"}, fn: "erde", loop: "lua",
 		},
-		{
-			name:   "config wins",
-			config: "config {\n  lang = \"lua\"\n}\n",
-			reqs: map[string]string{
-				"erde": "lua", "indented_lua": "lua", "plain": "lua", "none": "lua", "list": "lua",
-			},
-			setup: "lua", mw: "lua", hdl: []string{"lua", "lua"}, fn: "lua", loop: "lua",
-		},
-		{
-			name:   "config erde",
-			config: "config {\n  lang = \"erde\"\n}\n",
-			reqs: map[string]string{
-				"erde": "erde", "indented_lua": "erde", "plain": "erde", "none": "erde", "list": "erde",
-			},
-			setup: "erde", mw: "erde", hdl: []string{"erde", "erde"}, fn: "erde", loop: "erde",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			filename := filepath.Join(t.TempDir(), "hints.rest")
-			if err := os.WriteFile(filename, []byte(tt.config+scripts), 0644); err != nil {
+			if err := os.WriteFile(filename, []byte(scripts), 0644); err != nil {
 				t.Fatal(err)
 			}
 			r, err := rest.NewFile(filename)

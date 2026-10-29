@@ -52,10 +52,6 @@ const (
 	LangErde = "erde"
 )
 
-func ValidLang(lang string) bool {
-	return lang == "" || lang == LangLua || lang == LangErde
-}
-
 // Exec runs code as lua or erde (https://erde-lang.github.io)
 func Exec(l *lua.LState, code, lang string) error {
 	var err error

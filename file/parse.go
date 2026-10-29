@@ -27,7 +27,6 @@ import (
 
 type HCLRequest struct {
 	shouldSkip bool
-	lang       string
 	Label      string   `hcl:"label,label"`
 	Body       hcl.Body `hcl:",remain"`
 	BlockIndex int
@@ -81,7 +80,6 @@ type Root struct {
 func (r *Root) Add(root *Root, config request.Config) {
 	r.Locals = append(r.Locals, root.Locals...)
 	for _, req := range root.Requests {
-		req.lang = config.Lang
 		if config.SkipImported {
 			req.shouldSkip = true
 		}
@@ -129,9 +127,6 @@ func NewParser(filename string) (*Parser, error) {
 			return p, errors.New("error decoding config block")
 		}
 	}
-	if !restlua.ValidLang(p.Config.Lang) {
-		return p, fmt.Errorf("config: unknown lang %q (lua or erde)", p.Config.Lang)
-	}
 
 	if p.Root.Imports != nil {
 		for _, i := range *p.Root.Imports {
@@ -145,9 +140,6 @@ func NewParser(filename string) (*Parser, error) {
 			if importedRest.Config != nil {
 				if err := p.decode(importedRest.Config.Body, &config); err != nil {
 					return p, errors.New("error decoding config block")
-				}
-				if !restlua.ValidLang(config.Lang) {
-					return p, fmt.Errorf("%s config: unknown lang %q (lua or erde)", i, config.Lang)
 				}
 			}
 			p.Root.Add(importedRest, config)
@@ -220,8 +212,8 @@ func (p *Parser) CLI() (CLI, error) {
 		if attr, ok := body.Attributes["loop"]; ok {
 			loopExpr = attr.Expr
 		}
-		cli.FnLang = p.scriptLang(p.Config.Lang, fnExpr)
-		cli.LoopLang = p.scriptLang(p.Config.Lang, loopExpr)
+		cli.FnLang = p.scriptLang(fnExpr)
+		cli.LoopLang = p.scriptLang(loopExpr)
 	}
 	if cli.FlagsBody != nil {
 		cli.Flags = make(map[string]CLIFlag)
@@ -290,7 +282,7 @@ func (p *Parser) Server() (server.Config, error) {
 	}
 	if body, ok := p.Root.Server.Body.(*hclsyntax.Body); ok {
 		if attr, ok := body.Attributes["setup"]; ok {
-			serv.SetupLang = p.scriptLang(p.Config.Lang, attr.Expr)
+			serv.SetupLang = p.scriptLang(attr.Expr)
 		}
 		// blocks decode in order, so the nth block is the nth middleware/handler
 		var mws, handlers int
@@ -302,10 +294,10 @@ func (p *Parser) Server() (server.Config, error) {
 			}
 			switch block.Type {
 			case "middleware":
-				serv.Middlewares[mws].Lang = p.scriptLang(p.Config.Lang, expr)
+				serv.Middlewares[mws].Lang = p.scriptLang(expr)
 				mws++
 			case "handler":
-				serv.Handlers[handlers].Lang = p.scriptLang(p.Config.Lang, expr)
+				serv.Handlers[handlers].Lang = p.scriptLang(expr)
 				handlers++
 			}
 		}
@@ -376,11 +368,7 @@ func (p *Parser) request(hreq *HCLRequest) (request.Request, error) {
 	if hreq.shouldSkip {
 		req.Skip = true
 	}
-	configLang := hreq.lang
-	if configLang == "" {
-		configLang = p.Config.Lang
-	}
-	req.Lang = p.scriptLang(configLang, req.AfterHCL)
+	req.Lang = p.scriptLang(req.AfterHCL)
 
 	after, err := p.marshalAfter(req.AfterHCL)
 	if err != nil {
@@ -655,12 +643,9 @@ func (p *Parser) marshalBody(bodyHCL hcl.Expression) (string, error) {
 	return "", nil
 }
 
-// scriptLang picks the lang for a script, an explicit config lang wins over
-// heredoc hints (<<LUA, <<ERDE), then lua
-func (p *Parser) scriptLang(configLang string, expr hcl.Expression) string {
-	if configLang != "" {
-		return configLang
-	}
+// scriptLang picks the lang for a script from its heredoc marker (<<ERDE),
+// anything else is lua
+func (p *Parser) scriptLang(expr hcl.Expression) string {
 	if lang := p.heredocLang(expr); lang != "" {
 		return lang
 	}
