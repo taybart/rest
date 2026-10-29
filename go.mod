@@ -2,8 +2,6 @@ module github.com/taybart/rest
 
 go 1.26.0
 
-replace github.com/taybart/go-erde => ../erde/go-erde
-
 require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -12,7 +10,7 @@ require (
 	github.com/rs/cors v1.11.1
 	github.com/stretchr/testify v1.9.0
 	github.com/taybart/args v0.0.11
-	github.com/taybart/go-erde v0.0.0-20261029035032-b1d0f591dbf2
+	github.com/taybart/go-erde v0.0.0-20261029220904-1cf3a63e1723
 	github.com/taybart/log v1.6.7
 	github.com/zclconf/go-cty v1.19.0
 	golang.org/x/term v0.47.0
