@@ -160,7 +160,7 @@ func execute(l *lua.LState, code, lang string) error {
 
 func (r *Request) RunAfterHook(res *http.Response, jar http.CookieJar) (map[string]any, error) {
 
-	l := lua.NewState()
+	l := restlua.NewState()
 	defer l.Close()
 
 	if err := restlua.RegisterModules(l); err != nil {

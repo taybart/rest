@@ -259,7 +259,7 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string, res
 	if err != nil {
 		return err
 	}
-	l := lua.NewState()
+	l := restlua.NewState()
 	defer l.Close()
 
 	if err := restlua.RegisterModules(l); err != nil {

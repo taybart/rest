@@ -361,11 +361,13 @@ cli {
     f:close()
   ERDE
   loop = <<ERDE
-    if input == "quit" { break }
-    if input == "skip" { continue }
-    if input == "user" {
-      rest.label("user")
-      input = rest.exports.user
+    match input {
+      "quit" => { break }
+      "skip" | "ignore" => { continue }
+      "user" => {
+        rest.label("user")
+        input = rest.exports.user
+      }
     }
     table.insert(history, input)
   ERDE
@@ -379,7 +381,7 @@ cli {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.Write([]byte("first\nskip\nuser\nquit\n")); err != nil {
+	if _, err := w.Write([]byte("first\nskip\nignore\nuser\nquit\n")); err != nil {
 		t.Fatal(err)
 	}
 	w.Close()

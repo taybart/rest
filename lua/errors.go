@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	lua "github.com/taybart/go-erde"
+	"github.com/taybart/go-erde/parse"
 	"github.com/taybart/log"
 )
 
@@ -51,6 +52,12 @@ const (
 	LangLua  = "lua"
 	LangErde = "erde"
 )
+
+// NewState makes a runtime w/ the experimental erde extensions on (only affects
+// erde scripts, ex. `match`)
+func NewState() *lua.LState {
+	return lua.NewState(lua.Options{Erde: parse.ErdeOptions{Match: true}})
+}
 
 // Exec runs code as lua or erde (https://erde-lang.github.io)
 func Exec(l *lua.LState, code, lang string) error {

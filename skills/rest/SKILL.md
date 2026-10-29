@@ -153,7 +153,7 @@ request "get profile" {
 ## Custom Lua in `after` Hooks
 
 When writing `after = <<LUA ... LUA`:
-- **Erde:** use `<<ERDE ... ERDE` (or `<<-ERDE`) to write any script (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`) in [erde](https://erde-lang.github.io) instead. Any other heredoc marker or plain string is lua. Same globals. In erde, `"{x}"` interpolates; use `'...'` for literal braces.
+- **Erde:** use `<<ERDE ... ERDE` (or `<<-ERDE`) to write any script (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`) in [erde](https://erde-lang.github.io) instead. Any other heredoc marker or plain string is lua. Same globals. In erde, `"{x}"` interpolates; use `'...'` for literal braces. go-erde's experimental `match` is on: `match x { 1 | 2 => { ... } _ if cond => { ... } _ => { ... } }` (patterns compare w/ `==`, no fallthrough, `break`/`continue` apply to the enclosing loop).
 - **Globals:** `json` (`encode`/`decode`), `jwt` (`sign`/`encode`, `decode`, `verify`, `is_valid`), `form` (`encode`/`decode`), `inspect` (`inspect(v)`, `inspect.print(v)`), `colors`, `base64` (`encode(str [, opts])`, `decode(str)`), `uuid` (`newv4`, `is_uuid`, `is_uuidv4`), `ulid` (`new([ms])` / `ulid([ms])`, `is_ulid`, `timestamp`), `nanoid` (`new([size [, alphabet]])` / `nanoid(...)`, `is_nanoid(str [, size])`), `tools` (`tools.expected()`), `copy(val)`, `fail(msg)`.
 - **Request & Response (`rest.req`, `rest.res`):**
   - Fields: `rest.req.body`, `rest.req.headers`, `rest.req.cookies`, `rest.req.method`, `rest.req.query`, `rest.req.url`, `rest.req.dump`

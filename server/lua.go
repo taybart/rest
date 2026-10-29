@@ -150,7 +150,7 @@ func (s *Server) RunLuaSetup() error {
 	if s.Config.Setup == "" {
 		return nil
 	}
-	l := lua.NewState()
+	l := restlua.NewState()
 	defer l.Close()
 
 	if err := restlua.RegisterModules(l); err != nil {
@@ -219,7 +219,7 @@ func (s *Server) findMiddleware(name string) (*Middleware, bool) {
 }
 
 func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.ResponseWriter) (Response, bool, error) {
-	l := lua.NewState()
+	l := restlua.NewState()
 	defer l.Close()
 
 	res := Response{
