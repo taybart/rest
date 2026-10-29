@@ -48,6 +48,7 @@ type Request struct {
 	// parsed values
 	UserAgent string
 	Body      string
+	Lang      string
 	Exports   map[string]any
 
 	Built *http.Request
@@ -202,6 +203,7 @@ func (r *Request) CombineFrom(from Request) {
 	}
 	if r.After == "" {
 		r.After = from.After
+		r.Lang = from.Lang
 	}
 	if from.Expect != nil {
 		if r.Expect == nil {

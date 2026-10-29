@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	restlua "github.com/taybart/rest/lua"
 	"github.com/taybart/rest/request"
 	"github.com/taybart/rest/server"
 	"github.com/zclconf/go-cty/cty"
@@ -26,6 +27,7 @@ import (
 
 type HCLRequest struct {
 	shouldSkip bool
+	lang       string
 	Label      string   `hcl:"label,label"`
 	Body       hcl.Body `hcl:",remain"`
 	BlockIndex int
@@ -42,6 +44,8 @@ type CLIFlag struct {
 type CLI struct {
 	Fn        *string `hcl:"fn,optional"`
 	Loop      *string `hcl:"loop,optional"`
+	FnLang    string
+	LoopLang  string
 	Flags     map[string]CLIFlag
 	FlagsBody hcl.Body `hcl:",remain"`
 }
@@ -77,6 +81,7 @@ type Root struct {
 func (r *Root) Add(root *Root, config request.Config) {
 	r.Locals = append(r.Locals, root.Locals...)
 	for _, req := range root.Requests {
+		req.lang = config.Lang
 		if config.SkipImported {
 			req.shouldSkip = true
 		}
@@ -124,6 +129,9 @@ func NewParser(filename string) (*Parser, error) {
 			return p, errors.New("error decoding config block")
 		}
 	}
+	if !restlua.ValidLang(p.Config.Lang) {
+		return p, fmt.Errorf("config: unknown lang %q (lua or erde)", p.Config.Lang)
+	}
 
 	if p.Root.Imports != nil {
 		for _, i := range *p.Root.Imports {
@@ -137,6 +145,9 @@ func NewParser(filename string) (*Parser, error) {
 			if importedRest.Config != nil {
 				if err := p.decode(importedRest.Config.Body, &config); err != nil {
 					return p, errors.New("error decoding config block")
+				}
+				if !restlua.ValidLang(config.Lang) {
+					return p, fmt.Errorf("%s config: unknown lang %q (lua or erde)", i, config.Lang)
 				}
 			}
 			p.Root.Add(importedRest, config)
@@ -200,6 +211,18 @@ func (p *Parser) CLI() (CLI, error) {
 	}
 
 	cli := p.Root.CLI
+	// the remain body still has every attribute, fn/loop are only hidden from Content
+	if body, ok := cli.FlagsBody.(*hclsyntax.Body); ok {
+		var fnExpr, loopExpr hcl.Expression
+		if attr, ok := body.Attributes["fn"]; ok {
+			fnExpr = attr.Expr
+		}
+		if attr, ok := body.Attributes["loop"]; ok {
+			loopExpr = attr.Expr
+		}
+		cli.FnLang = p.scriptLang(p.Config.Lang, fnExpr)
+		cli.LoopLang = p.scriptLang(p.Config.Lang, loopExpr)
+	}
 	if cli.FlagsBody != nil {
 		cli.Flags = make(map[string]CLIFlag)
 		attrs, diags := cli.FlagsBody.JustAttributes()
@@ -264,6 +287,28 @@ func (p *Parser) Server() (server.Config, error) {
 	}
 	if err := p.decode(p.Root.Server.Body, &serv); err != nil {
 		return serv, errors.New("error decoding server block")
+	}
+	if body, ok := p.Root.Server.Body.(*hclsyntax.Body); ok {
+		if attr, ok := body.Attributes["setup"]; ok {
+			serv.SetupLang = p.scriptLang(p.Config.Lang, attr.Expr)
+		}
+		// blocks decode in order, so the nth block is the nth middleware/handler
+		var mws, handlers int
+		for _, block := range body.Blocks {
+			attr := block.Body.Attributes["fn"]
+			var expr hcl.Expression
+			if attr != nil {
+				expr = attr.Expr
+			}
+			switch block.Type {
+			case "middleware":
+				serv.Middlewares[mws].Lang = p.scriptLang(p.Config.Lang, expr)
+				mws++
+			case "handler":
+				serv.Handlers[handlers].Lang = p.scriptLang(p.Config.Lang, expr)
+				handlers++
+			}
+		}
 	}
 	if serv.Response != nil {
 		b, err := p.marshalBody(serv.Response.BodyHCL)
@@ -331,6 +376,11 @@ func (p *Parser) request(hreq *HCLRequest) (request.Request, error) {
 	if hreq.shouldSkip {
 		req.Skip = true
 	}
+	configLang := hreq.lang
+	if configLang == "" {
+		configLang = p.Config.Lang
+	}
+	req.Lang = p.scriptLang(configLang, req.AfterHCL)
 
 	after, err := p.marshalAfter(req.AfterHCL)
 	if err != nil {
@@ -603,6 +653,53 @@ func (p *Parser) marshalBody(bodyHCL hcl.Expression) (string, error) {
 	}
 
 	return "", nil
+}
+
+// scriptLang picks the lang for a script, an explicit config lang wins over
+// heredoc hints (<<LUA, <<ERDE), then lua
+func (p *Parser) scriptLang(configLang string, expr hcl.Expression) string {
+	if configLang != "" {
+		return configLang
+	}
+	if lang := p.heredocLang(expr); lang != "" {
+		return lang
+	}
+	return restlua.LangLua
+}
+
+// heredocLang gets the lang from a heredoc marker, or "" if there isn't one.
+// For lists ([lib.dump, <<ERDE ...]) the first hinted element wins
+func (p *Parser) heredocLang(expr hcl.Expression) string {
+	if expr == nil {
+		return ""
+	}
+	if tuple, ok := expr.(*hclsyntax.TupleConsExpr); ok {
+		for _, e := range tuple.Exprs {
+			if lang := p.heredocLang(e); lang != "" {
+				return lang
+			}
+		}
+		return ""
+	}
+	rng := expr.Range()
+	f, ok := p.Files[rng.Filename]
+	if !ok || rng.Start.Byte >= len(f.Bytes) {
+		return ""
+	}
+	src, ok := bytes.CutPrefix(f.Bytes[rng.Start.Byte:], []byte("<<"))
+	if !ok {
+		return ""
+	}
+	src = bytes.TrimPrefix(src, []byte("-"))
+	end := bytes.IndexAny(src, "\r\n")
+	if end < 0 {
+		return ""
+	}
+	switch marker := strings.ToLower(string(src[:end])); marker {
+	case restlua.LangLua, restlua.LangErde:
+		return marker
+	}
+	return ""
 }
 
 func (p *Parser) marshalAfter(afterHCL hcl.Expression) (string, error) {

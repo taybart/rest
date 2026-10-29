@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"strings"
 
-	lua "github.com/yuin/gopher-lua"
+	lua "github.com/taybart/go-erde"
 )
 
 // Base64Options configures base64 encoding and decoding.

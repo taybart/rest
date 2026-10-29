@@ -72,6 +72,10 @@ config {
   no_flags = false
   # automatically set Content-Type = "application/json" when body is JSON and no Content-Type header is specified
   default_content_type = true
+  # language for scripts in this file (after, cli fn/loop, server setup/middleware/handler fn)
+  # "lua" or "erde" (https://erde-lang.github.io), imported files use their own config.
+  # when unset, each script uses its heredoc marker (<<LUA / <<ERDE), otherwise lua
+  # lang = "erde"
 }
 ```
 

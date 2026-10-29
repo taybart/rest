@@ -81,6 +81,7 @@ config {
   skip_imported          = false # set true when importing a shared library of base requests
   no_flags               = false # set true in executable `cli` scripts so custom flags can use any name
   default_content_type   = true  # automatically adds Content-Type = "application/json" for JSON bodies when no Content-Type header is set
+  # lang                 = "erde" # force the script language ("lua" or "erde") for after/cli/server code. Unset: <<LUA / <<ERDE heredoc markers pick it per script, default lua. In erde, "{x}" interpolates, use '...' for literal braces
 }
 
 # Note: locals are preprocessed across the file; the last value assigned to a key wins globally.

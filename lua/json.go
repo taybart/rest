@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	lua "github.com/yuin/gopher-lua"
+	lua "github.com/taybart/go-erde"
 )
 
 func registerJSONModule(l *lua.LState) {

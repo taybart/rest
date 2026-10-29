@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"time"
 
-	lua "github.com/yuin/gopher-lua"
+	lua "github.com/taybart/go-erde"
 )
 
 const ulidEncoding = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"

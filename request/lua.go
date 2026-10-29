@@ -9,8 +9,8 @@ import (
 	"net/url"
 	"strings"
 
+	lua "github.com/taybart/go-erde"
 	restlua "github.com/taybart/rest/lua"
-	lua "github.com/yuin/gopher-lua"
 )
 
 func getExportsTable(l *lua.LState) (*lua.LTable, error) {
@@ -137,7 +137,7 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 	return nil
 }
 
-func execute(l *lua.LState, code string) error {
+func execute(l *lua.LState, code, lang string) error {
 	var cleanError error
 
 	l.SetGlobal("fail", l.NewFunction(func(L *lua.LState) int {
@@ -148,8 +148,8 @@ func execute(l *lua.LState, code string) error {
 		return 10
 	}))
 
-	if err := l.DoString(code); err != nil {
-		return restlua.FmtError(code, err)
+	if err := restlua.Exec(l, code, lang); err != nil {
+		return err
 	}
 
 	if err := syncExportsTable(l); err != nil {
@@ -170,7 +170,7 @@ func (r *Request) RunAfterHook(res *http.Response, jar http.CookieJar) (map[stri
 		return nil, err
 	}
 
-	if err := execute(l, r.After); err != nil {
+	if err := execute(l, r.After, r.Lang); err != nil {
 		return nil, err
 	}
 	exportsTable, err := getExportsTable(l)

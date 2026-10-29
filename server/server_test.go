@@ -228,6 +228,57 @@ func TestMiddleware(t *testing.T) {
 	})
 }
 
+func TestErdeMiddleware(t *testing.T) {
+	ts := newServer(server.Config{
+		Quiet: true,
+		Middlewares: []*server.Middleware{
+			{
+				Name: "auth",
+				Lang: "erde",
+				Fn: `
+					local token = rest.req:cookie("token") || rest.req:bearer_token()
+					if token != "valid-token" {
+						return { status = 401, body = "unauthorized" }
+					}
+					rest.ctx.user = "frankie"
+				`,
+			},
+		},
+		Handlers: []*server.Handler{
+			{
+				Method:     "GET",
+				Path:       "/user/{id}",
+				Middleware: []string{"auth"},
+				Lang:       "erde",
+				Fn: `
+					local id = rest.req:path_value("id")
+					return { status = 200, body = "{id}:{rest.ctx.user}" }
+				`,
+			},
+		},
+	})
+	defer ts.Close()
+
+	unauthReq, err := http.NewRequest("GET", ts.URL+"/user/7", nil)
+	if err != nil {
+		t.Fatalf("error creating request: %s", err)
+	}
+	checkResponse(t, unauthReq, Response{
+		StatusCode: http.StatusUnauthorized,
+		Body:       "unauthorized",
+	})
+
+	authReq, err := http.NewRequest("GET", ts.URL+"/user/7", nil)
+	if err != nil {
+		t.Fatalf("error creating request: %s", err)
+	}
+	authReq.AddCookie(&http.Cookie{Name: "token", Value: "valid-token"})
+	checkResponse(t, authReq, Response{
+		StatusCode: http.StatusOK,
+		Body:       "7:frankie",
+	})
+}
+
 func TestServerKVAndSetup(t *testing.T) {
 	ts := newServer(server.Config{
 		Quiet: true,

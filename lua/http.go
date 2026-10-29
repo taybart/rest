@@ -5,7 +5,7 @@ import (
 	"net/textproto"
 	"strings"
 
-	lua "github.com/yuin/gopher-lua"
+	lua "github.com/taybart/go-erde"
 )
 
 const (
