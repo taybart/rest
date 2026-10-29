@@ -33,6 +33,7 @@ type Response struct {
 type Middleware struct {
 	Name string `json:"name" hcl:"name,label"`
 	Fn   string `json:"fn" hcl:"fn"`
+	Lang string `json:"-"`
 }
 
 type Handler struct {
@@ -43,6 +44,7 @@ type Handler struct {
 	Proxy      string    `json:"proxy" hcl:"proxy,optional"`
 	WS         bool      `json:"ws" hcl:"ws,optional"`
 	Response   *Response `hcl:"response,block"`
+	Lang       string    `json:"-"`
 }
 
 type Server struct {
@@ -71,6 +73,8 @@ type Config struct {
 	Middlewares []*Middleware  `hcl:"middleware,block"`
 	Handlers    []*Handler     `hcl:"handler,block"`
 	SPA         bool           `hcl:"spa,optional"`
+	// set by the parser
+	SetupLang string
 }
 
 func New(c Config) Server {

@@ -2,7 +2,7 @@ package restlua
 
 import (
 	"github.com/google/uuid"
-	lua "github.com/yuin/gopher-lua"
+	lua "github.com/taybart/go-erde"
 )
 
 func registerUUIDModule(l *lua.LState) {

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	lua "github.com/taybart/go-erde"
 	restlua "github.com/taybart/rest/lua"
-	lua "github.com/yuin/gopher-lua"
 )
 
 func newLuaState(t *testing.T) *lua.LState {

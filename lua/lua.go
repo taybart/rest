@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	lua "github.com/yuin/gopher-lua"
+	lua "github.com/taybart/go-erde"
 )
 
 //go:embed modules/*

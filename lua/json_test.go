@@ -3,8 +3,8 @@ package restlua_test
 import (
 	"testing"
 
+	lua "github.com/taybart/go-erde"
 	restlua "github.com/taybart/rest/lua"
-	lua "github.com/yuin/gopher-lua"
 )
 
 func TestJSONAndUUIDModules(t *testing.T) {

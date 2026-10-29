@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"strings"
 
+	lua "github.com/taybart/go-erde"
+	"github.com/taybart/go-erde/parse"
 	"github.com/taybart/log"
-	lua "github.com/yuin/gopher-lua"
 )
 
 func extractLineNumber(errMsg string) int {
@@ -45,6 +46,38 @@ func extractErrorMessage(fullError string) string {
 	}
 
 	return fullError
+}
+
+const (
+	LangLua  = "lua"
+	LangErde = "erde"
+)
+
+// NewState makes a runtime w/ the experimental erde extensions on (only affects
+// erde scripts, ex. `match`)
+func NewState() *lua.LState {
+	return lua.NewState(lua.Options{Erde: parse.ErdeOptions{Match: true}})
+}
+
+// Exec runs code as lua or erde (https://erde-lang.github.io)
+func Exec(l *lua.LState, code, lang string) error {
+	var err error
+	if lang == LangErde {
+		err = l.DoErdeString(code)
+	} else {
+		err = l.DoString(code)
+	}
+	if err != nil {
+		return FmtError(code, err)
+	}
+	return nil
+}
+
+// Quote makes a single quoted string literal, valid in both lua and erde
+// (erde interpolates {} in double quoted strings)
+func Quote(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `'`, `\'`, "\n", `\n`, "\r", `\r`, "\x00", `\0`)
+	return "'" + r.Replace(s) + "'"
 }
 
 func FmtError(code string, err error) error {

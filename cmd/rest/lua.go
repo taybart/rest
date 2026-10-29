@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
+	lua "github.com/taybart/go-erde"
 	"github.com/taybart/rest"
 	"github.com/taybart/rest/client"
 	"github.com/taybart/rest/file"
 	restlua "github.com/taybart/rest/lua"
 	"github.com/taybart/rest/request"
-	lua "github.com/yuin/gopher-lua"
 	"golang.org/x/term"
 )
 
@@ -166,7 +166,7 @@ func populateGlobalObject(l *lua.LState, f *rest.Rest, cliBlock file.CLI, cliFla
 			l.RaiseError("no loop defined in cli block")
 			return 0
 		}
-		if err := runLoop(l, *cliBlock.Loop); err != nil {
+		if err := runLoop(l, *cliBlock.Loop, cliBlock.LoopLang); err != nil {
 			l.RaiseError("%s", err.Error())
 		}
 		return 0
@@ -188,14 +188,11 @@ func populateGlobalObject(l *lua.LState, f *rest.Rest, cliBlock file.CLI, cliFla
 	return nil
 }
 
-func execute(l *lua.LState, code string) error {
-	if err := l.DoString(code); err != nil {
-		return restlua.FmtError(code, err)
-	}
-	return nil
+func execute(l *lua.LState, code, lang string) error {
+	return restlua.Exec(l, code, lang)
 }
 
-func runLoop(l *lua.LState, loopCode string) error {
+func runLoop(l *lua.LState, loopCode, lang string) error {
 	repl := client.NewREPL(true)
 	reader := bufio.NewReader(os.Stdin)
 	readlineFn := func(l *lua.LState) int {
@@ -234,13 +231,22 @@ func runLoop(l *lua.LState, loopCode string) error {
 	}
 	l.SetGlobal("__rest_readline", l.NewFunction(readlineFn))
 
+	if lang == restlua.LangErde {
+		// erde has continue built in
+		return execute(l, fmt.Sprintf(`
+		while true {
+			local input = __rest_readline(PROMPT || "> ")
+			if input == nil { break }
+			%s
+		}`, loopCode), lang)
+	}
 	return execute(l, fmt.Sprintf(`
 		while true do
 			local input = __rest_readline(PROMPT or "> ")
 			if input == nil then break end
 			%s
     	::continue::
-		end`, loopCode))
+		end`, loopCode), lang)
 }
 
 func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string, restArgs []string) error {
@@ -253,7 +259,7 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string, res
 	if err != nil {
 		return err
 	}
-	l := lua.NewState()
+	l := restlua.NewState()
 	defer l.Close()
 
 	if err := restlua.RegisterModules(l); err != nil {
@@ -264,8 +270,8 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string, res
 	}
 
 	if cliBlock.Fn != nil {
-		return execute(l, *cliBlock.Fn)
+		return execute(l, *cliBlock.Fn, cliBlock.FnLang)
 	}
 
-	return runLoop(l, *cliBlock.Loop)
+	return runLoop(l, *cliBlock.Loop, cliBlock.LoopLang)
 }

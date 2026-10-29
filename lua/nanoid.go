@@ -2,7 +2,7 @@ package restlua
 
 import (
 	gonanoid "github.com/matoous/go-nanoid/v2"
-	lua "github.com/yuin/gopher-lua"
+	lua "github.com/taybart/go-erde"
 )
 
 func IsNanoID(s string, size int) bool {

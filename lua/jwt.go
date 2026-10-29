@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	lua "github.com/yuin/gopher-lua"
+	lua "github.com/taybart/go-erde"
 )
 
 // JWTOptions configures JWT signing and verification.

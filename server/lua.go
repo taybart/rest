@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	lua "github.com/taybart/go-erde"
 	restlua "github.com/taybart/rest/lua"
-	lua "github.com/yuin/gopher-lua"
 )
 
 /*
@@ -50,7 +50,7 @@ func populateGlobalObject(l *lua.LState, req *http.Request) error {
 	return nil
 }
 
-func execute(l *lua.LState, code string) error {
+func execute(l *lua.LState, code, lang string) error {
 	var cleanError error
 
 	l.SetGlobal("fail", l.NewFunction(func(L *lua.LState) int {
@@ -61,8 +61,8 @@ func execute(l *lua.LState, code string) error {
 		return 10
 	}))
 
-	if err := l.DoString(code); err != nil {
-		return restlua.FmtError(code, err)
+	if err := restlua.Exec(l, code, lang); err != nil {
+		return err
 	}
 
 	return cleanError
@@ -150,14 +150,14 @@ func (s *Server) RunLuaSetup() error {
 	if s.Config.Setup == "" {
 		return nil
 	}
-	l := lua.NewState()
+	l := restlua.NewState()
 	defer l.Close()
 
 	if err := restlua.RegisterModules(l); err != nil {
 		return err
 	}
 	s.kvCacheLoader(l)
-	return execute(l, s.Config.Setup)
+	return execute(l, s.Config.Setup, s.Config.SetupLang)
 }
 
 func mapLuaResponse(l *lua.LState, luaRes *lua.LTable) (Response, error) {
@@ -219,7 +219,7 @@ func (s *Server) findMiddleware(name string) (*Middleware, bool) {
 }
 
 func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.ResponseWriter) (Response, bool, error) {
-	l := lua.NewState()
+	l := restlua.NewState()
 	defer l.Close()
 
 	res := Response{
@@ -242,7 +242,7 @@ func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.Resp
 			return res, false, fmt.Errorf("middleware %q not found", mwName)
 		}
 		l.SetTop(0)
-		if err := execute(l, mw.Fn); err != nil {
+		if err := execute(l, mw.Fn, mw.Lang); err != nil {
 			return res, false, err
 		}
 		if l.GetTop() > 0 && l.Get(-1) != lua.LNil {
@@ -257,7 +257,7 @@ func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.Resp
 
 	if handler.Fn != "" {
 		l.SetTop(0)
-		if err := execute(l, handler.Fn); err != nil {
+		if err := execute(l, handler.Fn, handler.Lang); err != nil {
 			return res, false, err
 		}
 		luaRes, ok := l.Get(-1).(*lua.LTable)

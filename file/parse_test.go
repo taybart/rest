@@ -423,7 +423,7 @@ request "combined_list" {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if inspectReq.After != `tools.inspect_res(json.decode("\"id\""), json.decode("\"name\""))` {
+	if inspectReq.After != `tools.inspect_res(json.decode('"id"'), json.decode('"name"'))` {
 		t.Fatalf("unexpected inspect_fn after: %q", inspectReq.After)
 	}
 
@@ -431,7 +431,9 @@ request "combined_list" {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantCombined := "tools.expected()\ntools.inspect_res(json.decode(\"[\\\"id\\\",\\\"name\\\"]\"))\ntools.export_res(json.decode(\"{\\\"user_id\\\":\\\"user.id\\\"}\"))"
+	wantCombined := "tools.expected()\n" +
+		`tools.inspect_res(json.decode('["id","name"]'))` + "\n" +
+		`tools.export_res(json.decode('{"user_id":"user.id"}'))`
 	if combined.After != wantCombined {
 		t.Fatalf("unexpected combined after:\ngot:  %q\nwant: %q", combined.After, wantCombined)
 	}
@@ -489,3 +491,129 @@ request "admin" {
 	}
 }
 
+
+func TestHeredocLangHints(t *testing.T) {
+	const scripts = `
+request "erde" {
+  url   = "http://localhost:18080"
+  after = <<ERDE
+    print("{rest.res.status}")
+  ERDE
+}
+
+request "indented_lua" {
+  url   = "http://localhost:18080"
+  after = <<-LUA
+    print(rest.res.status)
+  LUA
+}
+
+request "plain" {
+  url   = "http://localhost:18080"
+  after = "print(rest.res.status)"
+}
+
+request "none" {
+  url = "http://localhost:18080"
+}
+
+request "list" {
+  url   = "http://localhost:18080"
+  after = [
+    lib.dump,
+    <<ERDE
+      print("{rest.res.status}")
+    ERDE
+  ]
+}
+
+server {
+  address = "localhost:18080"
+  setup = <<ERDE
+    print("setup")
+  ERDE
+  middleware "auth" {
+    fn = <<LUA
+      print("auth")
+    LUA
+  }
+  handler "GET" "/" {
+    fn = <<ERDE
+      return { status = 200 }
+    ERDE
+  }
+  handler "GET" "/plain" {
+    fn = "return { status = 200 }"
+  }
+}
+
+cli {
+  fn = <<ERDE
+    print("fn")
+  ERDE
+  loop = "print(input)"
+}
+`
+	tests := []struct {
+		name   string
+		reqs   map[string]string
+		setup  string
+		mw     string
+		hdl    []string
+		fn     string
+		loop   string
+	}{
+		{
+			name: "hints",
+			reqs: map[string]string{
+				"erde": "erde", "indented_lua": "lua", "plain": "lua", "none": "lua", "list": "erde",
+			},
+			setup: "erde", mw: "lua", hdl: []string{"erde", "lua"}, fn: "erde", loop: "lua",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filename := filepath.Join(t.TempDir(), "hints.rest")
+			if err := os.WriteFile(filename, []byte(scripts), 0644); err != nil {
+				t.Fatal(err)
+			}
+			r, err := rest.NewFile(filename)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for label, want := range tt.reqs {
+				req, err := r.Request(label)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if req.Lang != want {
+					t.Errorf("request %s: expected lang %q, got %q", label, want, req.Lang)
+				}
+			}
+
+			serv, err := r.Parser.Server()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if serv.SetupLang != tt.setup {
+				t.Errorf("setup: expected lang %q, got %q", tt.setup, serv.SetupLang)
+			}
+			if serv.Middlewares[0].Lang != tt.mw {
+				t.Errorf("middleware: expected lang %q, got %q", tt.mw, serv.Middlewares[0].Lang)
+			}
+			for i, want := range tt.hdl {
+				if serv.Handlers[i].Lang != want {
+					t.Errorf("handler %d: expected lang %q, got %q", i, want, serv.Handlers[i].Lang)
+				}
+			}
+
+			cli, err := r.Parser.CLI()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cli.FnLang != tt.fn || cli.LoopLang != tt.loop {
+				t.Errorf("cli: expected fn/loop %q/%q, got %q/%q", tt.fn, tt.loop, cli.FnLang, cli.LoopLang)
+			}
+		})
+	}
+}

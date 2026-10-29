@@ -740,7 +740,7 @@ func makeLuaHookFunc(luaFn string) function.Function {
 				if err != nil {
 					return cty.StringVal(""), err
 				}
-				luaArgs = append(luaArgs, fmt.Sprintf("json.decode(%q)", string(b)))
+				luaArgs = append(luaArgs, fmt.Sprintf("json.decode(%s)", restlua.Quote(string(b))))
 			}
 			return cty.StringVal(fmt.Sprintf("%s(%s)", luaFn, strings.Join(luaArgs, ", "))), nil
 		},

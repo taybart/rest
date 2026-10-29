@@ -8,8 +8,24 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/taybart/args"
 	"github.com/taybart/rest/file"
 )
+
+// restoreArgs resets the global parsed args after the test, since run() reuses them
+func restoreArgs(t *testing.T) {
+	origC := c
+	origArgs := make(map[string]args.Arg, len(a.Args))
+	for k, v := range a.Args {
+		origArgs[k] = *v
+	}
+	t.Cleanup(func() {
+		c = origC
+		for k, v := range origArgs {
+			*a.Args[k] = v
+		}
+	})
+}
 
 func TestParseCLIFlagsWithArgs_NoFlags(t *testing.T) {
 	origArgs := os.Args
@@ -261,6 +277,7 @@ func TestRunCLIFnCallsRestLoop(t *testing.T) {
 func TestRunFlagsOverrideNoFlags(t *testing.T) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
+	restoreArgs(t) // -l/--flags would leak into later run() calls
 
 	var hit string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -307,5 +324,79 @@ request "specific_label" {
 	}
 	if hit != "/specific_label" {
 		t.Fatalf("expected /specific_label to be hit when --flags -l specific_label is used, got %q", hit)
+	}
+}
+
+func TestRunCLIErde(t *testing.T) {
+	origArgs := os.Args
+	origStdin := os.Stdin
+	defer func() {
+		os.Args = origArgs
+		os.Stdin = origStdin
+	}()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"name":"frankie"}`)
+	}))
+	defer ts.Close()
+
+	tmpDir := t.TempDir()
+	outFile := filepath.Join(tmpDir, "erde_out.txt")
+	scriptFile := filepath.Join(tmpDir, "erde.rest")
+	content := `request "user" {
+  url = "` + ts.URL + `"
+  after = <<ERDE
+    local body = json.decode(rest.res.body)
+    rest.exports.user = "{body.name}:{rest.res.status}"
+  ERDE
+}
+
+cli {
+  fn = <<ERDE
+    history = { rest.exports.user || "missing" }
+    rest.loop()
+    local f = io.open("` + outFile + `", "w")
+    f:write(table.concat(history, ","))
+    f:close()
+  ERDE
+  loop = <<ERDE
+    match input {
+      "quit" => { break }
+      "skip" | "ignore" => { continue }
+      "user" => {
+        rest.label("user")
+        input = rest.exports.user
+      }
+    }
+    table.insert(history, input)
+  ERDE
+}
+`
+	if err := os.WriteFile(scriptFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("first\nskip\nignore\nuser\nquit\n")); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+
+	os.Stdin = r
+	os.Args = []string{"rest", "-f", scriptFile}
+	if err := run(); err != nil {
+		t.Fatalf("run() failed: %v", err)
+	}
+
+	got, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "missing,first,frankie:200" {
+		t.Fatalf("expected missing,first,frankie:200, got %q", string(got))
 	}
 }
