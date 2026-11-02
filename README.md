@@ -36,6 +36,7 @@ request "httpbin post" {
 ```
 
 **Server**
+
 ```hcl
 server {
     address = "localhost:18080"
@@ -160,3 +161,19 @@ Client:
 	More client logging
 ```
 
+## Nix
+
+The package is built with [`gomod2nix`](https://github.com/nix-community/gomod2nix), which
+locks the Go module set in `gomod2nix.toml` instead of a hardcoded `vendorHash`.
+
+```sh
+nix run .#rest           # run
+nix build                # build
+nix develop              # dev shell (includes gomod2nix)
+```
+
+When `go.mod`/`go.sum` change, regenerate the lockfile:
+
+```sh
+make nix-lock            # or: nix run .#gomod2nix -- generate
+```

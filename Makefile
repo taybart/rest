@@ -11,5 +11,10 @@ wasm:
 serve-wasm: wasm
 	go run ./cmd/rest -s -d ./web -a localhost:8000
 
-.PHONY: rest wasm serve-wasm
+# Regenerate gomod2nix.toml after changing go.mod/go.sum
+nix-lock:
+	nix run .#gomod2nix -- generate
+
+.PHONY: rest wasm serve-wasm nix-lock
+
 default: rest

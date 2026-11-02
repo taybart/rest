@@ -1,25 +1,24 @@
 {
   pkgs,
   self,
+  buildGoApplication,
   version ? "0.0.1",
   ...
 }:
-pkgs.buildGoModule rec {
+buildGoApplication {
   pname = "rest";
   inherit version;
+  pwd = self;
   src = self;
-  vendorHash = "sha256-Ab4blba407zAHKkU5vN9ByIecNhzAVXPylSqvUHgSKQ=";
-
-  env = {
-    CGO_ENABLED = "0";
-  };
+  modules = ./gomod2nix.toml;
+  CGO_ENABLED = "0";
 
   subPackages = [
     "cmd/rest"
   ];
 
   meta = with pkgs.lib; {
-    mainProgram = pname;
+    mainProgram = "rest";
     description = "rest easy";
     homepage = "https://github.com/taybart/rest";
     # license = with licenses; [ ];
