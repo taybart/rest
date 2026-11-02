@@ -1,0 +1,187 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>rest</title>
+  <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
+  <link rel="stylesheet" href="vendor/codemirror/material-darker.min.css">
+  <link rel="stylesheet" href="vendor/codemirror/dialog.min.css">
+  <style>
+    body { font-family: ui-monospace, monospace; margin: 1rem; background: #1e1e1e; color: #ddd; }
+    .CodeMirror { height: 45vh; border: 1px solid #444; font-size: 14px; }
+    #out { background: #111; border: 1px solid #444; padding: .5rem; min-height: 20vh; white-space: pre-wrap; margin: 0; }
+    #out.error { color: #f07178; }
+    .bar { display: flex; align-items: center; gap: 1rem; margin: .5rem 0; }
+    .hint { color: #888; font-size: 12px; }
+    .run-gutter { width: 1.4em; }
+    .play { color: #c3e88d; cursor: pointer; font-size: 11px; padding-left: 4px; }
+    .play:hover { color: #fff; }
+  </style>
+</head>
+<body>
+  <textarea id="src">request "get" {
+  url = "https://httpbin.org/get"
+  headers = { "X-Hello" = "wasm" }
+}</textarea>
+  <div class="bar">
+    <button id="run" disabled>loading…</button>
+    <label class="hint"><input type="checkbox" id="vim"> vim</label>
+    <span class="hint">⌘/Ctrl-Enter to run</span>
+  </div>
+  <pre id="out"></pre>
+  <script src="vendor/codemirror/codemirror.min.js"></script>
+  <script src="vendor/codemirror/simple.min.js"></script>
+  <script src="vendor/codemirror/matchbrackets.min.js"></script>
+  <script src="vendor/codemirror/closebrackets.min.js"></script>
+  <script src="vendor/codemirror/lua.min.js"></script>
+  <script src="vendor/codemirror/dialog.min.js"></script>
+  <script src="vendor/codemirror/searchcursor.min.js"></script>
+  <script src="vendor/codemirror/vim.min.js"></script>
+  <script src="wasm_exec.js"></script>
+  <script>
+    // keywords and operators from go-erde's lexer (parse/erde_lexer.go, parse/erde_parser.go)
+    CodeMirror.defineSimpleMode("erde", {
+      start: [
+        { regex: /--\[(=*)\[/, token: "comment", next: "blockComment" },
+        { regex: /--.*/, token: "comment" },
+        { regex: /"/, token: "string", next: "dqString" },
+        { regex: /'(?:[^\\']|\\.)*?'/, token: "string" },
+        { regex: /\[(=*)\[/, token: "string", next: "blockString" },
+        { regex: /\b(?:break|continue|do|else|elseif|for|function|global|if|in|local|module|repeat|return|until|while)\b/, token: "keyword" },
+        { regex: /\b(?:true|false|nil)\b|\.\.\./, token: "atom" },
+        { regex: /0x[\da-f]+|(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/i, token: "number" },
+        { regex: /->|=>/, token: "keyword" },
+        { regex: /[A-Za-z_]\w*(?=\s*\()/, token: "variable-2" },
+        { regex: /[A-Za-z_]\w*/, token: "variable" },
+        { regex: /==|!=|<=|>=|\|\||&&|\.\.|\/\/|<<|>>|[-+*\/%^#<>=!~&|]/, token: "operator" },
+        { regex: /[{[(]/, indent: true },
+        { regex: /[}\])]/, dedent: true },
+      ],
+      // double quoted strings interpolate {expr}
+      dqString: [
+        { regex: /\\./, token: "string" },
+        { regex: /\{[^}]*\}/, token: "variable-2" },
+        { regex: /"/, token: "string", next: "start" },
+        { regex: /[^"\\{]+|\{/, token: "string" },
+      ],
+      blockComment: [
+        { regex: /.*?\]=*\]/, token: "comment", next: "start" },
+        { regex: /.*/, token: "comment" },
+      ],
+      blockString: [
+        { regex: /.*?\]=*\]/, token: "string", next: "start" },
+        { regex: /.*/, token: "string" },
+      ],
+      meta: { lineComment: "--", electricChars: "}])" },
+    });
+
+    // just enough hcl to be readable, <<LUA and <<ERDE heredocs get their own modes
+    // (lang markers are case insensitive, same as heredocLang in file/parse.go)
+    CodeMirror.defineSimpleMode("hcl", {
+      start: [
+        { regex: /"(?:[^\\"]|\\.)*?"/, token: "string" },
+        { regex: /<<-?\s*lua\s*$/i, token: "string", mode: { spec: "lua", end: /^\s*lua\s*$/i, endToken: "string" } },
+        { regex: /<<-?\s*erde\s*$/i, token: "string", mode: { spec: "erde", end: /^\s*erde\s*$/i, endToken: "string" } },
+        { regex: /<<-?\s*([A-Za-z_]+)/, token: "string", next: "heredoc" },
+        { regex: /(?:#|\/\/).*/, token: "comment" },
+        { regex: /\/\*/, token: "comment", next: "comment" },
+        { regex: /^\s*[a-z_]+(?=\s+"[^"]*"\s*\{|\s*\{)/, token: "keyword" },
+        { regex: /[A-Za-z_][\w-]*(?=\s*=)/, token: "attribute" },
+        { regex: /\b(?:true|false|null)\b/, token: "atom" },
+        { regex: /-?\d+(?:\.\d+)?/, token: "number" },
+        { regex: /[A-Za-z_][\w.-]*(?=\()/, token: "builtin" },
+      ],
+      heredoc: [
+        { regex: /^\s*[A-Z_]+\s*$/, token: "string", next: "start" },
+        { regex: /.*/, token: "string" },
+      ],
+      comment: [
+        { regex: /.*?\*\//, token: "comment", next: "start" },
+        { regex: /.*/, token: "comment" },
+      ],
+      meta: { lineComment: "#" },
+    });
+
+    // keep the editor contents across reloads, storage can be unavailable (private windows etc)
+    const srcKey = "rest.src";
+    try {
+      const saved = localStorage.getItem(srcKey);
+      if (saved !== null) document.getElementById("src").value = saved;
+    } catch {}
+
+    const editor = CodeMirror.fromTextArea(document.getElementById("src"), {
+      mode: "hcl",
+      theme: "material-darker",
+      lineNumbers: true,
+      gutters: ["CodeMirror-linenumbers", "run-gutter"],
+      indentUnit: 2,
+      tabSize: 2,
+      matchBrackets: true,
+      autoCloseBrackets: true,
+      extraKeys: { "Cmd-Enter": () => runSrc(), "Ctrl-Enter": () => runSrc() },
+    });
+
+    // remember the vim toggle per browser, storage can be unavailable (private windows etc)
+    const vim = document.getElementById("vim");
+    const setVim = (on) => {
+      editor.setOption("keyMap", on ? "vim" : "default");
+      try { localStorage.setItem("rest.vim", on ? "1" : ""); } catch {}
+    };
+    try { vim.checked = localStorage.getItem("rest.vim") === "1"; } catch {}
+    setVim(vim.checked);
+    vim.onchange = () => { setVim(vim.checked); editor.focus(); };
+    // :w runs the file
+    CodeMirror.Vim.defineEx("write", "w", () => runSrc());
+
+    const run = document.getElementById("run");
+    const out = document.getElementById("out");
+
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("rest.wasm"), go.importObject).then(({ instance }) => {
+      go.run(instance);
+      run.disabled = false;
+      run.textContent = "run";
+    });
+
+    async function show(result) {
+      if (run.disabled) return;
+      out.className = "";
+      out.textContent = "…";
+      try {
+        out.textContent = await result();
+      } catch (e) {
+        out.className = "error";
+        out.textContent = e.message;
+      }
+    }
+    const runSrc = () => show(() => restRun(editor.getValue()));
+    const runLabel = (label) => show(() => restRunLabel(editor.getValue(), label));
+    run.onclick = runSrc;
+
+    // ▶ in the gutter next to each request block, runs just that request
+    function markRequests() {
+      editor.clearGutter("run-gutter");
+      editor.eachLine((line) => {
+        const m = line.text.match(/^\s*request\s+"((?:[^\\"]|\\.)*)"\s*\{/);
+        if (!m) return;
+        const btn = document.createElement("span");
+        btn.className = "play";
+        btn.textContent = "▶";
+        btn.title = `run "${m[1]}"`;
+        btn.onmousedown = (e) => { e.preventDefault(); runLabel(m[1]); };
+        editor.setGutterMarker(line, "run-gutter", btn);
+      });
+    }
+    let markTimer;
+    editor.on("changes", () => {
+      clearTimeout(markTimer);
+      markTimer = setTimeout(() => {
+        markRequests();
+        try { localStorage.setItem(srcKey, editor.getValue()); } catch {}
+      }, 150);
+    });
+    markRequests();
+  </script>
+</body>
+</html>

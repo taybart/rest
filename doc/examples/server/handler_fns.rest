@@ -1,6 +1,7 @@
 # Server
 server {
-  address = "localhost:18080"
+  address = ":18080"
+  cors    = true
 
   # optional prepopulate the kv cache so there is something to look up
   kv = {
@@ -18,76 +19,73 @@ server {
   # LUA
 
   middleware "auth" {
-    fn = <<LUA
-      local token = rest.req:cookie("token") or rest.req:bearer_token()
-      if not uuid.is_uuidv4(token) then
-        return { status = 401, body = json.encode({error = "missing credentials"}) }
-      end
-      if kv.get('last_token') ~= token then
-        return { status = 401, body = json.encode({error = "invalid credentials"}) }
-      end
+    fn = <<ERDE
+      local token = rest.req:cookie('token') || rest.req:bearer_token()
+      local unauth = (msg) -> ({ status = 401, body = json.encode({error = msg}) })
+      if !uuid.is_uuidv4(token) {
+      	return unauth('missing credentials')
+      }
+      if kv.get('last_token') != token {
+      	return unauth('invalid credentials')
+      }
       rest.ctx.token = token
-    LUA
+    ERDE
   }
 
   handler "POST" "/login" {
-    fn = <<LUA
-      local body = json.decode(rest.req.body)
-      if body.username == "root" and body.password == "toor" then
-        local token = uuid.newv4()
-        kv.set('last_token', token)  -- in memory key value cache
-        return {
-          status = 200,
-          cookies = {
-            token = {
-              value = token,
-              path = "/",
-              http_only = true,
-              same_site = "strict",
-              secure = true,
-            },
-          },
-          body = json.encode({token = token})
-        }
-      end
-      return { status = 401, body = json.encode({error = "invalid credentials"}) }
-    LUA
+    fn = <<ERDE
+      local {username, password} = json.decode(rest.req.body)
+      if username == 'root' && password == 'toor' {
+      	local token = uuid.newv4()
+      	kv.set('last_token', token) -- in memory key value cache
+      	return {
+      		status = 200,
+      		cookies = {
+      			token = {
+      				value = token,
+      				path = '/',
+      				http_only = true,
+      				same_site = 'strict',
+      				secure = true,
+      			},
+      		},
+      		body = json.encode({ token = token }),
+      	}
+      }
+      return { status = 401, body = json.encode({ error = 'invalid credentials' }) }
+    ERDE
   }
   handler "GET" "/user" {
     middleware = ["auth"]
-    fn         = <<LUA
-      local q = rest.req:query("q")
-      local db = kv.get("db")
+    fn         = <<ERDE
+      local q = rest.req:query('q')
+      local db = kv.get('db')
       local user
-      for id, user in pairs(db.users) do
-        if q and user.name:lower():find(q:lower()) then
-          return {
-            status = 200,
-            body = json.encode({ id = id, name = user.name, role = user.role })
-          }
-        end
-      end
-      if not user then
-        return {
-          status = 404,
-          body = json.encode({ error = "user not found" })
+      for id, user in pairs(db.users) {
+      	if q && user.name:lower():find(q:lower()) {
+      		return {
+      			status = 200,
+      			body = json.encode({ id = id, name = user.name, role = user.role }),
+      		}
         }
-      end
-    LUA
+      }
+      if !user { return {
+      	status = 404,
+      	body = json.encode({ error = 'user not found' }),
+      }}
+    ERDE
   }
   handler "GET" "/user/{id}" {
     middleware = ["auth"]
-    fn         = <<LUA
+    fn         = <<ERDE
       -- get id from path
-      local id = rest.req:path_value("id")
-      local db = kv.get("db")
+      local id = rest.req:path_value('id')
+      local db = kv.get('db')
       local user = db.users[id]
-      if not user then
-        return { status = 404, body = json.encode({ error = "user not found" }) }
-      end
+      if !user { return { status = 404, body = json.encode({ error = 'user not found' }) } }
       local res = json.encode({ id = id, name = user.name, role = user.role })
       return { status = 200, body = res }
-    LUA
+    ERDE
   }
 }
 
@@ -105,8 +103,8 @@ request "login" {
   after = [
     lib.expected,
     # if we wanted to just export the token for use as a bearer but
-    # we are using cookies so this is not needed
-    # export_res({ auth_token = "token" }),
+    # we are using cookies so this is not really needed
+    lib::export_res({ auth_token = "token" }),
   ]
 }
 
@@ -115,7 +113,7 @@ request "get user by query" {
   query = { q = "cran" }
   # cookie will come along if this is comes after "login" so
   # we don't actually need to include the token as a bearer token
-  # bearer_token = exports.auth_token
+  bearer_token = exports.auth_token
   expect {
     status = 200
     body   = { id = "1", name = "Bryan Cranston", role = "dad" }

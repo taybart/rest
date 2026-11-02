@@ -2,6 +2,8 @@ package restlua
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"regexp"
 	"strconv"
 	"strings"
@@ -57,6 +59,21 @@ const (
 // erde scripts, ex. `match`)
 func NewState() *lua.LState {
 	return lua.NewState(lua.Options{Erde: parse.ErdeOptions{Match: true}})
+}
+
+// SetPrint makes lua's print write to w instead of stdout
+func SetPrint(l *lua.LState, w io.Writer) {
+	l.SetGlobal("print", l.NewFunction(func(l *lua.LState) int {
+		top := l.GetTop()
+		for i := 1; i <= top; i++ {
+			if i > 1 {
+				fmt.Fprint(w, "\t")
+			}
+			fmt.Fprint(w, l.ToStringMeta(l.Get(i)).String())
+		}
+		fmt.Fprintln(w)
+		return 0
+	}))
 }
 
 // Exec runs code as lua or erde (https://erde-lang.github.io)

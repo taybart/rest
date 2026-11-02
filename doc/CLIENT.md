@@ -273,15 +273,20 @@ request "debug" {
 
 There are a couple of global libraries available to you:
 
+*encoders/decoders*
 - `json` - encode and decode json (`json.encode(tbl)`, `json.decode(str)`)
 - `jwt` - sign, decode, and verify JWTs (`jwt.sign(claims, secret [, opts])`, `jwt.decode(token)`, `jwt.verify(token, secret [, opts])`, `jwt.is_valid(token [, secret, opts])`)
 - `form` - encode and decode url-encoded form/query strings (`form.encode(tbl)`, `form.decode(str)`)
-- `colors` - adds terminal color escape codes and formatting functions for extra points
-- `inspect` - used to inspect lua values
 - `base64` - encode and decode base64 (`base64.encode(str [, { url = true, raw = true }])`, `base64.decode(str)`)
+
+*ids*
 - `uuid` - generate and validate UUIDs (`uuid.newv4()`, `uuid.is_uuid(str)`, `uuid.is_uuidv4(str)`)
 - `ulid` - generate and validate ULIDs (`ulid.new([ms])` or `ulid([ms])`, `ulid.is_ulid(str)`, `ulid.timestamp(str)`)
 - `nanoid` - generate and validate NanoIDs (`nanoid.new([size [, alphabet]])` or `nanoid([size [, alphabet]])`, `nanoid.is_nanoid(str [, size])`)
+
+*utils*
+- `colors` - adds terminal color escape codes and formatting functions for extra points
+- `inspect` - used to inspect lua values
 - `tools` - various helper functions (such as `tools.expected()`), check out the [tools](https://github.com/taybart/rest/blob/main/lua/modules/tools.lua) module for commented functions
 
 Additionally there are a few global functions available to you:

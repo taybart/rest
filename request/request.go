@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"net/url"
@@ -50,6 +51,8 @@ type Request struct {
 	Body      string
 	Lang      string
 	Exports   map[string]any
+	// Out is where after hooks print, defaults to stdout
+	Out io.Writer
 
 	Built *http.Request
 

@@ -162,6 +162,9 @@ func (r *Request) RunAfterHook(res *http.Response, jar http.CookieJar) (map[stri
 
 	l := restlua.NewState()
 	defer l.Close()
+	if r.Out != nil {
+		restlua.SetPrint(l, r.Out)
+	}
 
 	if err := restlua.RegisterModules(l); err != nil {
 		return nil, err

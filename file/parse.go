@@ -104,10 +104,23 @@ type Parser struct {
 	Exports    map[string]cty.Value
 	RawExports map[string]any
 	Config     request.Config
+	// DiagOut receives hcl diagnostics, defaults to stdout
+	DiagOut io.Writer
 }
 
 func NewParser(filename string) (*Parser, error) {
+	return newParser(filename, nil, os.Stdout)
+}
+
+// NewParserFromSource parses src directly instead of reading filename from disk,
+// hcl diagnostics are written to diagOut
+func NewParserFromSource(filename string, src []byte, diagOut io.Writer) (*Parser, error) {
+	return newParser(filename, src, diagOut)
+}
+
+func newParser(filename string, src []byte, diagOut io.Writer) (*Parser, error) {
 	p := &Parser{
+		DiagOut: diagOut,
 		Root: &Root{
 			filename: filename,
 		},
@@ -118,7 +131,11 @@ func NewParser(filename string) (*Parser, error) {
 		RawExports: map[string]any{},
 	}
 
-	if err := p.read(filename, p.Root); err != nil {
+	if src != nil {
+		if err := p.parse(filename, src, p.Root); err != nil {
+			return p, err
+		}
+	} else if err := p.read(filename, p.Root); err != nil {
 		return p, err
 	}
 
@@ -179,6 +196,10 @@ func (p *Parser) read(filename string, root *Root) error {
 			return fmt.Errorf("failed to read %s: %w", filename, err)
 		}
 	}
+	return p.parse(filename, src, root)
+}
+
+func (p *Parser) parse(filename string, src []byte, root *Root) error {
 	src = stripShebang(src)
 	var diags hcl.Diagnostics
 	p.Files[filename], diags = hclsyntax.ParseConfig(
@@ -544,8 +565,12 @@ func (p *Parser) makeContext() {
 }
 
 func (p Parser) writeDiags(diags hcl.Diagnostics) {
+	out := p.DiagOut
+	if out == nil {
+		out = os.Stdout
+	}
 	wr := hcl.NewDiagnosticTextWriter(
-		os.Stdout,
+		out,
 		p.Files, // the parser's file cache, for source snippets
 		80,      // wrapping width
 		false,   // generate colored/highlighted output

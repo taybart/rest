@@ -17,6 +17,8 @@ type Client struct {
 	client *http.Client
 	ws     *websocket.Conn
 	Config request.Config
+	// Out is where after hooks print, defaults to stdout
+	Out io.Writer
 }
 
 func New(config request.Config) (*Client, error) {
@@ -44,6 +46,9 @@ func (c *Client) Do(r request.Request) (string, map[string]any, error) {
 		time.Sleep(delay)
 	}
 	r.UserAgent = c.Config.UserAgent
+	if c.Out != nil {
+		r.Out = c.Out
+	}
 
 	req, err := r.Build()
 	if err != nil {

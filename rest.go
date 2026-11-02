@@ -4,6 +4,7 @@ package rest
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 
@@ -26,6 +27,20 @@ func NewFile(filename string) (*Rest, error) {
 	if err != nil {
 		return nil, err
 	}
+	return newRest(filename, parser), nil
+}
+
+// NewSource builds a Rest from in-memory source instead of a file on disk,
+// hcl diagnostics are written to diagOut
+func NewSource(name string, src []byte, diagOut io.Writer) (*Rest, error) {
+	parser, err := file.NewParserFromSource(name, src, diagOut)
+	if err != nil {
+		return nil, err
+	}
+	return newRest(name, parser), nil
+}
+
+func newRest(filename string, parser *file.Parser) *Rest {
 	rest := &Rest{
 		filename: filename,
 		Parser:   parser,
@@ -35,8 +50,7 @@ func NewFile(filename string) (*Rest, error) {
 		rest.Requests[block.Label] = block
 		rest.Requests[block.Label].BlockIndex = i
 	}
-	return rest, nil
-
+	return rest
 }
 
 func (rest *Rest) RequestByIndex(i int) (request.Request, error) {
@@ -63,6 +77,12 @@ func (rest *Rest) Request(label string) (request.Request, error) {
 }
 
 func (rest *Rest) RunFile(ignoreFail bool) error {
+	return rest.RunFileTo(os.Stdout, ignoreFail)
+}
+
+// RunFileTo runs every request in the file, writing results and after hook
+// output to w
+func (rest *Rest) RunFileTo(w io.Writer, ignoreFail bool) error {
 
 	// make sure to run blocks in order of appearance
 	order := make([]string, 0, len(rest.Requests))
@@ -79,6 +99,7 @@ func (rest *Rest) RunFile(ignoreFail bool) error {
 	if err != nil {
 		return err
 	}
+	client.Out = w
 	for _, label := range order {
 		req, err := rest.Request(label)
 		if err != nil {
@@ -96,23 +117,28 @@ func (rest *Rest) RunFile(ignoreFail bool) error {
 			if !ignoreFail {
 				return err
 			}
-			fmt.Println(err)
+			fmt.Fprintln(w, err)
 		}
 		rest.Parser.AddExportsCtx(exports)
 
 		if res != "" {
-			fmt.Println(res)
+			fmt.Fprintln(w, res)
 		}
 	}
 	return nil
 }
 
 func (rest *Rest) RunLabel(label string) error {
+	return rest.RunLabelTo(os.Stdout, label)
+}
+
+// RunLabelTo runs one request, writing its result and after hook output to w
+func (rest *Rest) RunLabelTo(w io.Writer, label string) error {
 	req, err := rest.Request(label)
 	if err != nil {
 		return err
 	}
-	return rest.run(req)
+	return rest.run(w, req)
 }
 
 func (rest *Rest) RunIndex(block int) error {
@@ -120,14 +146,15 @@ func (rest *Rest) RunIndex(block int) error {
 	if err != nil {
 		return err
 	}
-	return rest.run(req)
+	return rest.run(os.Stdout, req)
 }
 
-func (rest *Rest) run(req request.Request) error {
+func (rest *Rest) run(w io.Writer, req request.Request) error {
 	client, err := client.New(rest.Parser.Config)
 	if err != nil {
 		return err
 	}
+	client.Out = w
 
 	if req.Skip {
 		return errors.New("request marked as skip = true")
@@ -135,7 +162,7 @@ func (rest *Rest) run(req request.Request) error {
 
 	res, _, err := client.Do(req)
 	if res != "" {
-		fmt.Println(res)
+		fmt.Fprintln(w, res)
 	}
 	return err
 }
