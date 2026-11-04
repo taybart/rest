@@ -491,7 +491,6 @@ request "admin" {
 	}
 }
 
-
 func TestHeredocLangHints(t *testing.T) {
 	const scripts = `
 request "erde" {
@@ -555,13 +554,13 @@ cli {
 }
 `
 	tests := []struct {
-		name   string
-		reqs   map[string]string
-		setup  string
-		mw     string
-		hdl    []string
-		fn     string
-		loop   string
+		name  string
+		reqs  map[string]string
+		setup string
+		mw    string
+		hdl   []string
+		fn    string
+		loop  string
 	}{
 		{
 			name: "hints",
@@ -615,5 +614,45 @@ cli {
 				t.Errorf("cli: expected fn/loop %q/%q, got %q/%q", tt.fn, tt.loop, cli.FnLang, cli.LoopLang)
 			}
 		})
+	}
+}
+
+func TestEnvDefault(t *testing.T) {
+	t.Setenv("REST_TEST_ENV_SET", "from-env")
+	t.Setenv("REST_TEST_ENV_EMPTY", "")
+	tmpDir := t.TempDir()
+	filename := filepath.Join(tmpDir, "env.rest")
+	content := `request "env" {
+  url = "http://localhost:18080/env"
+  method = "GET"
+  headers = {
+    "x-set"      = env("REST_TEST_ENV_SET", "fallback")
+    "x-empty"    = env("REST_TEST_ENV_EMPTY", "fallback")
+    "x-unset"    = env("REST_TEST_ENV_UNSET", "fallback")
+    "x-no-default" = env("REST_TEST_ENV_SET")
+  }
+}
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := rest.NewFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := r.Request("env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := map[string]string{
+		"x-set":        "from-env",
+		"x-empty":      "fallback",
+		"x-unset":      "fallback",
+		"x-no-default": "from-env",
+	}
+	for k, v := range expected {
+		if req.Headers[k] != v {
+			t.Fatalf("header %s: expected %q, got %q", k, v, req.Headers[k])
+		}
 	}
 }

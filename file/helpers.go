@@ -133,11 +133,24 @@ func makeEnvFunc() function.Function {
 				AllowMarked: true,
 			},
 		},
+		// optional default: env("KEY", "fallback")
+		VarParam: &function.Parameter{
+			Name:        "default",
+			Type:        cty.String,
+			AllowMarked: true,
+		},
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			if len(args) > 2 {
+				return cty.NilVal, fmt.Errorf("env takes at most 2 arguments (key, default), got %d", len(args))
+			}
 			envArg, _ := args[0].Unmark()
 			val := os.Getenv(envArg.AsString())
-			return cty.StringVal(string(val)), nil
+			if val == "" && len(args) == 2 {
+				def, _ := args[1].Unmark()
+				return cty.StringVal(def.AsString()), nil
+			}
+			return cty.StringVal(val), nil
 		},
 	})
 }

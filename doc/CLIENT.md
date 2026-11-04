@@ -171,6 +171,7 @@ request "my request" {
 There are a few functions that can be used in a rest file:
 
 - `env("VALUE")` - grab an environment variable
+- `env("VALUE", "default")` - grab an environment variable, falling back to `"default"` if it is unset or empty
 - `read("./filepath")` - read a file into the rest file, this will just be read into a string so it can be used anywhere (ex. request body,
 - `json_enc({key = "value"})` - turn an HCL table into a string value, useful for templates
 - `json_dec("{\"string\": \"json\"}")` - turn an string into a table value
