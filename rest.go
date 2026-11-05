@@ -2,11 +2,16 @@
 package rest
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"net/url"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/taybart/rest/client"
 	"github.com/taybart/rest/exports"
@@ -199,62 +204,135 @@ func (rest *Rest) RunServer() error {
 }
 
 func (rest *Rest) Export(export, label string, block int) error {
+	return rest.ExportTo(os.Stdout, export, label, block)
+}
+
+// ExportTo renders requests as snippets using a built-in template (curl, go,
+// js), a template file path, or postman. With no label or block (-1) every
+// request is exported in file order.
+func (rest *Rest) ExportTo(w io.Writer, export, label string, block int) error {
 	if export == "?" || export == "ls" || export == "list" {
-		for _, e := range templates.Exports() {
-			fmt.Println(e)
+		for _, e := range templates.Builtins() {
+			fmt.Fprintln(w, e)
 		}
-		fmt.Println("postman")
+		fmt.Fprintln(w, "postman")
 		return nil
 	}
 	if export == "postman" {
 		return exports.ToPostmanCollection(rest.filename, label, block)
 	}
 
-	t := templates.Get(export)
-	if t == nil {
-		return fmt.Errorf(" exporting language (%s) not supported", export)
+	t, err := templates.Get(export)
+	if err != nil {
+		return err
 	}
-	treqs := map[string]templates.Request{}
-	for lab := range rest.Requests {
-		if label != "" && label != lab {
+
+	treqs := []templates.Request{}
+	for _, hreq := range rest.orderedRequests() {
+		if label != "" && label != hreq.Label {
 			continue
 		}
-		req, err := rest.Request(lab)
+		if block >= 0 && block != hreq.BlockIndex {
+			continue
+		}
+		req, err := rest.Parser.Request(hreq)
 		if err != nil {
 			return err
 		}
+		treq, err := toTemplateRequest(req, rest.Parser.Config.UserAgent)
+		if err != nil {
+			return fmt.Errorf("%s: %w", req.Label, err)
+		}
+		treqs = append(treqs, treq)
+	}
+	if len(treqs) == 0 {
+		if label != "" {
+			return fmt.Errorf("request label %q not found", label)
+		}
+		if block >= 0 {
+			return fmt.Errorf("request block %d not found", block)
+		}
+		return errors.New("no requests to export")
+	}
+	return t.Execute(w, treqs)
+}
 
-		body := req.Body
-		if body == "null" {
-			body = ""
+func (rest *Rest) orderedRequests() []*file.HCLRequest {
+	reqs := make([]*file.HCLRequest, 0, len(rest.Requests))
+	for _, r := range rest.Requests {
+		reqs = append(reqs, r)
+	}
+	sort.Slice(reqs, func(i, j int) bool { return reqs[i].BlockIndex < reqs[j].BlockIndex })
+	return reqs
+}
+
+// toTemplateRequest splits a parsed request into the parts templates get,
+// templates.Request.URL/Headers recombine them into what rest would send
+func toTemplateRequest(req request.Request, userAgent string) (templates.Request, error) {
+	u, err := url.Parse(req.URL)
+	if err != nil {
+		return templates.Request{}, err
+	}
+	// same merge as request.Build: inline params, query block wins
+	query := u.Query()
+	for k, v := range req.Query {
+		query.Set(k, v)
+	}
+	u.RawQuery = ""
+	u.ForceQuery = false
+
+	auth := templates.Auth{}
+	if req.BasicAuth != "" {
+		user, pass, ok := strings.Cut(req.BasicAuth, ":")
+		if !ok {
+			return templates.Request{}, errors.New("malformed basic auth value should be -> user:password")
 		}
-		ua := rest.Parser.Config.UserAgent
-		if ua == request.DefaultConfig().UserAgent {
-			ua = ""
-		}
-		expect := templates.Expect{}
-		if req.Expect != nil {
-			expect = templates.Expect{
-				Status:  req.Expect.Status,
-				Body:    req.Expect.Body,
-				Headers: req.Expect.Headers,
-			}
-		}
-		treqs[req.Label] = templates.Request{
-			Method:  req.Method,
-			URL:     req.URL,
-			Headers: req.Headers,
-			Body:    body,
-			Query:   req.Query,
-			Cookies: req.Cookies,
-			After:   req.After,
-			Label:   req.Label,
-			Delay:   req.Delay,
-			Expect:  expect,
-			// BlockIndex: req.BlockIndex,
-			// config
-			UserAgent: ua,
+		auth = templates.Auth{Type: "basic", User: user, Password: pass}
+	}
+	// rest sends two Authorization headers if both are set, snippets just use bearer
+	if req.BearerToken != "" {
+		auth = templates.Auth{Type: "bearer", Token: req.BearerToken}
+	}
+	if userAgent == request.DefaultConfig().UserAgent {
+		userAgent = ""
+	}
+
+	body := req.Body
+	if body == "null" {
+		body = ""
+	}
+	if body != "" && strings.HasPrefix(strings.ToLower(req.Headers["Content-Type"]), "application/json") {
+		var buf bytes.Buffer
+		if json.Compact(&buf, []byte(body)) == nil {
+			body = buf.String()
 		}
 	}
-	return t.Execute(os.Stdout, rest.filename, treqs)
+
+	expect := templates.Expect{Status: req.ExpectStatus}
+	if req.Expect != nil {
+		expect.Headers = req.Expect.Headers
+		expect.Body = req.Expect.Body
+		if req.Expect.Status != 0 {
+			expect.Status = req.Expect.Status
+		}
+	}
+
+	method := strings.ToUpper(req.Method)
+	if method == "" {
+		method = "GET"
+	}
+	headers := map[string]string{}
+	maps.Copy(headers, req.Headers)
+	return templates.Request{
+		Label:          req.Label,
+		Method:         method,
+		BaseURL:        u.String(),
+		Query:          query,
+		RequestHeaders: headers,
+		Auth:           auth,
+		UserAgent:      userAgent,
+		Cookies:        req.Cookies,
+		Body:           body,
+		Expect:         expect,
+	}, nil
 }

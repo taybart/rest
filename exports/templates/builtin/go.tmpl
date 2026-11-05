@@ -1,0 +1,39 @@
+{{- /* vim: set ft=gotmpl : */ -}}
+// {{ident .Label}} : {{.Label}}
+func {{ident .Label}}() (*http.Response, error) {
+{{- if .Body}}
+	body := strings.NewReader({{goraw .Body}})
+	req, err := http.NewRequest({{gostr .Method}}, {{gostr .URL}}, body)
+{{- else}}
+	req, err := http.NewRequest({{gostr .Method}}, {{gostr .URL}}, nil)
+{{- end}}
+	if err != nil {
+		return nil, err
+	}
+{{- range $k, $v := .RequestHeaders}}
+	req.Header.Set({{gostr $k}}, {{gostr $v}})
+{{- end}}
+{{- if eq .Auth.Type "basic"}}
+	req.SetBasicAuth({{gostr .Auth.User}}, {{gostr .Auth.Password}})
+{{- else if eq .Auth.Type "bearer"}}
+	req.Header.Set("Authorization", {{gostr (printf "Bearer %s" .Auth.Token)}})
+{{- end}}
+{{- if .UserAgent}}
+	req.Header.Set("User-Agent", {{gostr .UserAgent}})
+{{- end}}
+{{- range $k, $v := .Cookies}}
+	req.AddCookie(&http.Cookie{Name: {{gostr $k}}, Value: {{gostr $v}}})
+{{- end}}
+{{- if .Expect.Status}}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode != {{.Expect.Status}} {
+		return res, fmt.Errorf("expected status {{.Expect.Status}}, got %d", res.StatusCode)
+	}
+	return res, nil
+{{- else}}
+	return http.DefaultClient.Do(req)
+{{- end}}
+}

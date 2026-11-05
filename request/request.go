@@ -8,7 +8,6 @@ import (
 	"io"
 	"maps"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -99,11 +98,14 @@ func (r *Request) Build() (*http.Request, error) {
 		})
 	}
 
-	query := url.Values{}
-	for k, v := range r.Query {
-		query.Add(k, v)
+	// keep params written inline in the url, the query block wins on conflicts
+	if len(r.Query) > 0 {
+		query := req.URL.Query()
+		for k, v := range r.Query {
+			query.Set(k, v)
+		}
+		req.URL.RawQuery = query.Encode()
 	}
-	req.URL.RawQuery = query.Encode()
 	req.Header.Set("User-Agent", r.UserAgent)
 
 	r.Built = req

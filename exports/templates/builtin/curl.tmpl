@@ -1,0 +1,23 @@
+{{- /* vim: set ft=gotmpl : */ -}}
+# {{.Label}}
+curl
+{{- if eq .Method "HEAD"}} --head
+{{- else if or (ne .Method "GET") .Body}} -X {{.Method}}
+{{- end}} {{shquote .URL}}
+{{- range $k, $v := .RequestHeaders}} \
+  -H {{shquote (printf "%s: %s" $k $v)}}
+{{- end}}
+{{- if eq .Auth.Type "basic"}} \
+  -u {{shquote (printf "%s:%s" .Auth.User .Auth.Password)}}
+{{- else if eq .Auth.Type "bearer"}} \
+  --oauth2-bearer {{shquote .Auth.Token}}
+{{- end}}
+{{- if .UserAgent}} \
+  -A {{shquote .UserAgent}}
+{{- end}}
+{{- if .Cookies}} \
+  -b {{shquote (cookies .Cookies)}}
+{{- end}}
+{{- if .Body}} \
+  --data-raw {{shquote .Body}}
+{{- end}}

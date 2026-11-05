@@ -1,25 +1,25 @@
-// Package templates is used for generating clients from requests
+// Package templates renders single requests as code snippets in other
+// languages (curl, go, js, ...) or with a user supplied template file
 package templates
 
 import (
 	"bytes"
+	"embed"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"io"
+	"maps"
 	"net/url"
+	"os"
+	"path"
+	"sort"
 	"strings"
 	"text/template"
 )
 
-var (
-	exports = map[string]RequestTemplate{
-		"go":   Go,
-		"curl": Curl,
-		"js":   Javascript,
-	}
-)
-
-func NewVanilla(tmpl string) *template.Template {
-	return template.Must(template.New("Client").Funcs(stdFns).Parse(tmpl))
-}
+//go:embed builtin/*.tmpl
+var builtinFS embed.FS
 
 type Expect struct {
 	Status  int
@@ -27,128 +27,132 @@ type Expect struct {
 	Body    string
 }
 
+// Auth is set from basic_auth or bearer_token, Type is "", "basic" or "bearer"
+type Auth struct {
+	Type     string
+	User     string
+	Password string
+	Token    string
+}
+
+// Request is the data passed to a template, all values are fully evaluated.
+//
+// The fields are the separate parts of the request so templates can use
+// native features of their target (curl -u, python params=, ...). The URL and
+// Headers methods combine them into exactly what rest would send, for
+// templates that don't care.
 type Request struct {
-	URL       string
-	Method    string
-	Body      string
-	Headers   map[string]string
-	Cookies   map[string]string
-	Query     map[string]string
-	After     string
-	UserAgent string
-
-	// extras
 	Label  string
-	Delay  string
-	Expect Expect
-
-	// metadata
-	BlockIndex int
+	Method string
+	// BaseURL is the url without a query string
+	BaseURL string
+	// Query holds params written inline in the url merged with the query
+	// block (the block wins on conflicts)
+	Query url.Values
+	// RequestHeaders are the headers as written in the rest file, without
+	// Auth or UserAgent
+	RequestHeaders map[string]string
+	Auth           Auth
+	// UserAgent is only set when configured to something other than the
+	// default
+	UserAgent string
+	Cookies   map[string]string
+	Body      string
+	Expect    Expect
 }
 
-//	func (r *Request) Build() error {
-//		return nil
-//	}
-
-func (r Request) URLWithQuery() string {
+// URL is BaseURL with Query encoded onto it
+func (r Request) URL() string {
 	if len(r.Query) == 0 {
-		return r.URL
+		return r.BaseURL
 	}
+	return r.BaseURL + "?" + r.Query.Encode()
+}
 
-	u, err := url.Parse(r.URL)
+// Headers are RequestHeaders plus Authorization and User-Agent
+func (r Request) Headers() map[string]string {
+	h := make(map[string]string, len(r.RequestHeaders)+2)
+	maps.Copy(h, r.RequestHeaders)
+	switch r.Auth.Type {
+	case "basic":
+		h["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte(r.Auth.User+":"+r.Auth.Password))
+	case "bearer":
+		h["Authorization"] = "Bearer " + r.Auth.Token
+	}
+	if r.UserAgent != "" {
+		h["User-Agent"] = r.UserAgent
+	}
+	return h
+}
+
+// IsJSON reports whether the body is sent as json
+func (r Request) IsJSON() bool {
+	ct := strings.ToLower(r.RequestHeaders["Content-Type"])
+	return strings.HasPrefix(ct, "application/json") && json.Valid([]byte(r.Body))
+}
+
+// Template renders requests one at a time
+type Template struct {
+	Name string
+	tmpl *template.Template
+}
+
+func parse(name, src string) (*Template, error) {
+	t, err := template.New(name).Funcs(funcs).Option("missingkey=zero").Parse(src)
 	if err != nil {
-		return r.URL
+		return nil, fmt.Errorf("parsing template %s: %w", name, err)
 	}
-
-	q := u.Query()
-	for key, value := range r.Query {
-		q.Set(key, value)
-	}
-	u.RawQuery = q.Encode()
-
-	return u.String()
+	return &Template{Name: name, tmpl: t}, nil
 }
 
-// RequestTemplate : for building onther language requests
-type RequestTemplate struct {
-	Name        string
-	ClientStr   string
-	FunctionStr string
-	RequestStr  string
-	FuncMap     template.FuncMap
-	Client      *template.Template
-	Function    *template.Template
-	Request     *template.Template
+// Builtins returns the names of all built-in templates
+func Builtins() []string {
+	entries, _ := builtinFS.ReadDir("builtin")
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, strings.TrimSuffix(e.Name(), ".tmpl"))
+	}
+	sort.Strings(names)
+	return names
 }
 
-func (r *RequestTemplate) Build() *RequestTemplate {
-	client := r.ClientStr
-	if client == "" {
-		client = "{{.Code}}"
+// Get returns a built-in template by name, or loads name as a template file
+// if it is not a built-in
+func Get(name string) (*Template, error) {
+	src, err := builtinFS.ReadFile(path.Join("builtin", name+".tmpl"))
+	if err == nil {
+		return parse(name, string(src))
 	}
-	r.Client = template.Must(template.New("Client").Funcs(stdFns).Funcs(r.FuncMap).Parse(client))
-	function := r.FunctionStr
-	if function == "" {
-		function = "{{.Code}}\n"
+	if _, statErr := os.Stat(name); statErr == nil {
+		return Load(name)
 	}
-	r.Function = template.Must(template.New("Function").Funcs(stdFns).Funcs(r.FuncMap).Parse(function))
-	r.Request = template.Must(template.New("Request").Funcs(stdFns).Funcs(r.FuncMap).Parse(r.RequestStr))
-	return r
+	return nil, fmt.Errorf("export %q is not a built-in (%s) or a template file",
+		name, strings.Join(Builtins(), ", "))
 }
 
-func (r *RequestTemplate) Execute(wr io.Writer, filename string, reqs map[string]Request) error {
-	// req.Build()
-	var code bytes.Buffer
-	for label, req := range reqs {
-		var reqBuf bytes.Buffer
-		err := r.executeRequest(&reqBuf, req)
-		if err != nil {
+// Load parses a go text/template file, it receives a Request as its data
+func Load(filename string) (*Template, error) {
+	src, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return parse(filename, string(src))
+}
+
+// Execute renders each request, separated by a blank line
+func (t *Template) Execute(w io.Writer, reqs []Request) error {
+	for i, req := range reqs {
+		var buf bytes.Buffer
+		if err := t.tmpl.Execute(&buf, req); err != nil {
+			return fmt.Errorf("rendering %q: %w", req.Label, err)
+		}
+		sep := "\n"
+		if i < len(reqs)-1 {
+			sep = "\n\n"
+		}
+		if _, err := io.WriteString(w, strings.TrimSpace(buf.String())+sep); err != nil {
 			return err
 		}
-		r.Function.Execute(&code, map[string]any{
-			"Code":  strings.TrimSpace(reqBuf.String() + "\n"),
-			"Label": label,
-		})
-	}
-
-	labels := []string{}
-	for _, req := range reqs {
-		labels = append(labels, req.Label)
-	}
-
-	var client bytes.Buffer
-	r.Client.Execute(&client, map[string]any{
-		"Filename": filename,
-		"Code":     code.String(),
-		"Labels":   labels,
-	})
-	_, err := wr.Write(client.Bytes())
-	return err
-}
-func (r *RequestTemplate) executeRequest(wr io.Writer, req Request) error {
-	// req.Build()
-	var buf bytes.Buffer
-	err := r.Request.Execute(&buf, req)
-	if err != nil {
-		return err
-	}
-	// result := strings.TrimSpace(buf.String())
-	_, err = wr.Write(buf.Bytes())
-	return err
-}
-
-// Exports : returns a list of all available templates
-func Exports() []string {
-	ret := []string{}
-	for k := range exports {
-		ret = append(ret, k)
-	}
-	return ret
-}
-
-func Get(name string) *RequestTemplate {
-	if t, ok := exports[name]; ok {
-		return t.Build()
 	}
 	return nil
 }

@@ -439,17 +439,53 @@ the result is encoded. This works the same for `-S run`, `-S <entry>` and the RE
 
 ## Export to a different language
 
-Rest files can be exported to a different language using the cli, either a single block or the whole file (as a "client").
+Requests can be exported as code snippets using the cli. Use `-l`/`-b` to export a single request, otherwise every request in the file is exported in order.
 
 ```sh
-$ rest -f api.rest -e ls # list supported languages
+$ rest -f api.rest -e ls # list built-in exports
 curl
 go
 js
 postman
-$ rest -f api.rest -e curl
-curl -X ...
+$ rest -f api.rest -e curl -l login
+# login
+curl -X POST 'http://localhost:8080/login' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{"user":"me"}'
 ```
+
+Snippets contain fully evaluated values: `locals`, `env()`, auth (`basic_auth`/`bearer_token` become an `Authorization` header) and `query` (merged into the url) are all resolved. `after` hooks are not exported.
+
+### Custom templates
+
+`-e` also takes a path to a go [text/template](https://pkg.go.dev/text/template) file, which is rendered once per request:
+
+```sh
+rest -f api.rest -e ./httpie.tmpl
+```
+
+```gotmpl
+http {{.Method}} {{shquote .URL}}{{range $k, $v := .Headers}} {{shquote (printf "%s:%s" $k $v)}}{{end}}
+```
+
+Templates get the request split into parts, so they can use native features of the target (`curl -u`, python `params=`/`auth=`, ...), plus a combined `.URL` and `.Headers` that match exactly what rest would send:
+
+| field | |
+| --- | --- |
+| `.Label`, `.Method`, `.Body`, `.Cookies` | |
+| `.URL` | `.BaseURL` + `.Query`, the url rest sends |
+| `.BaseURL` | url without the query string |
+| `.Query` | [url.Values](https://pkg.go.dev/net/url#Values), params written inline in the url merged with `query` (`query` wins). `{{.Query.Get "id"}}`, `{{.Query.Encode}}` |
+| `.Headers` | `.RequestHeaders` + `Authorization` + `User-Agent`, the headers rest sends |
+| `.RequestHeaders` | headers as written in the rest file |
+| `.Auth` | `.Auth.Type` (`""`, `"basic"`, `"bearer"`), `.Auth.User`, `.Auth.Password`, `.Auth.Token` |
+| `.UserAgent` | only set when `config` changes it from the default |
+| `.IsJSON` | body is valid json with a json `Content-Type` |
+| `.Expect` | `.Expect.Status`, `.Expect.Headers`, `.Expect.Body` |
+
+Missing map keys render as an empty string, e.g. `{{.Headers.Authorization}}`.
+
+Available functions: `shquote` (posix shell quoting), `gostr`/`goraw` (go string literals), `jsstr` (js string literal), `ident` (label to a camelCase identifier), `cookies` (cookie map to a `Cookie` header value), `jsonindent PREFIX BODY` (pretty print json). See the [built-in templates](../exports/templates/builtin) for examples.
 
 ## CLI Block
 
