@@ -69,7 +69,7 @@ func (r Request) URL() string {
 	return r.BaseURL + "?" + r.Query.Encode()
 }
 
-// Headers are RequestHeaders plus Authorization and User-Agent
+// Headers are RequestHeaders plus Authorization, User-Agent and Cookie
 func (r Request) Headers() map[string]string {
 	h := make(map[string]string, len(r.RequestHeaders)+2)
 	maps.Copy(h, r.RequestHeaders)
@@ -82,7 +82,39 @@ func (r Request) Headers() map[string]string {
 	if r.UserAgent != "" {
 		h["User-Agent"] = r.UserAgent
 	}
+	if c := r.CookieHeader(); c != "" {
+		h["Cookie"] = c
+	}
 	return h
+}
+
+// CookieHeader is Cookies as a Cookie header value, sorted by name
+func (r Request) CookieHeader() string {
+	names := make([]string, 0, len(r.Cookies))
+	for n := range r.Cookies {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	parts := make([]string, 0, len(names))
+	for _, n := range names {
+		parts = append(parts, n+"="+r.Cookies[n])
+	}
+	return strings.Join(parts, "; ")
+}
+
+// JSON is the body parsed into maps/lists, so lit can write it as a native
+// literal. nil when the body isn't json. Numbers keep their original text.
+func (r Request) JSON() any {
+	if !r.IsJSON() {
+		return nil
+	}
+	dec := json.NewDecoder(strings.NewReader(r.Body))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return nil
+	}
+	return v
 }
 
 // IsJSON reports whether the body is sent as json
@@ -98,6 +130,10 @@ type Template struct {
 }
 
 func parse(name, src string) (*Template, error) {
+	funcs := template.FuncMap{
+		"lit":   litFunc(name),
+		"ident": ident,
+	}
 	t, err := template.New(name).Funcs(funcs).Option("missingkey=zero").Parse(src)
 	if err != nil {
 		return nil, fmt.Errorf("parsing template %s: %w", name, err)
@@ -110,18 +146,31 @@ func Builtins() []string {
 	entries, _ := builtinFS.ReadDir("builtin")
 	names := make([]string, 0, len(entries))
 	for _, e := range entries {
-		names = append(names, strings.TrimSuffix(e.Name(), ".tmpl"))
+		names = append(names, builtinName(e.Name()))
 	}
 	sort.Strings(names)
 	return names
 }
 
+// builtin files are named <name>.<lang>.tmpl, curl.sh.tmpl -> curl
+func builtinName(file string) string {
+	name, _, _ := strings.Cut(file, ".")
+	return name
+}
+
 // Get returns a built-in template by name, or loads name as a template file
 // if it is not a built-in
 func Get(name string) (*Template, error) {
-	src, err := builtinFS.ReadFile(path.Join("builtin", name+".tmpl"))
-	if err == nil {
-		return parse(name, string(src))
+	entries, _ := builtinFS.ReadDir("builtin")
+	for _, e := range entries {
+		if builtinName(e.Name()) != name {
+			continue
+		}
+		src, err := builtinFS.ReadFile(path.Join("builtin", e.Name()))
+		if err != nil {
+			return nil, err
+		}
+		return parse(e.Name(), string(src))
 	}
 	if _, statErr := os.Stat(name); statErr == nil {
 		return Load(name)

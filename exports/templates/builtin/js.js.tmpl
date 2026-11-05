@@ -1,0 +1,21 @@
+{{- /* vim: set ft=gotmpl : */ -}}
+// {{.Label}}
+async function {{ident .Label}}() {
+  const res = await fetch({{lit .URL}}, {
+    method: {{lit .Method}},
+{{- with .Headers}}
+    headers: {{lit . "    "}},
+{{- end}}
+{{- if .IsJSON}}
+    body: JSON.stringify({{lit .JSON "    "}}),
+{{- else if .Body}}
+    body: {{lit .Body}},
+{{- end}}
+  });
+{{- if .Expect.Status}}
+  if (res.status !== {{.Expect.Status}}) {
+    throw new Error(`expected status {{.Expect.Status}}, got ${res.status}`);
+  }
+{{- end}}
+  return res;
+}

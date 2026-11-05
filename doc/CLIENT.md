@@ -469,12 +469,29 @@ Snippets contain fully evaluated values: `locals`, `env()`, auth (`basic_auth`/`
 `-e` also takes a path to a go [text/template](https://pkg.go.dev/text/template) file, which is rendered once per request:
 
 ```sh
-rest -f api.rest -e ./httpie.tmpl
+rest -f api.rest -e ./httpie.sh.tmpl
 ```
 
 ```gotmpl
-http {{.Method}} {{shquote .URL}}{{range $k, $v := .Headers}} {{shquote (printf "%s:%s" $k $v)}}{{end}}
+http {{.Method}} {{lit .URL}}{{range $k, $v := .Headers}} {{lit (printf "%s:%s" $k $v)}}{{end}}
 ```
+
+Name the file `<name>.<lang>.tmpl` and `lit` writes any value as a correctly escaped literal in that language: strings, numbers, bools, maps and lists. Supported languages are `sh`, `go`, `js` and `lua`.
+
+```gotmpl
+{{/* harmony.lua.tmpl */}}
+return fetch({
+  url = {{lit .URL}},
+  headers = {{lit .Headers}},
+  body = {{lit .JSON "  "}},
+})
+```
+
+- `{{lit .X}}` writes the literal on one line, `{{lit .X "  "}}` pretty prints it, starting continuation lines with the given indent so it lines up with the surrounding code.
+- `{{ident .Label}}` turns a label into a camelCase identifier for function names.
+- `sh` only has strings, so `lit` errors on a map or list there.
+- `lua` can't represent json `null` (the key disappears) or tell `[]` from `{}`.
+- A template without a language in its name still works, only `lit` will error.
 
 Templates get the request split into parts, so they can use native features of the target (`curl -u`, python `params=`/`auth=`, ...), plus a combined `.URL` and `.Headers` that match exactly what rest would send:
 
@@ -484,16 +501,16 @@ Templates get the request split into parts, so they can use native features of t
 | `.URL` | `.BaseURL` + `.Query`, the url rest sends |
 | `.BaseURL` | url without the query string |
 | `.Query` | [url.Values](https://pkg.go.dev/net/url#Values), params written inline in the url merged with `query` (`query` wins). `{{.Query.Get "id"}}`, `{{.Query.Encode}}` |
-| `.Headers` | `.RequestHeaders` + `Authorization` + `User-Agent`, the headers rest sends |
+| `.Headers` | `.RequestHeaders` + `Authorization`, `User-Agent` and `Cookie`, the headers rest sends |
 | `.RequestHeaders` | headers as written in the rest file |
 | `.Auth` | `.Auth.Type` (`""`, `"basic"`, `"bearer"`), `.Auth.User`, `.Auth.Password`, `.Auth.Token` |
 | `.UserAgent` | only set when `config` changes it from the default |
+| `.CookieHeader` | `.Cookies` as a `Cookie` header value |
 | `.IsJSON` | body is valid json with a json `Content-Type` |
+| `.JSON` | the body parsed into maps/lists for `lit`, empty when it isn't json |
 | `.Expect` | `.Expect.Status`, `.Expect.Headers`, `.Expect.Body` |
 
-Missing map keys render as an empty string, e.g. `{{.Headers.Authorization}}`.
-
-Available functions: `shquote` (posix shell quoting), `gostr`/`goraw` (go string literals), `jsstr` (js string literal), `ident` (label to a camelCase identifier), `cookies` (cookie map to a `Cookie` header value), `jsonindent PREFIX BODY` (pretty print json). See the [built-in templates](../exports/templates/builtin) for examples.
+Missing map keys render as an empty string, e.g. `{{.Headers.Authorization}}`. See the [built-in templates](../exports/templates/builtin) for more examples.
 
 ## CLI Block
 

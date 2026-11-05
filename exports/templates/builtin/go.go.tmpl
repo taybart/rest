@@ -2,27 +2,27 @@
 // {{ident .Label}} : {{.Label}}
 func {{ident .Label}}() (*http.Response, error) {
 {{- if .Body}}
-	body := strings.NewReader({{goraw .Body}})
-	req, err := http.NewRequest({{gostr .Method}}, {{gostr .URL}}, body)
+	body := strings.NewReader({{lit .Body}})
+	req, err := http.NewRequest({{lit .Method}}, {{lit .URL}}, body)
 {{- else}}
-	req, err := http.NewRequest({{gostr .Method}}, {{gostr .URL}}, nil)
+	req, err := http.NewRequest({{lit .Method}}, {{lit .URL}}, nil)
 {{- end}}
 	if err != nil {
 		return nil, err
 	}
 {{- range $k, $v := .RequestHeaders}}
-	req.Header.Set({{gostr $k}}, {{gostr $v}})
+	req.Header.Set({{lit $k}}, {{lit $v}})
 {{- end}}
 {{- if eq .Auth.Type "basic"}}
-	req.SetBasicAuth({{gostr .Auth.User}}, {{gostr .Auth.Password}})
+	req.SetBasicAuth({{lit .Auth.User}}, {{lit .Auth.Password}})
 {{- else if eq .Auth.Type "bearer"}}
-	req.Header.Set("Authorization", {{gostr (printf "Bearer %s" .Auth.Token)}})
+	req.Header.Set("Authorization", {{lit (printf "Bearer %s" .Auth.Token)}})
 {{- end}}
 {{- if .UserAgent}}
-	req.Header.Set("User-Agent", {{gostr .UserAgent}})
+	req.Header.Set("User-Agent", {{lit .UserAgent}})
 {{- end}}
 {{- range $k, $v := .Cookies}}
-	req.AddCookie(&http.Cookie{Name: {{gostr $k}}, Value: {{gostr $v}}})
+	req.AddCookie(&http.Cookie{Name: {{lit $k}}, Value: {{lit $v}}})
 {{- end}}
 {{- if .Expect.Status}}
 	res, err := http.DefaultClient.Do(req)
