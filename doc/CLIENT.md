@@ -447,7 +447,7 @@ the result is encoded. This works the same for `-S run`, `-S <entry>` and the RE
 
 ## Export to a different language
 
-Requests can be exported as code snippets using the cli. Use `-l`/`-b` to export a single request, otherwise every request in the file is exported in order.
+Requests can be exported as code snippets using the cli. Use `-l`/`-b` to export a single request, otherwise every request in the file is exported in order. Like running a file, requests marked `skip = true` (or imported with `skip_imported`) are left out, and asking for one with `-l`/`-b` is an error.
 
 ```sh
 $ rest -f api.rest -e ls # list built-in exports

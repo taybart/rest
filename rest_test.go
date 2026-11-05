@@ -130,3 +130,44 @@ func TestExportTemplateParts(t *testing.T) {
 		t.Fatalf("got:\n%q\nwant:\n%q", out.String(), want)
 	}
 }
+
+func TestExportSkip(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "skip.rest")
+	src := `
+request "base" {
+  url = "http://localhost/base"
+  headers = { "X-Base" = "1" }
+  skip = true
+}
+request "child" {
+  copy_from = "base"
+  url = "http://localhost/child"
+}
+`
+	if err := os.WriteFile(filename, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := rest.NewFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	if err := r.ExportTo(&out, "curl", "", -1); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "# base") || !strings.Contains(out.String(), "# child") {
+		t.Fatalf("expected only child exported:\n%s", out.String())
+	}
+	// copy_from still pulls from the skipped base
+	if !strings.Contains(out.String(), "X-Base: 1") {
+		t.Fatalf("expected child to inherit base headers:\n%s", out.String())
+	}
+
+	if err := r.ExportTo(&out, "curl", "base", -1); err == nil || !strings.Contains(err.Error(), "skip") {
+		t.Fatalf("expected skip error for -l base, got %v", err)
+	}
+	if err := r.ExportTo(&out, "curl", "", 0); err == nil || !strings.Contains(err.Error(), "skip") {
+		t.Fatalf("expected skip error for -b 0, got %v", err)
+	}
+}

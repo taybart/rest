@@ -239,6 +239,14 @@ func (rest *Rest) ExportTo(w io.Writer, export, label string, block int) error {
 		if err != nil {
 			return err
 		}
+		// same as running: skipped requests drop out of the whole file and
+		// asking for one directly is an error
+		if req.Skip {
+			if label != "" || block >= 0 {
+				return fmt.Errorf("%s: request marked as skip = true", req.Label)
+			}
+			continue
+		}
 		treq, err := toTemplateRequest(req, rest.Parser.Config.UserAgent)
 		if err != nil {
 			return fmt.Errorf("%s: %w", req.Label, err)
@@ -252,7 +260,7 @@ func (rest *Rest) ExportTo(w io.Writer, export, label string, block int) error {
 		if block >= 0 {
 			return fmt.Errorf("request block %d not found", block)
 		}
-		return errors.New("no requests to export")
+		return errors.New("no requests to export (all marked skip = true?)")
 	}
 	return t.Execute(w, treqs)
 }
