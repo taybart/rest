@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/taybart/rest"
 	"github.com/taybart/rest/exports"
 	"github.com/taybart/rest/exports/templates"
 )
@@ -51,7 +52,7 @@ func postmanRequests(base string) []templates.Request {
 func render(t *testing.T, reqs []templates.Request) []byte {
 	t.Helper()
 	var out bytes.Buffer
-	if err := exports.ToPostman(&out, "/some/dir/api.rest", reqs); err != nil {
+	if err := exports.ToPostman(&out, "/some/dir/api.rest", reqs, nil); err != nil {
 		t.Fatal(err)
 	}
 	return out.Bytes()
@@ -188,4 +189,183 @@ func jsonEqual(a, b any) bool {
 	x, _ := json.Marshal(a)
 	y, _ := json.Marshal(b)
 	return bytes.Equal(x, y)
+}
+
+const schemaFile = `
+schemas {
+  tag      = { id = is::optional(is.int), name = is::optional(is.string) }
+  category = { id = is::optional(is.int), name = is::optional(is.string) }
+  pet = {
+    id       = is.uuid
+    name     = is.not_empty
+    tags     = is::array_of(schemas.tag)
+    category = is::optional(schemas.category)
+    pair     = [is.string, 1]
+  }
+}
+
+request "good pet" {
+  url = "BASE/good"
+  expect {
+    status  = 200
+    headers = { "X-Kind" = "pet", "X-Trace" = is("regex:^t-[0-9]+$") }
+    body    = schemas.pet
+  }
+}
+
+request "bad pet" {
+  url = "BASE/bad"
+  expect {
+    status = 200
+    body   = schemas.pet
+  }
+}
+
+request "list" {
+  url = "BASE/list"
+  expect {
+    status     = 200
+    additional = true
+    body       = is::array_of(schemas.pet)
+  }
+}
+`
+
+const goodPet = `{"id":"7d444840-9dc0-11d1-b245-5ffdce74fad2","name":"rex","tags":[{"id":1,"name":"a"}],"category":{"id":2},"pair":["x",1]}`
+
+func exportSchemaCollection(t *testing.T, base string) []byte {
+	t.Helper()
+	filename := filepath.Join(t.TempDir(), "pets.rest")
+	if err := os.WriteFile(filename, []byte(strings.ReplaceAll(schemaFile, "BASE", base)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := rest.NewFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := r.ExportTo(&out, "postman", "", -1); err != nil {
+		t.Fatal(err)
+	}
+	return out.Bytes()
+}
+
+func TestPostmanSchemasShape(t *testing.T) {
+	out := string(exportSchemaCollection(t, "http://localhost:1"))
+	for _, want := range []string{
+		// defined once at collection level, dependencies first
+		`"schemas = {};"`,
+		`"schemas.tag = {"`,
+		`"schemas.category = {"`,
+		`"schemas.pet = {"`,
+		// pet refers to the others by name, tag and category have the same
+		// shape and still keep their own names
+		`"$ref`,
+		`pm.response.to.have.jsonSchema(schemas.pet);`,
+		`body matches schemas.pet`,
+	} {
+		if want == `"$ref` {
+			if strings.Contains(out, want) {
+				t.Errorf("postman scripts should reference schemas.x, not $ref")
+			}
+			continue
+		}
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %s", want)
+		}
+	}
+	for _, want := range []string{`schemas.tag`, `schemas.category`} {
+		start := strings.Index(out, `"schemas.pet = {"`)
+		if start < 0 || !strings.Contains(out[start:], want) {
+			t.Errorf("schemas.pet should reference %s", want)
+		}
+	}
+	if !strings.Contains(out, `items: [`) {
+		t.Errorf("fixed length lists should use draft-07 items: [...]:\n%s", out)
+	}
+	if strings.Contains(out, "prefixItems") {
+		t.Error("postman's validator ignores prefixItems")
+	}
+}
+
+// TestPostmanSchemasNewman runs the schema tests in postman's runner against
+// good and bad responses
+func TestPostmanSchemasNewman(t *testing.T) {
+	newman, err := exec.LookPath("newman")
+	if err != nil {
+		t.Skip("newman not installed (npm i -g newman)")
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/good":
+			w.Header().Set("X-Kind", "pet")
+			w.Header().Set("X-Trace", "t-42")
+			io.WriteString(w, goodPet)
+		case "/bad":
+			// bad id format, a tag name that isn't a string, wrong tuple value
+			io.WriteString(w, `{"id":"nope","name":"rex","tags":[{"name":5}],"pair":["x",2]}`)
+		case "/list":
+			io.WriteString(w, "["+strings.TrimSuffix(goodPet, "}")+`,"extra":true}]`)
+		}
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	collection := filepath.Join(dir, "collection.json")
+	report := filepath.Join(dir, "report.json")
+	if err := os.WriteFile(collection, exportSchemaCollection(t, srv.URL), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// exits non-zero because bad pet fails, the report says what failed
+	out, _ := exec.Command(newman, "run", collection, "--reporters", "json", "--reporter-json-export", report).CombinedOutput()
+	raw, err := os.ReadFile(report)
+	if err != nil {
+		t.Fatalf("no newman report: %v\n%s", err, out)
+	}
+	var rep struct {
+		Run struct {
+			Executions []struct {
+				Item       struct{ Name string }
+				Assertions []struct {
+					Assertion string
+					Error     *struct{ Message string }
+				}
+			}
+		}
+	}
+	if err := json.Unmarshal(raw, &rep); err != nil {
+		t.Fatal(err)
+	}
+	results := map[string]string{} // "item: assertion" -> "" or the error
+	for _, e := range rep.Run.Executions {
+		for _, a := range e.Assertions {
+			msg := ""
+			if a.Error != nil {
+				msg = a.Error.Message
+			}
+			results[e.Item.Name+": "+a.Assertion] = msg
+		}
+	}
+	for _, pass := range []string{
+		"good pet: status is 200",
+		"good pet: header X-Kind",
+		"good pet: header X-Trace",
+		"good pet: body matches schemas.pet",
+		"list: body matches expect",
+	} {
+		msg, ran := results[pass]
+		if !ran || msg != "" {
+			t.Errorf("%s should pass, got ran=%v %q", pass, ran, msg)
+		}
+	}
+	msg := results["bad pet: body matches schemas.pet"]
+	for _, want := range []string{"id", "tags[0].name", "pair[1]"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("bad pet failure should mention %s: %q", want, msg)
+		}
+	}
+	if t.Failed() {
+		t.Logf("results: %v", results)
+	}
 }

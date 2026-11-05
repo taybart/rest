@@ -8,7 +8,9 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/taybart/rest/request"
 	"github.com/zclconf/go-cty/cty"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
 type Local struct {
@@ -138,7 +140,17 @@ func (p *Parser) evalDefs(defs map[string]*varDef) hcl.Diagnostics {
 			return diags
 		}
 		if def.ns == "schemas" {
-			p.Schemas[def.name] = val
+			// a schema carries its name so exports can keep it
+			b, err := ctyjson.SimpleJSONValue{Value: val}.MarshalJSON()
+			if err != nil {
+				return hcl.Diagnostics{{
+					Severity: hcl.DiagError,
+					Summary:  "Invalid schema",
+					Detail:   err.Error(),
+					Subject:  &def.attr.NameRange,
+				}}
+			}
+			p.Schemas[def.name] = cty.StringVal(request.NamedToken(def.name, string(b)))
 		} else {
 			p.Locals[def.name] = val
 		}
@@ -180,6 +192,21 @@ func refs(expr hcl.Expression) []string {
 			if step.Key.Type() == cty.String && step.Key.IsKnown() && !step.Key.IsNull() {
 				out = append(out, root+"."+step.Key.AsString())
 			}
+		}
+	}
+	return out
+}
+
+// SchemaValues returns what each schemas block entry holds (the matcher
+// without its name), for exports that define schemas by name
+func (p *Parser) SchemaValues() map[string]any {
+	out := map[string]any{}
+	for name, val := range p.Schemas {
+		if val.IsNull() || !val.IsWhollyKnown() || val.Type() != cty.String {
+			continue
+		}
+		if _, inner, ok := request.CutNamed(val.AsString()); ok {
+			out[name] = inner
 		}
 	}
 	return out

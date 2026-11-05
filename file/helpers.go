@@ -23,6 +23,28 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
+// expandHome turns a leading "~/" (or a bare "~") into the user's home directory
+func expandHome(p string) string {
+	if p != "~" && !strings.HasPrefix(p, "~/") {
+		return p
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return p
+	}
+	return filepath.Join(home, p[1:])
+}
+
+// resolveImport finds an import relative to the file importing it, unless it
+// is absolute or starts with ~/
+func resolveImport(importer, imp string) string {
+	imp = expandHome(imp)
+	if filepath.IsAbs(imp) {
+		return imp
+	}
+	return filepath.Join(filepath.Dir(importer), imp)
+}
+
 /*** Functions ***/
 
 func makeFileReadFunc() function.Function {
@@ -37,12 +59,7 @@ func makeFileReadFunc() function.Function {
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			pathArg, _ := args[0].Unmark()
-			path := pathArg.AsString()
-			if strings.HasPrefix(path, "~/") {
-				home, _ := os.UserHomeDir()
-				path = filepath.Join(home, path[2:])
-			}
-			val, err := os.ReadFile(path)
+			val, err := os.ReadFile(expandHome(pathArg.AsString()))
 			if err != nil {
 				return cty.StringVal(""), err
 			}

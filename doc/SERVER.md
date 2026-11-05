@@ -213,6 +213,7 @@ GET /users/abc                   ->  400 {"error":"path.id: expected integer, go
 
 - `expect.path`, `expect.query` and `expect.headers` become parameters, `expect.body` becomes the request body schema. Every path `{wildcard}` is declared, typed by `expect.path` when it's listed. `Content-Type`, `Accept` and `Authorization` aren't parameters in OpenAPI, an exact `Content-Type` in `expect.headers` picks the request body's media type instead.
 - Matchers become JSON Schema: `is.int` -> `integer`, `is.uuid` -> `format: uuid`, `is("regex:...")` -> `pattern`, `is::array_of(x)` -> an array of `x`, `is::optional(x)` leaves the field out of `required`, literal values become `const`, and a literal list is an exact length tuple. Bodies get `additionalProperties: false` unless `additional = true`.
+- Schemas used from a `schemas` block become `components.schemas` with the same name and are `$ref`'d, so importing the spec (into Postman, or anywhere else) keeps them as named schemas. A schema used both with and without `additional = true` gets a second definition (`pet_additional`), since that changes what it accepts.
 - A `response` block becomes the documented response with its body as the example. Handlers with an `fn` or `proxy` get a `default` response, and handlers with an `expect` also document the `400` validation error.
 - `handler "*"` is listed under get, post, put, patch and delete. `{rest...}` becomes `{rest}` (OpenAPI path parameters can't contain slashes), and websocket handlers are skipped.
 

@@ -24,7 +24,11 @@ var builtinFS embed.FS
 type Expect struct {
 	Status  int
 	Headers map[string]string
-	Body    string
+	// Body is the expect body with matchers in it, request.DecodeExpectBody
+	// reads it
+	Body string
+	// Additional is expect { additional = true }
+	Additional bool
 }
 
 // Auth is set from basic_auth or bearer_token, Type is "", "basic" or "bearer"

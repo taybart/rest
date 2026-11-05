@@ -9,7 +9,6 @@ import (
 	"io"
 	"math/big"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -156,7 +155,7 @@ func newParser(filename string, src []byte, diagOut io.Writer) (*Parser, error) 
 	if p.Root.Imports != nil {
 		for n, i := range *p.Root.Imports {
 			importedRest := &Root{filename: i}
-			fp := path.Join(path.Dir(filename), i)
+			fp := resolveImport(filename, i)
 			// later imports override earlier ones, the file itself overrides all
 			p.fileRank[fp] = n + 1
 			p.fileRank[filename] = n + 2

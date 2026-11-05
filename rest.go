@@ -225,7 +225,7 @@ func (rest *Rest) ExportTo(w io.Writer, export, label string, block int) error {
 		if err != nil {
 			return err
 		}
-		return exports.ToOpenAPI(w, rest.filename, cfg)
+		return exports.ToOpenAPI(w, rest.filename, cfg, rest.Parser.SchemaValues())
 	}
 	// resolve the template before evaluating requests so a bad -e fails fast
 	var t *templates.Template
@@ -272,7 +272,7 @@ func (rest *Rest) ExportTo(w io.Writer, export, label string, block int) error {
 		return errors.New("no requests to export (all marked skip = true?)")
 	}
 	if export == "postman" {
-		return exports.ToPostman(w, rest.filename, treqs)
+		return exports.ToPostman(w, rest.filename, treqs, rest.Parser.SchemaValues())
 	}
 	return t.Execute(w, treqs)
 }
@@ -332,6 +332,7 @@ func toTemplateRequest(req request.Request, userAgent string) (templates.Request
 	if req.Expect != nil {
 		expect.Headers = req.Expect.Headers
 		expect.Body = req.Expect.Body
+		expect.Additional = req.Expect.Additional
 		if req.Expect.Status != 0 {
 			expect.Status = req.Expect.Status
 		}

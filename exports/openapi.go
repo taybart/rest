@@ -24,8 +24,13 @@ var reservedHeaders = map[string]bool{"accept": true, "content-type": true, "aut
 
 // ToOpenAPI writes the server block's handlers as an OpenAPI 3.1 spec. The
 // handler's expect block becomes parameters and the request body schema, its
-// response block becomes the documented response.
-func ToOpenAPI(w io.Writer, filename string, cfg server.Config) error {
+// response block becomes the documented response. Shapes that came from the
+// file's schemas blocks (named, see file.Parser.SchemaValues) become
+// components.schemas and are $ref'd.
+func ToOpenAPI(w io.Writer, filename string, cfg server.Config, named map[string]any) error {
+	components := newComponentSet(named, func(def string) map[string]any {
+		return map[string]any{"$ref": "#/components/schemas/" + def}
+	})
 	spec := map[string]any{
 		"openapi": "3.1.0",
 		"info": map[string]any{
@@ -57,7 +62,7 @@ func ToOpenAPI(w io.Writer, filename string, cfg server.Config) error {
 			paths[path] = item
 		}
 		for _, m := range methods {
-			op, err := openapiOperation(m, path, wildcards, h)
+			op, err := openapiOperation(m, path, wildcards, h, components)
 			if err != nil {
 				return fmt.Errorf("%s %s: %w", strings.ToUpper(m), h.Path, err)
 			}
@@ -65,6 +70,13 @@ func ToOpenAPI(w io.Writer, filename string, cfg server.Config) error {
 		}
 	}
 	spec["paths"] = paths
+	if len(components.defs) > 0 {
+		schemas := map[string]any{}
+		for name, def := range components.defs {
+			schemas[name] = def
+		}
+		spec["components"] = map[string]any{"schemas": schemas}
+	}
 
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
@@ -100,7 +112,7 @@ type wildcard struct {
 	rest bool
 }
 
-func openapiOperation(method, path string, wildcards []wildcard, h *server.Handler) (map[string]any, error) {
+func openapiOperation(method, path string, wildcards []wildcard, h *server.Handler, components *componentSet) (map[string]any, error) {
 	op := map[string]any{"operationId": operationID(method, path)}
 	params := []any{}
 	expect := h.Expect
@@ -112,7 +124,7 @@ func openapiOperation(method, path string, wildcards []wildcard, h *server.Handl
 	for _, w := range wildcards {
 		schema := map[string]any{"type": "string"}
 		if m, ok := expect.Path[w.name]; ok {
-			schema = request.MatcherSchema(m, request.SchemaOptions{Param: true})
+			schema = request.MatcherSchema(m, components.opts(request.SchemaOptions{Param: true}))
 		}
 		p := map[string]any{"name": w.name, "in": "path", "required": true, "schema": schema}
 		if w.rest {
@@ -120,8 +132,8 @@ func openapiOperation(method, path string, wildcards []wildcard, h *server.Handl
 		}
 		params = append(params, p)
 	}
-	params = append(params, openapiParams("query", expect.Query)...)
-	params = append(params, openapiParams("header", expect.Headers)...)
+	params = append(params, openapiParams("query", expect.Query, components)...)
+	params = append(params, openapiParams("header", expect.Headers, components)...)
 	if len(params) > 0 {
 		op["parameters"] = params
 	}
@@ -129,17 +141,15 @@ func openapiOperation(method, path string, wildcards []wildcard, h *server.Handl
 	if expect.Body != "" {
 		// body is json with matcher tokens inside, or a single matcher token
 		// (body = is::array_of(...))
-		var body any = expect.Body
-		if !strings.HasPrefix(expect.Body, request.IsPrefix) {
-			if err := json.Unmarshal([]byte(expect.Body), &body); err != nil {
-				return nil, fmt.Errorf("expect body: %w", err)
-			}
+		body, err := request.DecodeExpectBody(expect.Body)
+		if err != nil {
+			return nil, fmt.Errorf("expect body: %w", err)
 		}
 		op["requestBody"] = map[string]any{
 			"required": !request.IsOptional(body),
 			"content": map[string]any{
 				requestMediaType(expect.Headers): map[string]any{
-					"schema": request.MatcherSchema(body, request.SchemaOptions{Additional: expect.Additional}),
+					"schema": request.MatcherSchema(body, components.opts(request.SchemaOptions{Additional: expect.Additional})),
 				},
 			},
 		}
@@ -176,7 +186,7 @@ func openapiOperation(method, path string, wildcards []wildcard, h *server.Handl
 	return op, nil
 }
 
-func openapiParams(in string, matchers map[string]string) []any {
+func openapiParams(in string, matchers map[string]string, components *componentSet) []any {
 	params := []any{}
 	for _, name := range sortedKeys(matchers) {
 		if in == "header" && reservedHeaders[strings.ToLower(name)] {
@@ -187,7 +197,7 @@ func openapiParams(in string, matchers map[string]string) []any {
 			"name":     name,
 			"in":       in,
 			"required": !request.IsOptional(m),
-			"schema":   request.MatcherSchema(m, request.SchemaOptions{Param: true}),
+			"schema":   request.MatcherSchema(m, components.opts(request.SchemaOptions{Param: true})),
 		})
 	}
 	return params

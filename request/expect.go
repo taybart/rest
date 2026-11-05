@@ -30,7 +30,49 @@ func IsToken(rule string) string {
 const (
 	optionalRule = "optional:"
 	arrayOfRule  = "array_of:"
+	// namedRule marks a matcher that came from a schemas block, so exports
+	// can keep its name: named:<name>:<inner json>. Matching sees through it.
+	namedRule = "named:"
 )
+
+// NamedToken wraps a JSON-encoded matcher with the schemas block name it was
+// defined under.
+func NamedToken(name, innerJSON string) string {
+	return IsToken(namedRule + name + ":" + innerJSON)
+}
+
+// CutNamed reports whether expected is a named matcher (schemas.<name>) and
+// returns its name and decoded matcher.
+func CutNamed(expected any) (name string, inner any, ok bool) {
+	s, isStr := expected.(string)
+	if !isStr {
+		return "", nil, false
+	}
+	rule, isRule := strings.CutPrefix(s, IsPrefix)
+	if !isRule {
+		return "", nil, false
+	}
+	after, isNamed := strings.CutPrefix(rule, namedRule)
+	if !isNamed {
+		return "", nil, false
+	}
+	name, innerJSON, found := strings.Cut(after, ":")
+	if !found || json.Unmarshal([]byte(innerJSON), &inner) != nil {
+		return "", nil, false
+	}
+	return name, inner, true
+}
+
+// unwrapNamed strips schema names, they don't change what matches
+func unwrapNamed(expected any) any {
+	for {
+		_, inner, ok := CutNamed(expected)
+		if !ok {
+			return expected
+		}
+		expected = inner
+	}
+}
 
 // OptionalToken wraps a JSON-encoded matcher so the value may be absent.
 func OptionalToken(innerJSON string) string {
@@ -56,7 +98,7 @@ func cutCompound(rule string) (kind string, inner any, ok bool, err error) {
 }
 
 func isOptional(expected any) bool {
-	s, ok := expected.(string)
+	s, ok := unwrapNamed(expected).(string)
 	if !ok {
 		return false
 	}
@@ -67,6 +109,11 @@ func isOptional(expected any) bool {
 // IsArrayOf reports whether expected is an is::array_of(...) matcher,
 // optionally wrapped in is::optional(...).
 func IsArrayOf(expected string) bool {
+	if inner, ok := unwrapNamed(expected).(string); ok {
+		expected = inner
+	} else {
+		return false
+	}
 	rule, ok := strings.CutPrefix(expected, IsPrefix)
 	if !ok {
 		return false
@@ -82,6 +129,9 @@ func IsArrayOf(expected string) bool {
 }
 
 func ValidateIsRule(rule string) error {
+	if _, _, ok := CutNamed(IsPrefix + rule); ok {
+		return nil
+	}
 	if _, _, ok, err := cutCompound(rule); ok {
 		return err
 	}
@@ -148,6 +198,13 @@ func CheckExpectation(label string, expect *Expect, expectStatus int, statusCode
 // for is.int/is.number/is.bool. Scalar rules pass if any value matches;
 // is::array_of(...) requires every value to match.
 func MatchStringValues(path, expected string, values []string) error {
+	if name, inner, ok := CutNamed(expected); ok {
+		innerStr, isStr := inner.(string)
+		if !isStr {
+			return fmt.Errorf("%s: cannot match schemas.%s (structured) against a string", path, name)
+		}
+		return MatchStringValues(path, innerStr, values)
+	}
 	rule, isRule := strings.CutPrefix(expected, IsPrefix)
 	if len(values) == 0 {
 		if isRule && strings.HasPrefix(rule, optionalRule) {
@@ -226,6 +283,18 @@ type BodyOptions struct {
 }
 
 func MatchExpectedBody(expectedBody, actualBody string, opts BodyOptions) error {
+	// body = schemas.x: match against what x holds
+	if _, inner, ok := CutNamed(expectedBody); ok && !opts.Exact {
+		inner = unwrapNamed(inner)
+		if s, isStr := inner.(string); isStr {
+			return MatchExpectedBody(s, actualBody, opts)
+		}
+		b, err := json.Marshal(inner)
+		if err != nil {
+			return err
+		}
+		return MatchExpectedBody(string(b), actualBody, opts)
+	}
 	if opts.Exact {
 		if expectedBody != actualBody {
 			return fmt.Errorf("body does not match expectation %s != %s", expectedBody, actualBody)
@@ -338,6 +407,9 @@ func matchJSONValue(path string, expected, actual any, additional bool) error {
 }
 
 func matchIsRule(path, rule string, actual any, additional bool) error {
+	if _, inner, ok := CutNamed(IsPrefix + rule); ok {
+		return matchJSONValue(path, inner, actual, additional)
+	}
 	if kind, inner, ok, err := cutCompound(rule); ok {
 		if err != nil {
 			return fmt.Errorf("%s: %w", path, err)
@@ -509,6 +581,9 @@ func truncate(s string, n int) string {
 
 // describeRule renders a matcher rule the way it is written in a .rest file.
 func describeRule(rule string) string {
+	if name, _, ok := CutNamed(IsPrefix + rule); ok {
+		return "schemas." + name
+	}
 	if kind, inner, ok, err := cutCompound(rule); ok && err == nil {
 		return "is::" + strings.TrimSuffix(kind, ":") + "(" + formatJSONVal(inner) + ")"
 	}

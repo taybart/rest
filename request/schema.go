@@ -14,6 +14,24 @@ type SchemaOptions struct {
 	// Param is set for path/query/header values, which are always strings on
 	// the wire, so not_empty only has to mean a non-empty string
 	Param bool
+
+	// Ref, when set, is used for matchers from a schemas block (schemas.x)
+	// instead of expanding them, so exports can keep the name
+	Ref func(name string) map[string]any
+}
+
+// DecodeExpectBody turns an expect body as the parser stores it (json with
+// matcher tokens inside, or a single matcher token) into a value for
+// MatcherSchema
+func DecodeExpectBody(body string) (any, error) {
+	if strings.HasPrefix(body, IsPrefix) {
+		return body, nil
+	}
+	var v any
+	if err := json.Unmarshal([]byte(body), &v); err != nil {
+		return nil, err
+	}
+	return v, nil
 }
 
 // Patterns for matchers JSON Schema has no format for. They describe the
@@ -31,6 +49,12 @@ const (
 // used by OpenAPI 3.1). expected is what an expect block decodes to: a
 // literal, an is.* token string, or maps/lists of those from a json body.
 func MatcherSchema(expected any, opts SchemaOptions) map[string]any {
+	if name, inner, ok := CutNamed(expected); ok {
+		if opts.Ref != nil {
+			return opts.Ref(name)
+		}
+		return MatcherSchema(inner, opts)
+	}
 	switch exp := expected.(type) {
 	case string:
 		if rule, ok := strings.CutPrefix(exp, IsPrefix); ok {

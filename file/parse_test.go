@@ -1,6 +1,7 @@
 package file_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -812,5 +813,78 @@ request "main" { url = "http://x/main" }
 	}
 	if len(r.Requests) != 4 {
 		t.Errorf("expected 4 requests, got %d", len(r.Requests))
+	}
+}
+
+func TestImportPathResolution(t *testing.T) {
+	lib := `
+locals { who = "lib" }
+request "one" { url = "http://x/${locals.who}" }
+`
+	cases := map[string]func(libDir string) string{
+		"relative": func(string) string { return "./lib/lib.rest" },
+		"absolute": func(libDir string) string { return filepath.Join(libDir, "lib.rest") },
+		"home":     func(string) string { return "~/lib/lib.rest" },
+	}
+	for name, imp := range cases {
+		t.Run(name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			libDir := filepath.Join(home, "lib")
+			if err := os.MkdirAll(libDir, 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(libDir, "lib.rest"), []byte(lib), 0644); err != nil {
+				t.Fatal(err)
+			}
+			main := fmt.Sprintf(`
+imports = [%q]
+locals { who = "main" }
+request "main" { url = "http://x/main" }
+`, imp(libDir))
+			// relative imports resolve from the importing file, so put main in home
+			mainPath := filepath.Join(home, "main.rest")
+			if err := os.WriteFile(mainPath, []byte(main), 0644); err != nil {
+				t.Fatal(err)
+			}
+			r, err := rest.NewFile(mainPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req, err := r.Request("lib::one")
+			if err != nil {
+				t.Fatal(err)
+			}
+			// importing file's locals still override the library's
+			if req.URL != "http://x/main" {
+				t.Errorf("expected url http://x/main, got %s", req.URL)
+			}
+		})
+	}
+}
+
+func TestReadExpandsHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.WriteFile(filepath.Join(home, "body.txt"), []byte("from home"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	dir := writeFiles(t, map[string]string{"main.rest": `
+request "r" {
+  url  = "http://x/"
+  method = "POST"
+  body = read("~/body.txt")
+}
+`})
+	r, err := rest.NewFile(filepath.Join(dir, "main.rest"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := r.Request("r")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := req.Body; got != "from home" {
+		t.Errorf("expected body %q, got %q", "from home", got)
 	}
 }

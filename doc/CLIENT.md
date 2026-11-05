@@ -99,6 +99,8 @@ locals {
 }
 ```
 
+Import paths are relative to the importing file. Absolute paths and `~/` (your home directory) also work, so a shared library can live in one place, e.g. `imports = ["~/.dotfiles/rest/lib.rest"]`. `read()` expands `~/` the same way.
+
 ### Schemas
 
 `schemas` blocks name matchers so `expect` blocks (client or server) can share them. They work like locals (any order, once per file, importers override) and can reference each other and locals.
@@ -123,6 +125,8 @@ request "list pets" {
 ```
 
 A schema is a value, so it can't contain itself (`pet = { parent = schemas.pet }` is a cycle), use `is.any` or `is.object` at the point it would recurse.
+
+A schema keeps its name, so exports can too: the OpenAPI export writes it as `components.schemas.pet` and the Postman export as `schemas.pet` in its test scripts. That also means a schema is one opaque matcher, `schemas.pet.id` doesn't work, put shared parts in their own schema instead.
 
 ## Request Blocks
 
@@ -490,7 +494,13 @@ curl -X POST 'http://localhost:8080/login' \
 
 To go the other way, `rest -i spec.json` scaffolds requests (and a test server) from an OpenAPI spec, see [SERVER.md](SERVER.md#importing-an-openapi-spec).
 
-`postman` writes the requests as a Postman v2.1 collection (an `expect` status becomes a postman test). `openapi` describes the `server` block instead of requests, see [SERVER.md](SERVER.md#exporting-an-openapi-spec).
+`postman` writes the requests as a Postman v2.1 collection, and `expect` blocks become tests in each request's Tests tab:
+
+- the status, and headers (exact values and `is("regex:...")`, other matchers just check the header is there)
+- the body, as a JSON schema check (`pm.response.to.have.jsonSchema(...)`), so a failure names the field, `data.tags[0].name should be string`
+- schemas used from a [`schemas`](#schemas) block are defined once in a collection-level script and referenced by name, so a test reads `pm.response.to.have.jsonSchema(schemas.pet)`
+
+A collection can't hold schemas any other way. To see them as schemas in a Postman workspace, import the OpenAPI export, which keeps the same names (see below). `openapi` describes the `server` block instead of requests, see [SERVER.md](SERVER.md#exporting-an-openapi-spec).
 
 Snippets contain fully evaluated values: `locals`, `env()`, auth (`basic_auth`/`bearer_token` become an `Authorization` header) and `query` (merged into the url) are all resolved. `after` hooks are not exported.
 
