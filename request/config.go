@@ -15,7 +15,7 @@ func DefaultConfig() Config {
 	return Config{
 		NoFollowRedirect:    false,
 		NoCookies:           false,
-		UserAgent:           "rest-client/2.0",
+		UserAgent:           "rest-client/1.0",
 		InsecureNoVerifyTLS: false,
 		NamespaceImports:    true,
 		SkipImported:        false,

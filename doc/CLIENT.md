@@ -61,7 +61,7 @@ config {
   # when true, all redirects are ignored
   no_follow_redirect = false
   # override default user agent
-  user_agent = "rest-client/2.0"
+  user_agent = "rest-client/1.0"
   # don't verify tls certs
   insecure_no_verify_tls = false
   # add filename prefix to imported requests label -> filename::label
@@ -213,11 +213,6 @@ There are a few functions that can be used in a rest file:
 - `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
 - `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map (currently only map[string]strings are supported)
 - `raw("CONNECT token")` - mark a [socket](#sockets) playbook entry to be sent as a raw text frame instead of being JSON encoded
-- `lib::inspect_res("id", "name")` / `lib::inspect_res(["id", "name"])` / `lib::inspect_res({ user_id = "user.id" })` - after hook helper that decodes the JSON response body and prints selected fields (supports dot-paths)
-- `lib::inspect_req("id", "name")` - after hook helper that decodes the JSON request body and prints selected fields
-- `lib::inspect_jwt()` / `lib::inspect_jwt("auth.token", "sub", "role")` - after hook helper that decodes and pretty-prints a JWT from the response or request bearer token
-- `lib::export_res("id", "name")` / `lib::export_res({ token = "auth.token" })` - after hook helper that exports fields from the JSON response body into `rest.exports`
-- `lib::copy_res("token")` - after hook helper that copies a field from the JSON response body (or the whole body if no key is passed) to the clipboard
 - `is.<type>` / `is("...")` - expectation matchers for `expect { body = ... }` and `expect { headers = ... }`:
   - `is.uuid`, `is.uuidv4`, `is.ulid`, `is.nanoid`, `is.jwt`, `is.email`, `is.url`
   - `is.string`, `is.number`, `is.int`, `is.bool`, `is.array`, `is.object`, `is.null`, `is.any`, `is.not_empty`
@@ -286,6 +281,11 @@ For common tasks, you don't need to write a `<<LUA` block. You can use the built
 - `lib.inspect_req` - JSON-decode and `inspect.print` the request body
 - `lib.inspect_jwt` - decode and `inspect.print` the JWT header and claims from the response or request bearer token
 - `lib.expected` - run `tools.expected()` to validate the `expect` block/status
+- `lib::inspect_res("id", "name")` / `lib::inspect_res(["id", "name"])` / `lib::inspect_res({ user_id = "user.id" })` - after hook helper that decodes the JSON response body and prints selected fields (supports dot-paths)
+- `lib::inspect_req("id", "name")` - after hook helper that decodes the JSON request body and prints selected fields
+- `lib::inspect_jwt()` / `lib::inspect_jwt("auth.token", "sub", "role")` - after hook helper that decodes and pretty-prints a JWT from the response or request bearer token
+- `lib::export_res("id", "name")` / `lib::export_res({ token = "auth.token" })` - after hook helper that exports fields from the JSON response body into `rest.exports`
+- `lib::copy_res("token")` - after hook helper that copies a field from the JSON response body (or the whole body if no key is passed) to the clipboard
 
 ```hcl
 request "login" {
@@ -336,7 +336,7 @@ Hooks are also passed a `rest` table that contains the following:
 
 `rest.label` - the label of the request block
 
-`req` - the request object
+`rest.req` - the request object
 
 ```lua
 {
@@ -350,7 +350,7 @@ Hooks are also passed a `rest` table that contains the following:
 }
 ```
 
-`rest.req` methods:
+*methods*:
 - `rest.req:query(key)` - get the first value of a query parameter (or `nil`)
 - `rest.req:query_values(key)` - get a table of values for a query parameter (or `nil`)
 - `rest.req:header(key)` - case-insensitive lookup returning the first header value and matched key (or `nil`)
@@ -358,7 +358,7 @@ Hooks are also passed a `rest` table that contains the following:
 - `rest.req:cookie(name)` - get the value of a request cookie by name (or `nil`)
 - `rest.req:bearer_token()` - extract the token from the `Authorization: Bearer <token>` header (or `nil`)
 
-`res` - the response object
+`rest.res` - the response object
 
 ```lua
 {
@@ -370,7 +370,7 @@ Hooks are also passed a `rest` table that contains the following:
 }
 ```
 
-`rest.res` methods:
+*methods*:
 - `rest.res:header(key)` - case-insensitive lookup returning the first header value and matched key (or `nil`)
 - `rest.res:header_values(key)` - case-insensitive lookup returning a table of values and matched key (or `nil`)
 - `rest.res:cookie(name)` - get the value of a response cookie by name (and a second return value with cookie attributes when set via `Set-Cookie`)
