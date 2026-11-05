@@ -77,27 +77,52 @@ config {
 
 Locals just set variables that can be referenced in request blocks, there can be many locals blocks.
 
-There is something to be aware of though, locals are preprocessed so the last value set for a particular local will be its value for the whole file.
+- A local can reference any other local, in any `locals` block and in any order, they're evaluated dependencies first. Locals that depend on each other in a loop are an error.
+- Each local can only be defined once per file.
+- A file's locals override the same names in the files it imports, and a later import overrides an earlier one. That makes locals in an imported file defaults: the library sets them, the file importing it can replace them.
+- An imported file can also use a local it never defines and leave it to the file importing it.
 
 ```hcl
+# lib.rest
 locals {
-  name = "hello"
+  user = "guest" # a default
+}
+request "profile" {
+  url = "${locals.url}/users/${locals.user}" # url comes from whoever imports this
 }
 
-# url will be http://localhost:8080/world in this block,
-# since the last value in the file is world
-request "first" {
-  url = "http://localhost:8080/${locals.name}"
-}
-
+# main.rest
+imports = ["./lib.rest"]
 locals {
-  name = "world"
-}
-
-request "second" {
-  url = "http://localhost:8080/${locals.name}"
+  url  = "https://api.example.com"
+  user = "taylor" # overrides lib's default
 }
 ```
+
+### Schemas
+
+`schemas` blocks name matchers so `expect` blocks (client or server) can share them. They work like locals (any order, once per file, importers override) and can reference each other and locals.
+
+```hcl
+schemas {
+  category = { id = is.int, name = is.string }
+  pet = {
+    id       = is.int
+    name     = is.not_empty
+    category = is::optional(schemas.category)
+  }
+}
+
+request "list pets" {
+  url = "http://localhost:8080/pets"
+  expect {
+    status = 200
+    body   = is::array_of(schemas.pet)
+  }
+}
+```
+
+A schema is a value, so it can't contain itself (`pet = { parent = schemas.pet }` is a cycle), use `is.any` or `is.object` at the point it would recurse.
 
 ## Request Blocks
 
@@ -455,12 +480,17 @@ curl
 go
 js
 postman
+openapi
 $ rest -f api.rest -e curl -l login
 # login
 curl -X POST 'http://localhost:8080/login' \
   -H 'Content-Type: application/json' \
   --data-raw '{"user":"me"}'
 ```
+
+To go the other way, `rest -i spec.json` scaffolds requests (and a test server) from an OpenAPI spec, see [SERVER.md](SERVER.md#importing-an-openapi-spec).
+
+`postman` writes the requests as a Postman v2.1 collection (an `expect` status becomes a postman test). `openapi` describes the `server` block instead of requests, see [SERVER.md](SERVER.md#exporting-an-openapi-spec).
 
 Snippets contain fully evaluated values: `locals`, `env()`, auth (`basic_auth`/`bearer_token` become an `Authorization` header) and `query` (merged into the url) are all resolved. `after` hooks are not exported.
 

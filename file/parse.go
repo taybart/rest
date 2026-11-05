@@ -62,6 +62,11 @@ type Root struct {
 		Body hcl.Body `hcl:",remain"`
 	} `hcl:"locals,block"`
 
+	// Schemas are named matchers for expect blocks, schemas.<name>
+	Schemas []*struct {
+		Body hcl.Body `hcl:",remain"`
+	} `hcl:"schemas,block"`
+
 	Config *struct {
 		Body hcl.Body `hcl:",remain"`
 	} `hcl:"config,block"`
@@ -79,28 +84,29 @@ type Root struct {
 
 func (r *Root) Add(root *Root, config request.Config) {
 	r.Locals = append(r.Locals, root.Locals...)
+	r.Schemas = append(r.Schemas, root.Schemas...)
 	for _, req := range root.Requests {
 		if config.SkipImported {
 			req.shouldSkip = true
 		}
-		if !config.NamespaceImports {
-			r.Requests = append(r.Requests, req)
-			continue
-		}
-		for _, req := range root.Requests {
+		if config.NamespaceImports {
 			base := filepath.Base(root.filename)
 			namespace := strings.TrimSuffix(base, filepath.Ext(base))
 			req.Label = fmt.Sprintf("%s::%s", namespace, req.Label)
-			r.Requests = append(r.Requests, req)
 		}
+		r.Requests = append(r.Requests, req)
 	}
 }
 
 type Parser struct {
-	Ctx        *hcl.EvalContext
-	Files      map[string]*hcl.File
-	Root       *Root
-	Locals     map[string]cty.Value
+	Ctx     *hcl.EvalContext
+	Files   map[string]*hcl.File
+	Root    *Root
+	Locals  map[string]cty.Value
+	Schemas map[string]cty.Value
+	// fileRank orders definitions of the same local across files, the higher
+	// rank wins: the main file, then later imports over earlier ones
+	fileRank   map[string]int
 	Exports    map[string]cty.Value
 	RawExports map[string]any
 	Config     request.Config
@@ -127,6 +133,8 @@ func newParser(filename string, src []byte, diagOut io.Writer) (*Parser, error) 
 		Config:     request.DefaultConfig(),
 		Files:      map[string]*hcl.File{},
 		Locals:     map[string]cty.Value{},
+		Schemas:    map[string]cty.Value{},
+		fileRank:   map[string]int{},
 		Exports:    map[string]cty.Value{},
 		RawExports: map[string]any{},
 	}
@@ -146,9 +154,12 @@ func newParser(filename string, src []byte, diagOut io.Writer) (*Parser, error) 
 	}
 
 	if p.Root.Imports != nil {
-		for _, i := range *p.Root.Imports {
+		for n, i := range *p.Root.Imports {
 			importedRest := &Root{filename: i}
 			fp := path.Join(path.Dir(filename), i)
+			// later imports override earlier ones, the file itself overrides all
+			p.fileRank[fp] = n + 1
+			p.fileRank[filename] = n + 2
 			if err := p.read(fp, importedRest); err != nil {
 				return p, err
 			}
@@ -520,6 +531,7 @@ func (p *Parser) Requests() (map[string]request.Request, error) {
 
 func (p *Parser) updateLocalsContext() {
 	p.Ctx.Variables["locals"] = cty.ObjectVal(p.Locals)
+	p.Ctx.Variables["schemas"] = cty.ObjectVal(p.Schemas)
 }
 
 func valueToCty(v any) cty.Value {
@@ -567,6 +579,7 @@ func (p *Parser) makeContext() {
 	p.Ctx = &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			"locals":  cty.ObjectVal(p.Locals),
+			"schemas": cty.ObjectVal(p.Schemas),
 			"exports": cty.ObjectVal(p.Exports),
 			"lib":     makeLibObject(),
 			"is":      makeIsObject(),

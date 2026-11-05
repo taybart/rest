@@ -216,7 +216,16 @@ func (rest *Rest) ExportTo(w io.Writer, export, label string, block int) error {
 			fmt.Fprintln(w, e)
 		}
 		fmt.Fprintln(w, "postman")
+		fmt.Fprintln(w, "openapi")
 		return nil
+	}
+	// openapi describes the server block, not requests
+	if export == "openapi" {
+		cfg, err := rest.Parser.Server()
+		if err != nil {
+			return err
+		}
+		return exports.ToOpenAPI(w, rest.filename, cfg)
 	}
 	// resolve the template before evaluating requests so a bad -e fails fast
 	var t *templates.Template

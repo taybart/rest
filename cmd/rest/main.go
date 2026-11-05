@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/taybart/log"
 	"github.com/taybart/rest"
 	"github.com/taybart/rest/file"
+	"github.com/taybart/rest/imports"
 	"github.com/taybart/rest/server"
 	"golang.org/x/term"
 )
@@ -25,7 +27,7 @@ func usage(u args.Usage) {
 	}
 	client := []string{
 		"file", "block", "label",
-		"socket", "export", "verbose",
+		"socket", "export", "import", "side", "verbose",
 	}
 
 	var usage strings.Builder
@@ -128,6 +130,14 @@ var (
 				Short: "e",
 				Help:  "Export file to specified language",
 			},
+			"import": {
+				Short: "i",
+				Help:  "Scaffold a rest file from an OpenAPI spec (json), printed to stdout",
+			},
+			"side": {
+				Help:    "What --import generates: client, server or both",
+				Default: "both",
+			},
 			"ignore-fail": {
 				Help:    "Ignore errors and run all blocks",
 				Default: false,
@@ -167,6 +177,8 @@ var (
 		List       bool   `arg:"list"`
 		Socket     string `arg:"socket"`
 		Export     string `arg:"export"`
+		Import     string `arg:"import"`
+		Side       string `arg:"side"`
 		IgnoreFail bool   `arg:"ignore-fail"`
 	}{}
 )
@@ -329,6 +341,10 @@ func run() error {
 
 	if c.Verbose {
 		log.SetLevel(log.TRACE)
+	}
+
+	if c.Import != "" {
+		return importSpec(c.Import, c.Side, c.Addr)
 	}
 
 	/**********
@@ -594,4 +610,23 @@ func parseServerResponse(responseFlag string) (*server.Response, error) {
 			[]byte(c.Response), err)
 	}
 	return res, nil
+}
+
+func importSpec(file, side, addr string) error {
+	var spec []byte
+	var err error
+	if file == "-" {
+		spec, err = io.ReadAll(os.Stdin)
+	} else {
+		spec, err = os.ReadFile(file)
+	}
+	if err != nil {
+		return err
+	}
+	out, err := imports.FromOpenAPI(spec, imports.Options{Side: imports.Side(side), Addr: addr})
+	if err != nil {
+		return err
+	}
+	_, err = os.Stdout.Write(out)
+	return err
 }

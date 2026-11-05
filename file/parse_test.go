@@ -656,3 +656,161 @@ func TestEnvDefault(t *testing.T) {
 		}
 	}
 }
+
+func writeFiles(t *testing.T, files map[string]string) string {
+	t.Helper()
+	dir := t.TempDir()
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+func TestLocalsReferenceOrder(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"locals.rest": `
+locals {
+  pet  = { id = is.int, category = schemas.category, n = locals.a }
+  zzz  = "z"
+  path = "${locals.base}/pets/${locals.zzz}"
+}
+schemas {
+  category = { tags = is::array_of(schemas.tag), a = locals.a }
+}
+locals {
+  a = 1
+}
+schemas {
+  tag = { name = is.string }
+}
+locals {
+  base = "http://x"
+}
+request "r" {
+  url = locals.path
+  headers = { n = "${locals.pet.n}" }
+}
+`})
+	// evaluation order used to follow map iteration, so run it a few times
+	for range 20 {
+		r, err := rest.NewFile(filepath.Join(dir, "locals.rest"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req, err := r.Request("r")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if req.URL != "http://x/pets/z" || req.Headers["n"] != "1" {
+			t.Fatalf("got url %q n %q", req.URL, req.Headers["n"])
+		}
+		if _, ok := r.Parser.Schemas["category"]; !ok {
+			t.Fatal("schemas.category wasn't set")
+		}
+	}
+}
+
+func TestLocalsErrors(t *testing.T) {
+	for name, content := range map[string]string{
+		"cycle": `
+locals {
+  a = locals.b
+}
+schemas {
+  b = { x = locals.a }
+}`,
+		"duplicate in one file": `
+locals {
+  a = 1
+}
+locals {
+  a = 2
+}`,
+	} {
+		dir := writeFiles(t, map[string]string{"x.rest": content})
+		if _, err := rest.NewFile(filepath.Join(dir, "x.rest")); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+}
+
+func TestLocalsImportOverrides(t *testing.T) {
+	dir := writeFiles(t, map[string]string{
+		// the library uses url without defining it, and defines a default
+		// the importer overrides
+		"lib.rest": `
+locals {
+  user = "lib"
+  path = "${locals.url}/users/${locals.user}"
+  only = "from lib"
+}
+request "get" {
+  url = locals.path
+  headers = { only = locals.only, layer = locals.layer }
+}`,
+		"lib2.rest": `
+locals {
+  layer = "lib2"
+}`,
+		"lib3.rest": `
+locals {
+  layer = "lib3"
+}`,
+		"main.rest": `
+imports = ["./lib.rest", "./lib2.rest", "./lib3.rest"]
+locals {
+  url  = "http://api"
+  user = "main"
+}`,
+	})
+	r, err := rest.NewFile(filepath.Join(dir, "main.rest"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := r.Request("lib::get")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.URL != "http://api/users/main" {
+		t.Errorf("importer should define url and override user: %s", req.URL)
+	}
+	if req.Headers["only"] != "from lib" {
+		t.Errorf("lib's own locals should still work: %v", req.Headers)
+	}
+	if req.Headers["layer"] != "lib3" {
+		t.Errorf("a later import should override an earlier one: %v", req.Headers)
+	}
+}
+
+func TestImportNamespacesEachRequestOnce(t *testing.T) {
+	dir := t.TempDir()
+	lib := `
+request "one" { url = "http://x/1" }
+request "two" { url = "http://x/2" }
+request "three" { url = "http://x/3" }
+`
+	main := `
+imports = ["./lib.rest"]
+request "main" { url = "http://x/main" }
+`
+	if err := os.WriteFile(filepath.Join(dir, "lib.rest"), []byte(lib), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.rest"), []byte(main), 0644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := rest.NewFile(filepath.Join(dir, "main.rest"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// used to come out as lib::lib::lib::one, one prefix per imported request
+	for _, label := range []string{"main", "lib::one", "lib::two", "lib::three"} {
+		if _, ok := r.Requests[label]; !ok {
+			t.Errorf("missing %s in %v", label, r.Requests)
+		}
+	}
+	if len(r.Requests) != 4 {
+		t.Errorf("expected 4 requests, got %d", len(r.Requests))
+	}
+}

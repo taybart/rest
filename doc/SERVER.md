@@ -205,6 +205,40 @@ GET /users/abc                   ->  400 {"error":"path.id: expected integer, go
 - Repeated query params and headers: scalar matchers check the first value (what `rest.req:query()` returns). `is::array_of(...)` checks every value.
 - `body` is strict like client `expect` bodies: unexpected fields are rejected. Set `additional = true` in the `expect` block to allow unlisted fields at any depth (listed fields are still required and checked). A body that isn't JSON fails with `body: expected JSON`.
 - `path` keys must match a `{wildcard}` in the handler path; a typo is a parse error.
+- Shapes used by several handlers can be named in a `schemas` block and referenced as `schemas.<name>` (see [Schemas](CLIENT.md#schemas)).
+
+### Exporting an OpenAPI spec
+
+`rest -f api.rest -e openapi` writes the `server` block as an OpenAPI 3.1 spec (JSON). Each `handler` becomes an operation:
+
+- `expect.path`, `expect.query` and `expect.headers` become parameters, `expect.body` becomes the request body schema. Every path `{wildcard}` is declared, typed by `expect.path` when it's listed. `Content-Type`, `Accept` and `Authorization` aren't parameters in OpenAPI, an exact `Content-Type` in `expect.headers` picks the request body's media type instead.
+- Matchers become JSON Schema: `is.int` -> `integer`, `is.uuid` -> `format: uuid`, `is("regex:...")` -> `pattern`, `is::array_of(x)` -> an array of `x`, `is::optional(x)` leaves the field out of `required`, literal values become `const`, and a literal list is an exact length tuple. Bodies get `additionalProperties: false` unless `additional = true`.
+- A `response` block becomes the documented response with its body as the example. Handlers with an `fn` or `proxy` get a `default` response, and handlers with an `expect` also document the `400` validation error.
+- `handler "*"` is listed under get, post, put, patch and delete. `{rest...}` becomes `{rest}` (OpenAPI path parameters can't contain slashes), and websocket handlers are skipped.
+
+`is.jwt` is approximated by a pattern since JSON Schema can't decode the token.
+
+### Importing an OpenAPI spec
+
+`rest -i spec.json` scaffolds a rest file from an OpenAPI 3.x spec and prints it, to edit from there. JSON only, convert YAML first (`yq -o json spec.yaml > spec.json`).
+
+```sh
+rest -i openai.json > api.rest                  # client requests and a test server
+rest -i openai.json --side client > client.rest # just requests, pointed at the spec's server
+rest -i openai.json --side server -a localhost:9000 > mock.rest
+```
+
+- The spec's `components.schemas` that are used become a `schemas` block, referenced as `schemas.<name>` instead of being repeated everywhere. A schema with `readOnly` fields also gets a `<name>_input` variant without them for request bodies. A schema that refers back to itself is cut with `is.any` where it recurses.
+- `--side server` writes a `handler` per operation. Parameters and the JSON request body become an `expect` block (the reverse of the export mapping: `format: uuid` -> `is.uuid`, `pattern` -> `is("regex:...")`, string enums -> a regex, optional fields -> `is::optional`, `allOf` is merged). The first 2xx response's example becomes the `response`. When the spec has no example one is built from the schema, with the required fields plus optional ones the spec gives an example for.
+- `--side client` writes a `request` per operation with example values for path params, required query params/headers and the body (built from the schema when the spec has no example, including strings that match a `pattern`). `expect` is the documented status and, when the response has a JSON schema, its body (so the same requests check the real API's responses against the spec). Bearer and header api key auth read `API_TOKEN` / `API_KEY` from the environment.
+- With both (the default) the requests point at the generated server through `locals.base = env("BASE_URL", "http://localhost:8080")`, so `rest -s -f api.rest` in one terminal and `rest -f api.rest` in another exercises the whole API. Point `BASE_URL` at the real API to use the same requests against it.
+
+Some things can't be expressed and are approximated or left out, with a comment where it matters:
+
+- `oneOf`/`anyOf`, nullable fields and recursive schemas become `is.any`, matchers have no unions.
+- Only JSON request bodies are validated/sent, other content types get a comment.
+- Routes go's router can't hold (a parameter inside a segment like `/{id}.json`, or two patterns that overlap without either being more specific) are skipped in the server with the reason, and their requests say so.
+- Path parameter names that aren't valid go identifiers are renamed (`{pet-id}` -> `{pet_id}`).
 
 ### Proxying
 
