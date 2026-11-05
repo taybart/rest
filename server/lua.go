@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	lua "github.com/taybart/go-erde"
+	"github.com/taybart/log"
 	restlua "github.com/taybart/rest/lua"
 )
 
@@ -253,6 +254,11 @@ func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.Resp
 			mapped, err := mapLuaResponse(l, luaRes)
 			return mapped, true, err
 		}
+	}
+
+	if err := ValidateRequest(handler.Expect, req); err != nil {
+		log.Warnf("%s %s: %v\n", req.Method, req.URL.Path, err)
+		return validationResponse(err), true, nil
 	}
 
 	if handler.Fn != "" {

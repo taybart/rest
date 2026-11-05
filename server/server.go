@@ -44,7 +44,21 @@ type Handler struct {
 	Proxy      string    `json:"proxy" hcl:"proxy,optional"`
 	WS         bool      `json:"ws" hcl:"ws,optional"`
 	Response   *Response `hcl:"response,block"`
+	Expect     *Expect   `json:"expect,omitempty" hcl:"expect,block"`
 	Lang       string    `json:"-"`
+}
+
+// Expect declares what a handler accepts. Requests that don't match get a
+// 400 with {"error": "<path>: <reason>"} before the handler's fn, proxy or
+// response runs (but after its middleware).
+type Expect struct {
+	Headers map[string]string `json:"headers,omitempty" hcl:"headers,optional"`
+	Query   map[string]string `json:"query,omitempty" hcl:"query,optional"`
+	Path    map[string]string `json:"path,omitempty" hcl:"path,optional"`
+	// Additional allows body fields (at any depth) that aren't listed in body.
+	Additional bool           `json:"additional,omitempty" hcl:"additional,optional"`
+	Body       string         `json:"body,omitempty"`
+	BodyHCL    hcl.Expression `json:"-" hcl:"body,optional"`
 }
 
 type Server struct {
@@ -154,7 +168,7 @@ func (s *Server) MustParseURL(in string) *url.URL {
 	if err != nil || u.Host == "" {
 		u, err = url.Parse("http://" + in)
 		if err != nil {
-			log.Fatal("could not proxy url: %s, error: %v", in, err)
+			log.Fatalf("could not proxy url: %s, error: %v", in, err)
 		}
 	}
 	return u

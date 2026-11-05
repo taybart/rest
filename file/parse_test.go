@@ -483,10 +483,10 @@ request "admin" {
 	if req.Body != `{"role":"admin"}` {
 		t.Fatalf("unexpected body: %s", req.Body)
 	}
-	if err := request.MatchExpectedBody(req.Expect.Body, `{"token":"`+req.BearerToken+`"}`, false); err != nil {
+	if err := request.MatchExpectedBody(req.Expect.Body, `{"token":"`+req.BearerToken+`"}`, request.BodyOptions{}); err != nil {
 		t.Fatalf("expected is.jwt matcher to pass, got: %v", err)
 	}
-	if err := request.MatchExpectedBody(req.Expect.Body, `{"token":"not-a-jwt"}`, false); err == nil {
+	if err := request.MatchExpectedBody(req.Expect.Body, `{"token":"not-a-jwt"}`, request.BodyOptions{}); err == nil {
 		t.Fatal("expected is.jwt matcher to fail on invalid jwt")
 	}
 }

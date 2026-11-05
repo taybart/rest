@@ -88,12 +88,16 @@ server {
     directory = "./test"
     # should this be treated as a single page application (ie frontend routing) by returning index.html instead of 404 (default false)
     spa = true
+    # forward every request to another server (see Proxying below)
+    # proxy = "localhost:8081"
     # if you need a more complicated test server you can add specific handlers
     handler "GET" "/path" {
         # override responses and just serve a websocket echo path
         ws = true
         # either use lua to create a more complex response
         fn = "similar concept to the after hook in the client files (see hander fns below)"
+        # or forward just this route to another server
+        proxy = "localhost:8081"
         # or use a response object to just have different responses per path
         response {
             status = 200
@@ -148,6 +152,85 @@ rest.req = {
     headers = {},
     cookies = {},
     body = "",
+}
+```
+
+### Validating requests (`expect`)
+
+A `handler` can declare what it accepts with an `expect` block, using the same `is` matchers as client `expect` blocks. Requests that don't match get a `400` with a JSON error naming the field, and the handler's `fn`, `proxy` or `response` never runs. Middleware runs first, so an unauthenticated request still gets your `401` rather than a `400`.
+
+```hcl
+handler "POST" "/login" {
+    expect {
+        headers = { "Content-Type" = is("regex:^application/json") }
+        body = {
+            username = is.not_empty
+            password = is.string
+            remember = is::optional(is.bool)
+            scopes   = is::optional(is::array_of(is.string))
+        }
+    }
+    fn = <<LUA
+        local body = json.decode(rest.req.body) -- already known to be valid
+        ...
+    LUA
+}
+
+handler "GET" "/users/{id}" {
+    middleware = ["auth"]
+    expect {
+        path  = { id = is.int }
+        query = {
+            fields = is::optional(is.string)
+            tag    = is::optional(is::array_of(is("regex:^[a-z]+$"))) # ?tag=a&tag=b
+        }
+    }
+    response { status = 200 }
+}
+```
+
+```
+POST /login {"username":"root"}  ->  400 {"error":"body.password: missing required field"}
+GET /users/abc                   ->  400 {"error":"path.id: expected integer, got string (\"abc\")"}
+```
+
+- `headers`, `query` and `path` values are strings, but `is.int`, `is.number` and `is.bool` accept strings that parse as those types (`"4"`, `"1.5"`, `"true"`).
+- Every key listed is required unless wrapped in `is::optional(...)`. Plain strings are compared exactly (`query = { format = "json" }`).
+- Repeated query params and headers: scalar matchers check the first value (what `rest.req:query()` returns). `is::array_of(...)` checks every value.
+- `body` is strict like client `expect` bodies: unexpected fields are rejected. Set `additional = true` in the `expect` block to allow unlisted fields at any depth (listed fields are still required and checked). A body that isn't JSON fails with `body: expected JSON`.
+- `path` keys must match a `{wildcard}` in the handler path; a typo is a parse error.
+
+### Proxying
+
+`proxy` forwards requests to another server and returns its response unchanged. The target can be `host:port` (assumed `http://`) or a full URL like `https://api.example.com`.
+
+- On the `server` block, it forwards every request. `directory` takes priority if both are set, and handlers are ignored.
+- On a `handler`, it forwards only that route. The handler's middleware and `expect` validation run first, so you can put auth or request validation in front of a real backend.
+
+The request path is kept and appended to any path in the target, so `proxy = "localhost:8081/v2"` sends `/users` to `localhost:8081/v2/users`.
+
+Note: the `Host` header is passed through unchanged (e.g. `localhost:8080`), not rewritten to the target's host. That's fine for local backends, but hosted APIs that route on `Host` (CDNs, virtual hosts) may reject the request.
+
+```hcl
+server {
+    address = "localhost:8080"
+
+    # mock the new endpoint locally...
+    handler "GET" "/users/{id}/settings" {
+        response {
+            status = 200
+            body   = { theme = "dark" }
+        }
+    }
+
+    # ...and send the rest of /users to the real backend, validated first
+    handler "*" "/users/" {
+        middleware = ["auth"] # see Middleware below
+        expect {
+            headers = { "X-Request-Id" = is::optional(is.uuid) }
+        }
+        proxy = "localhost:8081"
+    }
 }
 ```
 

@@ -17,8 +17,10 @@ type Expect struct {
 	Status  int               `hcl:"status,optional"`
 	Headers map[string]string `hcl:"headers,optional"`
 	Exact   bool              `hcl:"exact,optional"`
-	Body    string
-	BodyHCL hcl.Expression `hcl:"body,optional"`
+	// Additional allows unexpected fields in a JSON body.
+	Additional bool `hcl:"additional,optional"`
+	Body       string
+	BodyHCL    hcl.Expression `hcl:"body,optional"`
 }
 
 type Request struct {

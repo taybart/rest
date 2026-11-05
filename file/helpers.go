@@ -620,6 +620,29 @@ func makeIsFunc() function.Function {
 	})
 }
 
+// makeIsWrapFunc builds is::optional / is::array_of, which wrap any matcher,
+// literal or structure (e.g. is::optional({ id = is.int })).
+func makeIsWrapFunc(name string, wrap func(innerJSON string) string) function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name:      "matcher",
+				Type:      cty.DynamicPseudoType,
+				AllowNull: true,
+			},
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			val, _ := args[0].Unmark()
+			b, err := ctyjson.SimpleJSONValue{Value: val}.MarshalJSON()
+			if err != nil {
+				return cty.NilVal, fmt.Errorf("is::%s: %w", name, err)
+			}
+			return cty.StringVal(wrap(string(b))), nil
+		},
+	})
+}
+
 func ctyToMap(val cty.Value) (map[string]any, error) {
 	val, _ = val.Unmark()
 	if !val.Type().IsMapType() && !val.Type().IsObjectType() {

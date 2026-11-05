@@ -2,6 +2,7 @@ package request
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -23,7 +25,66 @@ func IsToken(rule string) string {
 	return IsPrefix + rule
 }
 
+// Compound rule prefixes. The text after the prefix is the JSON encoding of
+// the wrapped matcher, which may be a token string, a literal or a structure.
+const (
+	optionalRule = "optional:"
+	arrayOfRule  = "array_of:"
+)
+
+// OptionalToken wraps a JSON-encoded matcher so the value may be absent.
+func OptionalToken(innerJSON string) string {
+	return IsToken(optionalRule + innerJSON)
+}
+
+// ArrayOfToken wraps a JSON-encoded matcher that every array element must match.
+func ArrayOfToken(innerJSON string) string {
+	return IsToken(arrayOfRule + innerJSON)
+}
+
+// cutCompound splits a compound rule into its kind and decoded inner matcher.
+func cutCompound(rule string) (kind string, inner any, ok bool, err error) {
+	for _, k := range []string{optionalRule, arrayOfRule} {
+		if after, found := strings.CutPrefix(rule, k); found {
+			if err := json.Unmarshal([]byte(after), &inner); err != nil {
+				return k, nil, true, fmt.Errorf("invalid inner matcher in %q: %w", strings.TrimSuffix(k, ":"), err)
+			}
+			return k, inner, true, nil
+		}
+	}
+	return "", nil, false, nil
+}
+
+func isOptional(expected any) bool {
+	s, ok := expected.(string)
+	if !ok {
+		return false
+	}
+	rule, ok := strings.CutPrefix(s, IsPrefix)
+	return ok && strings.HasPrefix(rule, optionalRule)
+}
+
+// IsArrayOf reports whether expected is an is::array_of(...) matcher,
+// optionally wrapped in is::optional(...).
+func IsArrayOf(expected string) bool {
+	rule, ok := strings.CutPrefix(expected, IsPrefix)
+	if !ok {
+		return false
+	}
+	if after, ok := strings.CutPrefix(rule, optionalRule); ok {
+		var inner string
+		if json.Unmarshal([]byte(after), &inner) != nil {
+			return false
+		}
+		return IsArrayOf(inner)
+	}
+	return strings.HasPrefix(rule, arrayOfRule)
+}
+
 func ValidateIsRule(rule string) error {
+	if _, _, ok, err := cutCompound(rule); ok {
+		return err
+	}
 	switch strings.ToLower(strings.TrimSpace(rule)) {
 	case "uuid", "uuidv4", "ulid", "nanoid", "jwt",
 		"string", "number", "int", "integer",
@@ -58,27 +119,19 @@ func CheckExpectation(label string, expect *Expect, expectStatus int, statusCode
 			return fmt.Errorf(`request(%s): unexpected status code %d != %d`, label, expect.Status, statusCode)
 		}
 		if expect.Body != "" {
-			if err := MatchExpectedBody(expect.Body, body, expect.Exact); err != nil {
+			if err := MatchExpectedBody(expect.Body, body, BodyOptions{Exact: expect.Exact, Additional: expect.Additional}); err != nil {
 				return fmt.Errorf(`request(%s): %w`, label, err)
 			}
 		}
 		if len(expect.Headers) != 0 {
-			for k, expVal := range expect.Headers {
-				values := headers.Values(k)
-				if len(values) == 0 {
-					return fmt.Errorf(`request(%s): required response header %q not present`, label, k)
-				}
-				matches := false
-				lastValue := ""
-				for _, value := range values {
-					lastValue = value
-					if matchHeaderValue(expVal, value) {
-						matches = true
-						break
-					}
-				}
-				if !matches {
-					return fmt.Errorf(`request(%s): unexpected response header [%s] %s != %s`, label, k, formatExpectedVal(expVal), lastValue)
+			keys := make([]string, 0, len(expect.Headers))
+			for k := range expect.Headers {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				if err := MatchStringValues("header "+k, expect.Headers[k], headers.Values(k)); err != nil {
+					return fmt.Errorf(`request(%s): %w`, label, err)
 				}
 			}
 		}
@@ -90,29 +143,124 @@ func CheckExpectation(label string, expect *Expect, expectStatus int, statusCode
 	return nil
 }
 
-func matchHeaderValue(expected, actual string) bool {
-	if rule, ok := strings.CutPrefix(expected, IsPrefix); ok {
-		return matchIsRule("header", rule, actual) == nil
+// MatchStringValues matches string values (headers, query params, path values)
+// against an expectation. Values that look like numbers or bools are coerced
+// for is.int/is.number/is.bool. Scalar rules pass if any value matches;
+// is::array_of(...) requires every value to match.
+func MatchStringValues(path, expected string, values []string) error {
+	rule, isRule := strings.CutPrefix(expected, IsPrefix)
+	if len(values) == 0 {
+		if isRule && strings.HasPrefix(rule, optionalRule) {
+			return nil
+		}
+		return fmt.Errorf("%s: missing required value", path)
 	}
-	return expected == actual
+	if !isRule {
+		for _, v := range values {
+			if v == expected {
+				return nil
+			}
+		}
+		return fmt.Errorf("%s: expected %q, got %q", path, expected, values[len(values)-1])
+	}
+
+	kind, inner, compound, err := cutCompound(rule)
+	if err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	if compound {
+		innerStr, ok := inner.(string)
+		if !ok {
+			return fmt.Errorf("%s: cannot match structured value %s against a string", path, formatJSONVal(inner))
+		}
+		if kind == optionalRule {
+			return MatchStringValues(path, innerStr, values)
+		}
+		for i, v := range values {
+			if err := MatchStringValues(fmt.Sprintf("%s[%d]", path, i), innerStr, []string{v}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	var firstErr error
+	for _, v := range values {
+		err := matchIsRule(path, rule, coerceString(rule, v), false)
+		if err == nil {
+			return nil
+		}
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
-func MatchExpectedBody(expectedBody, actualBody string, exact bool) error {
-	if exact {
+// coerceString converts a string to the JSON type a scalar rule expects so
+// "4" satisfies is.int and "true" satisfies is.bool.
+func coerceString(rule, v string) any {
+	switch strings.ToLower(strings.TrimSpace(rule)) {
+	case "number", "int", "integer":
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	case "bool", "boolean":
+		switch v {
+		case "true":
+			return true
+		case "false":
+			return false
+		}
+	}
+	return v
+}
+
+// BodyOptions controls how MatchExpectedBody compares bodies.
+type BodyOptions struct {
+	// Exact compares the raw strings instead of matching JSON structurally.
+	Exact bool
+	// Additional allows fields in the actual body (at any depth) that the
+	// expected body doesn't list.
+	Additional bool
+}
+
+func MatchExpectedBody(expectedBody, actualBody string, opts BodyOptions) error {
+	if opts.Exact {
 		if expectedBody != actualBody {
 			return fmt.Errorf("body does not match expectation %s != %s", expectedBody, actualBody)
 		}
 		return nil
 	}
 	if rule, ok := strings.CutPrefix(expectedBody, IsPrefix); ok {
-		return matchIsRule("body", rule, actualBody)
+		if _, _, compound, _ := cutCompound(rule); compound {
+			if strings.TrimSpace(actualBody) == "" {
+				if strings.HasPrefix(rule, optionalRule) {
+					return nil
+				}
+				return errors.New("body: missing")
+			}
+			var act any = actualBody
+			var decoded any
+			if json.Unmarshal([]byte(actualBody), &decoded) == nil {
+				act = decoded
+			}
+			return matchIsRule("body", rule, act, opts.Additional)
+		}
+		return matchIsRule("body", rule, actualBody, opts.Additional)
 	}
 
 	var expJSON, actJSON any
 	expErr := json.Unmarshal([]byte(expectedBody), &expJSON)
 	actErr := json.Unmarshal([]byte(actualBody), &actJSON)
 	if expErr == nil && actErr == nil {
-		return matchJSONValue("body", expJSON, actJSON)
+		return matchJSONValue("body", expJSON, actJSON, opts.Additional)
+	}
+	if expErr == nil {
+		if strings.TrimSpace(actualBody) == "" {
+			return errors.New("body: missing")
+		}
+		return fmt.Errorf("body: expected JSON, got %q", truncate(actualBody, 64))
 	}
 
 	if expectedBody != actualBody {
@@ -121,10 +269,10 @@ func MatchExpectedBody(expectedBody, actualBody string, exact bool) error {
 	return nil
 }
 
-func matchJSONValue(path string, expected, actual any) error {
+func matchJSONValue(path string, expected, actual any, additional bool) error {
 	if expStr, ok := expected.(string); ok {
 		if rule, isMatcher := strings.CutPrefix(expStr, IsPrefix); isMatcher {
-			return matchIsRule(path, rule, actual)
+			return matchIsRule(path, rule, actual, additional)
 		}
 	}
 
@@ -142,11 +290,17 @@ func matchJSONValue(path string, expected, actual any) error {
 		for _, k := range expKeys {
 			actVal, exists := actMap[k]
 			if !exists {
+				if isOptional(exp[k]) {
+					continue
+				}
 				return fmt.Errorf("%s.%s: missing required field", path, k)
 			}
-			if err := matchJSONValue(path+"."+k, exp[k], actVal); err != nil {
+			if err := matchJSONValue(path+"."+k, exp[k], actVal, additional); err != nil {
 				return err
 			}
+		}
+		if additional {
+			return nil
 		}
 		actKeys := make([]string, 0, len(actMap))
 		for k := range actMap {
@@ -169,7 +323,7 @@ func matchJSONValue(path string, expected, actual any) error {
 			return fmt.Errorf("%s: expected array length %d, got %d", path, len(exp), len(actArr))
 		}
 		for i := range exp {
-			if err := matchJSONValue(fmt.Sprintf("%s[%d]", path, i), exp[i], actArr[i]); err != nil {
+			if err := matchJSONValue(fmt.Sprintf("%s[%d]", path, i), exp[i], actArr[i], additional); err != nil {
 				return err
 			}
 		}
@@ -183,7 +337,25 @@ func matchJSONValue(path string, expected, actual any) error {
 	}
 }
 
-func matchIsRule(path, rule string, actual any) error {
+func matchIsRule(path, rule string, actual any, additional bool) error {
+	if kind, inner, ok, err := cutCompound(rule); ok {
+		if err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+		if kind == optionalRule {
+			return matchJSONValue(path, inner, actual, additional)
+		}
+		arr, isArr := actual.([]any)
+		if !isArr {
+			return fmt.Errorf("%s: expected array, got %s (%s)", path, jsonTypeName(actual), formatJSONVal(actual))
+		}
+		for i, item := range arr {
+			if err := matchJSONValue(fmt.Sprintf("%s[%d]", path, i), inner, item, additional); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	if pat, ok := cutRegexRule(rule); ok {
 		s, ok := actual.(string)
 		if !ok {
@@ -328,17 +500,28 @@ func jsonTypeName(v any) string {
 	}
 }
 
-func formatExpectedVal(s string) string {
-	if rule, ok := strings.CutPrefix(s, IsPrefix); ok {
-		return "is." + rule
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
 	}
-	return s
+	return s[:n] + "..."
+}
+
+// describeRule renders a matcher rule the way it is written in a .rest file.
+func describeRule(rule string) string {
+	if kind, inner, ok, err := cutCompound(rule); ok && err == nil {
+		return "is::" + strings.TrimSuffix(kind, ":") + "(" + formatJSONVal(inner) + ")"
+	}
+	if pat, ok := cutRegexRule(rule); ok {
+		return fmt.Sprintf("is(%q)", "regex:"+pat)
+	}
+	return "is." + rule
 }
 
 func formatJSONVal(v any) string {
 	if s, ok := v.(string); ok {
 		if rule, ok := strings.CutPrefix(s, IsPrefix); ok {
-			return "is." + rule
+			return describeRule(rule)
 		}
 	}
 	b, err := json.Marshal(v)

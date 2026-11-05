@@ -102,6 +102,7 @@ request "login" {
     headers = { "content-type" = "application/json" }
     # Note: every key returned in a JSON object must be matched in `expect.body`
     # (use `is.any`, `is.object`, etc. for fields you don't care about), or it fails with `unexpected field`.
+    # Or set `additional = true` to allow unlisted fields at any depth.
     body    = {
       token = is.uuidv4
       id    = is.int
@@ -147,6 +148,8 @@ request "get profile" {
   - `is.uuid`, `is.uuidv4`, `is.ulid`, `is.nanoid`, `is.jwt`, `is.email`, `is.url`
   - `is.string`, `is.number`, `is.int`, `is.bool`, `is.array`, `is.object`, `is.null`, `is.any`, `is.not_empty`
   - `is("regex:<pattern>")` or `is("regex", "<pattern>")`
+  - `is::optional(<matcher>)` (may be absent; `null` is not absent), `is::array_of(<matcher>)` (every element matches); they nest
+  - the same matchers work in a server `handler`'s `expect { headers, query, path, body }` block (see the server section)
 
 ---
 
@@ -285,4 +288,4 @@ server {
   }
 }
 ```
-For cookie options in server responses, WebSocket echo handlers (`ws = true`), proxy handlers, and full `kv` methods (`kv.get`, `kv.set`, `kv.del`, `kv.all`), consult `references/SERVER.md`.
+Forward to another server with `proxy = "localhost:8081"` on the `server` block (everything) or on a `handler` (one route, after its middleware and `expect`). For cookie options in server responses, WebSocket echo handlers (`ws = true`), proxy details, and full `kv` methods (`kv.get`, `kv.set`, `kv.del`, `kv.all`), consult `references/SERVER.md`.

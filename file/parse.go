@@ -351,6 +351,16 @@ func (p *Parser) Server() (server.Config, error) {
 					return serv, fmt.Errorf("handler %s %s: middleware %q not found", handler.Method, handler.Path, mwName)
 				}
 			}
+			if handler.Expect != nil {
+				if err := validateHandlerExpect(handler); err != nil {
+					return serv, err
+				}
+				b, err := p.marshalBody(handler.Expect.BodyHCL)
+				if err != nil {
+					return serv, err
+				}
+				serv.Handlers[k].Expect.Body = b
+			}
 			if handler.Response != nil {
 				b, err := p.marshalBody(handler.Response.BodyHCL)
 				if err != nil {
@@ -361,6 +371,17 @@ func (p *Parser) Server() (server.Config, error) {
 		}
 	}
 	return serv, nil
+}
+
+// validateHandlerExpect catches expect blocks that can never pass, like a
+// path matcher for a wildcard the route doesn't have.
+func validateHandlerExpect(h *server.Handler) error {
+	for name := range h.Expect.Path {
+		if !strings.Contains(h.Path, "{"+name+"}") && !strings.Contains(h.Path, "{"+name+"...}") {
+			return fmt.Errorf("handler %s %s: expect.path.%s: no {%s} wildcard in path", h.Method, h.Path, name, name)
+		}
+	}
+	return nil
 }
 
 func (p *Parser) Request(hreq *HCLRequest) (request.Request, error) {
@@ -542,6 +563,8 @@ func (p *Parser) makeContext() {
 			"env":              makeEnvFunc(),
 			"form":             makeFormFunc(),
 			"is":               makeIsFunc(),
+			"is::array_of":     makeIsWrapFunc("array_of", request.ArrayOfToken),
+			"is::optional":     makeIsWrapFunc("optional", request.OptionalToken),
 			"json_dec":         makeJSONDecodeFunc(),
 			"json_enc":         makeJSONEncodeFunc(),
 			"jwt_dec":          makeJWTDecodeFunc(),

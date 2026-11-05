@@ -158,6 +158,9 @@ request "my request" {
     }
     # optional: set exact = true to require raw byte-for-byte body string equality
     # exact = true
+    # optional: by default every field in the response must be listed in body (else `unexpected field`),
+    # set additional = true to allow unlisted fields at any depth (listed fields are still required)
+    # additional = true
   }
 
   # is a string (or list of strings), heredoc (<<IDENT ... IDENT) is a good way to set it
@@ -190,6 +193,9 @@ There are a few functions that can be used in a rest file:
   - `is.uuid`, `is.uuidv4`, `is.ulid`, `is.nanoid`, `is.jwt`, `is.email`, `is.url`
   - `is.string`, `is.number`, `is.int`, `is.bool`, `is.array`, `is.object`, `is.null`, `is.any`, `is.not_empty`
   - `is("regex:<pattern>")` or `is("regex", "<pattern>")` - match a string against a regular expression
+  - `is::optional(<matcher>)` - the field (or header) may be absent; if present it must match. `null` does not count as absent
+  - `is::array_of(<matcher>)` - every element must match, e.g. `is::array_of(is.string)` or `is::array_of({ id = is.int })`
+  - these compose: `is::optional(is::array_of({ id = is.int, note = is::optional(is.string) }))`
 
 For example (more examples in [examples/client](examples/client)):
 

@@ -73,6 +73,7 @@ func (s *Server) CustomHandlerFn(handler *Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if handler.Method == r.Method || handler.Method == "*" {
 			if len(handler.Middleware) > 0 || handler.Fn != "" {
+				// validation runs inside the pipeline, after middleware
 				res, handled, err := s.RunLuaPipeline(handler, r, w)
 				if err != nil {
 					log.Error(err)
@@ -80,16 +81,13 @@ func (s *Server) CustomHandlerFn(handler *Handler) http.HandlerFunc {
 					return
 				}
 				if handled {
-					for k, v := range res.Headers {
-						w.Header().Add(k, v)
-					}
-					for _, c := range res.Cookies {
-						http.SetCookie(w, c)
-					}
-					w.WriteHeader(res.Status)
-					fmt.Fprint(w, string(res.Body))
+					writeHandlerResponse(w, res)
 					return
 				}
+			} else if err := ValidateRequest(handler.Expect, r); err != nil {
+				log.Warnf("%s %s: %v\n", r.Method, r.URL.Path, err)
+				writeHandlerResponse(w, validationResponse(err))
+				return
 			}
 			if handler.Proxy != "" {
 				proxy.ServeHTTP(w, r)
@@ -102,6 +100,17 @@ func (s *Server) CustomHandlerFn(handler *Handler) http.HandlerFunc {
 		}
 		s.WriteResponseWithDefault(w, Response{Status: http.StatusNotFound})
 	}
+}
+
+func writeHandlerResponse(w http.ResponseWriter, res Response) {
+	for k, v := range res.Headers {
+		w.Header().Add(k, v)
+	}
+	for _, c := range res.Cookies {
+		http.SetCookie(w, c)
+	}
+	w.WriteHeader(res.Status)
+	fmt.Fprint(w, string(res.Body))
 }
 
 func (s *Server) HandleQuit(server *http.Server) http.HandlerFunc {
