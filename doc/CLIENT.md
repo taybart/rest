@@ -279,6 +279,8 @@ There are a couple of global libraries available to you:
 - `jwt` - sign, decode, and verify JWTs (`jwt.sign(claims, secret [, opts])`, `jwt.decode(token)`, `jwt.verify(token, secret [, opts])`, `jwt.is_valid(token [, secret, opts])`)
 - `form` - encode and decode url-encoded form/query strings (`form.encode(tbl)`, `form.decode(str)`)
 - `base64` - encode and decode base64 (`base64.encode(str [, { url = true, raw = true }])`, `base64.decode(str)`)
+- `url` - escape and unescape url components (`url.escape(str)` / `url.unescape(str)` for query values, space is `+`; `url.path_escape(str)` / `url.path_unescape(str)` for path segments, space is `%20`)
+- `html` - escape and unescape html entities (`html.escape(str)`, `html.unescape(str)`)
 
 *ids*
 - `uuid` - generate and validate UUIDs (`uuid.newv4()`, `uuid.is_uuid(str)`, `uuid.is_uuidv4(str)`)
