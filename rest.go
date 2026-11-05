@@ -218,13 +218,13 @@ func (rest *Rest) ExportTo(w io.Writer, export, label string, block int) error {
 		fmt.Fprintln(w, "postman")
 		return nil
 	}
-	if export == "postman" {
-		return exports.ToPostmanCollection(rest.filename, label, block)
-	}
-
-	t, err := templates.Get(export)
-	if err != nil {
-		return err
+	// resolve the template before evaluating requests so a bad -e fails fast
+	var t *templates.Template
+	if export != "postman" {
+		var err error
+		if t, err = templates.Get(export); err != nil {
+			return err
+		}
 	}
 
 	treqs := []templates.Request{}
@@ -261,6 +261,9 @@ func (rest *Rest) ExportTo(w io.Writer, export, label string, block int) error {
 			return fmt.Errorf("request block %d not found", block)
 		}
 		return errors.New("no requests to export (all marked skip = true?)")
+	}
+	if export == "postman" {
+		return exports.ToPostman(w, rest.filename, treqs)
 	}
 	return t.Execute(w, treqs)
 }
