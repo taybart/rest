@@ -25,78 +25,94 @@ func (s *Server) Routes(server *http.Server) {
 		s.Router.HandleFunc("/", gzipHandler(s.HandleDir()))
 		return
 	}
-	if s.Config.Proxy != "" {
-		proxy := httputil.NewSingleHostReverseProxy(s.MustParseURL(s.Config.Proxy))
-		s.Router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			proxy.ServeHTTP(w, r)
-		})
+	// a server-level proxy forwards anything the handlers don't match
+	var fallback http.HandlerFunc
+	if s.Config.Proxy != nil {
+		fallback = log.Middleware(s.ProxyHandler(s.Config.Proxy))
+	}
+	if len(s.Config.Handlers) > 0 {
+		s.registerHandlerFns(fallback)
 		return
 	}
-	if !s.registerHandlerFns() {
-		s.Router.HandleFunc("/__ws__", s.HandleWSEcho("*"))
-		s.Router.HandleFunc("/__echo__", log.Middleware(gzipHandler(s.HandleEcho())))
-		s.Router.HandleFunc("/", log.Middleware(gzipHandler(s.HandleRoot())))
+	if fallback != nil {
+		s.Router.HandleFunc("/", fallback)
+		return
 	}
+	s.Router.HandleFunc("/__ws__", s.HandleWSEcho("*"))
+	s.Router.HandleFunc("/__echo__", log.Middleware(gzipHandler(s.HandleEcho())))
+	s.Router.HandleFunc("/", log.Middleware(gzipHandler(s.HandleRoot())))
 }
 
-func (s *Server) registerHandlerFns() bool {
-	if len(s.Config.Handlers) > 0 {
-		rootRegistered := false
-		for _, handler := range s.Config.Handlers {
-			if handler.Path == "/" {
-				rootRegistered = true
-			}
-			log.Infof("registering handler %s%s%s\n", log.Blue, handler.Path, log.Reset)
-			if handler.WS {
-				s.Router.HandleFunc(handler.Path, s.HandleWSEcho(handler.Method))
-			} else {
-				s.Router.HandleFunc(handler.Path, log.Middleware(s.CustomHandlerFn(handler)))
-			}
-		}
-		if !rootRegistered {
-			// catch all with s.Config.Response as default if specified
-			s.Router.HandleFunc("/", log.Middleware(func(w http.ResponseWriter, r *http.Request) {
-				s.WriteResponseWithDefault(w, Response{Status: http.StatusNotFound})
-			}))
-		}
-		return true
+// handlerPattern builds a ServeMux pattern. Including the method lets
+// handlers share a path ("GET /x" and "POST /x"); "*" matches any method.
+func handlerPattern(h *Handler) string {
+	if h.Method == "*" || h.Method == "" {
+		return h.Path
 	}
-	return false
+	return strings.ToUpper(h.Method) + " " + h.Path
 }
+
+func (s *Server) registerHandlerFns(fallback http.HandlerFunc) {
+	rootRegistered := false
+	for _, handler := range s.Config.Handlers {
+		pattern := handlerPattern(handler)
+		if pattern == "/" {
+			rootRegistered = true
+		}
+		log.Infof("registering handler %s%s%s\n", log.Blue, pattern, log.Reset)
+		switch {
+		case handler.WS:
+			s.Router.HandleFunc(pattern, s.HandleWSEcho("*"))
+		default:
+			s.Router.HandleFunc(pattern, log.Middleware(s.CustomHandlerFn(handler)))
+		}
+	}
+	if rootRegistered {
+		return
+	}
+	if fallback != nil {
+		s.Router.HandleFunc("/", fallback)
+		return
+	}
+	// catch all with s.Config.Response as default if specified
+	s.Router.HandleFunc("/", log.Middleware(func(w http.ResponseWriter, r *http.Request) {
+		s.WriteResponseWithDefault(w, Response{Status: http.StatusNotFound})
+	}))
+}
+
+// CustomHandlerFn serves a handler block. Method matching is done by the
+// router pattern (see handlerPattern).
 func (s *Server) CustomHandlerFn(handler *Handler) http.HandlerFunc {
-
-	var proxy *httputil.ReverseProxy
-	if handler.Proxy != "" {
-		proxy = httputil.NewSingleHostReverseProxy(s.MustParseURL(handler.Proxy))
+	var proxy http.HandlerFunc
+	if handler.Proxy != nil {
+		proxy = s.ProxyHandler(handler.Proxy)
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if handler.Method == r.Method || handler.Method == "*" {
-			if len(handler.Middleware) > 0 || handler.Fn != "" {
-				// validation runs inside the pipeline, after middleware
-				res, handled, err := s.RunLuaPipeline(handler, r, w)
-				if err != nil {
-					log.Error(err)
-					w.WriteHeader(http.StatusBadRequest)
-					return
-				}
-				if handled {
-					writeHandlerResponse(w, res)
-					return
-				}
-			} else if err := ValidateRequest(handler.Expect, r); err != nil {
-				log.Warnf("%s %s: %v\n", r.Method, r.URL.Path, err)
-				writeHandlerResponse(w, validationResponse(err))
+		if len(handler.Middleware) > 0 || handler.Fn != "" {
+			// validation runs inside the pipeline, after middleware
+			res, handled, err := s.RunLuaPipeline(handler, r, w)
+			if err != nil {
+				log.Error(err)
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			if handler.Proxy != "" {
-				proxy.ServeHTTP(w, r)
+			if handled {
+				writeHandlerResponse(w, res)
 				return
 			}
-			if handler.Response != nil {
-				s.WriteResponseWithDefault(w, *handler.Response)
-				return
-			}
+		} else if err := ValidateRequest(handler.Expect, r); err != nil {
+			log.Warnf("%s %s: %v\n", r.Method, r.URL.Path, err)
+			writeHandlerResponse(w, validationResponse(err))
+			return
+		}
+		if proxy != nil {
+			proxy(w, r)
+			return
+		}
+		if handler.Response != nil {
+			s.WriteResponseWithDefault(w, *handler.Response)
+			return
 		}
 		s.WriteResponseWithDefault(w, Response{Status: http.StatusNotFound})
 	}

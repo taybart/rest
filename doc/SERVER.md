@@ -88,9 +88,10 @@ server {
     directory = "./test"
     # should this be treated as a single page application (ie frontend routing) by returning index.html instead of 404 (default false)
     spa = true
-    # forward every request to another server (see Proxying below)
+    # forward every request no handler matches to another server (see Proxying below)
     # proxy = "localhost:8081"
     # if you need a more complicated test server you can add specific handlers
+    # handlers can share a path with different methods ("GET" "/path" and "POST" "/path"), "*" matches any method
     handler "GET" "/path" {
         # override responses and just serve a websocket echo path
         ws = true
@@ -98,6 +99,11 @@ server {
         fn = "similar concept to the after hook in the client files (see hander fns below)"
         # or forward just this route to another server
         proxy = "localhost:8081"
+        # or with options, use a block instead (see Proxying below)
+        # proxy {
+        #     target = "localhost:8081"
+        #     strip  = "/api"
+        # }
         # or use a response object to just have different responses per path
         response {
             status = 200
@@ -204,16 +210,45 @@ GET /users/abc                   ->  400 {"error":"path.id: expected integer, go
 
 `proxy` forwards requests to another server and returns its response unchanged. The target can be `host:port` (assumed `http://`) or a full URL like `https://api.example.com`.
 
-- On the `server` block, it forwards every request. `directory` takes priority if both are set, and handlers are ignored.
+- On the `server` block, it's the fallback: requests that no `handler` matches (by path or method) are forwarded. Mock the routes you're working on and let everything else hit the real backend. `directory` takes priority if both are set.
 - On a `handler`, it forwards only that route. The handler's middleware and `expect` validation run first, so you can put auth or request validation in front of a real backend.
 
-The request path is kept and appended to any path in the target, so `proxy = "localhost:8081/v2"` sends `/users` to `localhost:8081/v2/users`.
+Details:
+- The request path is kept and appended to any path in the target, so `proxy = "localhost:8081/v2"` sends `/users` to `localhost:8081/v2/users`.
+- The `Host` header is set to the target's host, so hosted APIs behind CDNs or virtual hosts work. The original host is sent as `X-Forwarded-Host`, along with `X-Forwarded-For` and `X-Forwarded-Proto`.
+- Responses stream through as they arrive (SSE, chunked responses), websockets are forwarded, and the server's 15s timeouts don't apply to proxied requests.
 
-Note: the `Host` header is passed through unchanged (e.g. `localhost:8080`), not rewritten to the target's host. That's fine for local backends, but hosted APIs that route on `Host` (CDNs, virtual hosts) may reject the request.
+#### Options
+
+Like `expect`, `proxy` can be a value (`proxy = "localhost:8081"`) or a block with options (use one or the other, not both):
+
+```hcl
+handler "*" "/api/" {
+    proxy {
+        target = "https://staging.example.com"
+        # remove a path prefix before forwarding: /api/users -> /users
+        # (only at a segment boundary, so /apiary is left alone)
+        strip = "/api"
+        # set headers on the forwarded request, replacing what the client sent
+        headers = {
+            Authorization = "Bearer ${env("STAGING_TOKEN")}" # keep the token out of the frontend
+            Cookie        = ""                               # empty removes the header
+            # Host        = "api.internal"                   # overrides the Host rewrite
+        }
+        # skip TLS certificate verification for the target (e.g. a self-signed local backend)
+        # insecure = true
+    }
+}
+```
+
+`strip` runs before the target's path is added, so `target = "localhost:8081/v2"` with `strip = "/api"` sends `/api/users` to `/v2/users`. Header values are evaluated once when the file loads (so `env()`, `locals` and `exports` work), not per request.
+
+`insecure` only applies to the proxy it's set on, and the server prints a warning at startup for each one. It's separate from `insecure_no_verify_tls` in the `config` block, which only affects client requests, so turning verification off for your local mock server doesn't also turn it off for a proxy to a real backend.
 
 ```hcl
 server {
     address = "localhost:8080"
+    proxy   = "https://api.example.com"
 
     # mock the new endpoint locally...
     handler "GET" "/users/{id}/settings" {
@@ -223,14 +258,17 @@ server {
         }
     }
 
-    # ...and send the rest of /users to the real backend, validated first
-    handler "*" "/users/" {
+    # ...validate writes before they reach a local backend...
+    handler "POST" "/users" {
         middleware = ["auth"] # see Middleware below
         expect {
-            headers = { "X-Request-Id" = is::optional(is.uuid) }
+            additional = true
+            body       = { name = is.not_empty, email = is.email }
         }
         proxy = "localhost:8081"
     }
+
+    # ...and everything else (including GET /users) goes to api.example.com
 }
 ```
 

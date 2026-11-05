@@ -12,8 +12,13 @@ serve-wasm: wasm
 	go run ./cmd/rest -s -d ./web -a localhost:8000
 
 # Regenerate gomod2nix.toml after changing go.mod/go.sum
+# (uses nix if installed, otherwise a python equivalent that only needs go)
 nix-lock:
-	nix run .#gomod2nix -- generate
+	@if command -v nix >/dev/null 2>&1; then \
+		nix run .#gomod2nix -- generate; \
+	else \
+		python3 -I scripts/gomod2nix.py; \
+	fi
 
 .PHONY: rest wasm serve-wasm nix-lock
 

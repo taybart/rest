@@ -330,6 +330,10 @@ func (p *Parser) Server() (server.Config, error) {
 		}
 		serv.Response.Body = json.RawMessage(b)
 	}
+	var err error
+	if serv.Proxy, err = p.parseProxy(serv.ProxyHCL, serv.Proxy); err != nil {
+		return serv, fmt.Errorf("server proxy: %w", err)
+	}
 	if serv.KVHCL != nil {
 		kv, err := p.marshalKV(serv.KVHCL)
 		if err != nil {
@@ -345,7 +349,18 @@ func (p *Parser) Server() (server.Config, error) {
 		mwNames[mw.Name] = true
 	}
 	if len(serv.Handlers) != 0 {
+		seen := make(map[string]bool, len(serv.Handlers))
+		for _, handler := range serv.Handlers {
+			key := strings.ToUpper(handler.Method) + " " + handler.Path
+			if seen[key] {
+				return serv, fmt.Errorf("duplicate handler %s %s", handler.Method, handler.Path)
+			}
+			seen[key] = true
+		}
 		for k, handler := range serv.Handlers {
+			if serv.Handlers[k].Proxy, err = p.parseProxy(handler.ProxyHCL, handler.Proxy); err != nil {
+				return serv, fmt.Errorf("handler %s %s: proxy: %w", handler.Method, handler.Path, err)
+			}
 			for _, mwName := range handler.Middleware {
 				if !mwNames[mwName] {
 					return serv, fmt.Errorf("handler %s %s: middleware %q not found", handler.Method, handler.Path, mwName)
@@ -768,6 +783,42 @@ func (p *Parser) marshalAfter(afterHCL hcl.Expression) (string, error) {
 		return strings.Join(parts, "\n"), nil
 	}
 	return "", fmt.Errorf("after must be a string or list of strings, got %s", afterVal.Type().FriendlyName())
+}
+
+// parseProxy resolves `proxy = "target"` and `proxy { ... }` into one Proxy.
+func (p *Parser) parseProxy(expr hcl.Expression, block *server.Proxy) (*server.Proxy, error) {
+	var target string
+	if expr != nil {
+		val, diags := expr.Value(p.Ctx)
+		if diags.HasErrors() {
+			p.writeDiags(diags)
+			return nil, errors.New("could not decode")
+		}
+		val, _ = val.Unmark()
+		if !val.IsNull() {
+			if val.Type() != cty.String {
+				return nil, fmt.Errorf("proxy = expects a target string, got %s (use a proxy { } block for options)", val.Type().FriendlyName())
+			}
+			if target = val.AsString(); target == "" {
+				return nil, errors.New("target is empty")
+			}
+		}
+	}
+	switch {
+	case target != "" && block != nil:
+		return nil, errors.New("use either proxy = \"...\" or a proxy { } block, not both")
+	case target != "":
+		return &server.Proxy{Target: target}, nil
+	case block == nil:
+		return nil, nil
+	}
+	if block.Target == "" {
+		return nil, errors.New("target is empty")
+	}
+	if block.Strip != "" && !strings.HasPrefix(block.Strip, "/") {
+		return nil, fmt.Errorf("strip must start with /, got %q", block.Strip)
+	}
+	return block, nil
 }
 
 func (p *Parser) marshalKV(kvHCL hcl.Expression) (map[string]any, error) {

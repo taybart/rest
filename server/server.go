@@ -37,15 +37,18 @@ type Middleware struct {
 }
 
 type Handler struct {
-	Method     string    `json:"method" hcl:"method,label"`
-	Path       string    `json:"path" hcl:"path,label"`
-	Middleware []string  `json:"middleware" hcl:"middleware,optional"`
-	Fn         string    `json:"fn" hcl:"fn,optional"`
-	Proxy      string    `json:"proxy" hcl:"proxy,optional"`
-	WS         bool      `json:"ws" hcl:"ws,optional"`
-	Response   *Response `hcl:"response,block"`
-	Expect     *Expect   `json:"expect,omitempty" hcl:"expect,block"`
-	Lang       string    `json:"-"`
+	Method     string   `json:"method" hcl:"method,label"`
+	Path       string   `json:"path" hcl:"path,label"`
+	Middleware []string `json:"middleware" hcl:"middleware,optional"`
+	Fn         string   `json:"fn" hcl:"fn,optional"`
+	// proxy = "target" lands in ProxyHCL and is moved into Proxy by the
+	// parser; a proxy { } block decodes straight into Proxy
+	ProxyHCL hcl.Expression `json:"-" hcl:"proxy,optional"`
+	Proxy    *Proxy         `json:"proxy,omitempty" hcl:"proxy,block"`
+	WS       bool           `json:"ws" hcl:"ws,optional"`
+	Response *Response      `hcl:"response,block"`
+	Expect   *Expect        `json:"expect,omitempty" hcl:"expect,block"`
+	Lang     string         `json:"-"`
 }
 
 // Expect declares what a handler accepts. Requests that don't match get a
@@ -71,14 +74,15 @@ type Server struct {
 }
 
 type Config struct {
-	Addr     string    `hcl:"address"`
-	Dir      string    `hcl:"directory,optional"`
-	Proxy    string    `hcl:"proxy,optional"`
-	Quiet    bool      `hcl:"quiet,optional"`
-	Response *Response `hcl:"response,block"`
-	Origins  []string  `hcl:"origins,optional"`
-	Cors     bool      `hcl:"cors,optional"`
-	TLS      string    `hcl:"tls,optional"`
+	Addr     string         `hcl:"address"`
+	Dir      string         `hcl:"directory,optional"`
+	ProxyHCL hcl.Expression `json:"-" hcl:"proxy,optional"`
+	Proxy    *Proxy         `json:"proxy,omitempty" hcl:"proxy,block"`
+	Quiet    bool           `hcl:"quiet,optional"`
+	Response *Response      `hcl:"response,block"`
+	Origins  []string       `hcl:"origins,optional"`
+	Cors     bool           `hcl:"cors,optional"`
+	TLS      string         `hcl:"tls,optional"`
 	// serve https with this machine's tailscale cert (needs the tailscale cli)
 	Tailscale   bool           `hcl:"tailscale,optional"`
 	Setup       string         `hcl:"setup,optional"`
