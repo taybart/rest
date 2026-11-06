@@ -46,9 +46,16 @@ type Handler struct {
 	ProxyHCL hcl.Expression `json:"-" hcl:"proxy,optional"`
 	Proxy    *Proxy         `json:"proxy,omitempty" hcl:"proxy,block"`
 	WS       bool           `json:"ws" hcl:"ws,optional"`
-	Response *Response      `hcl:"response,block"`
-	Expect   *Expect        `json:"expect,omitempty" hcl:"expect,block"`
-	Lang     string         `json:"-"`
+	// Stateful keeps the lua state between requests (see state.go).
+	Stateful bool `json:"stateful" hcl:"stateful,optional"`
+	// Page is like Fn, but returns a jsx element that's served as an
+	// interactive page (see page.go).
+	Page string `json:"page,omitempty" hcl:"page,optional"`
+	// set on the POST handler rest adds for a page's actions
+	pageActions bool
+	Response    *Response `hcl:"response,block"`
+	Expect      *Expect   `json:"expect,omitempty" hcl:"expect,block"`
+	Lang        string    `json:"-"`
 }
 
 // Expect declares what a handler accepts. Requests that don't match get a
@@ -71,6 +78,8 @@ type Server struct {
 	kvMu   sync.RWMutex
 	kvOnce sync.Once
 	kv     map[string]any
+	// lua states of stateful handlers (set up by Routes)
+	states *stateStore
 }
 
 type Config struct {
@@ -79,10 +88,15 @@ type Config struct {
 	ProxyHCL hcl.Expression `json:"-" hcl:"proxy,optional"`
 	Proxy    *Proxy         `json:"proxy,omitempty" hcl:"proxy,block"`
 	Quiet    bool           `hcl:"quiet,optional"`
-	Response *Response      `hcl:"response,block"`
-	Origins  []string       `hcl:"origins,optional"`
-	Cors     bool           `hcl:"cors,optional"`
-	TLS      string         `hcl:"tls,optional"`
+	// limits for stateful handlers (see state.go): the max number of states
+	// (default 1000) and how long unused ones are kept (ex. "10m", default
+	// 30m)
+	MaxStates int       `json:"max_states,omitempty" hcl:"max_states,optional"`
+	StateTTL  string    `json:"state_ttl,omitempty" hcl:"state_ttl,optional"`
+	Response  *Response `hcl:"response,block"`
+	Origins   []string  `hcl:"origins,optional"`
+	Cors      bool      `hcl:"cors,optional"`
+	TLS       string    `hcl:"tls,optional"`
 	// serve https with this machine's tailscale cert (needs the tailscale cli)
 	Tailscale   bool           `hcl:"tailscale,optional"`
 	Setup       string         `hcl:"setup,optional"`

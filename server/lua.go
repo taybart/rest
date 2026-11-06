@@ -161,10 +161,77 @@ func (s *Server) RunLuaSetup() error {
 	return execute(l, s.Config.Setup, s.Config.SetupLang)
 }
 
+// jsxElement returns the jsx runtime if `v` is a jsx element (built by
+// erde.jsx, ex. `<App/>` in an erde script w/ the jsx experiment).
+func jsxElement(l *lua.LState, v lua.LValue) (lua.LValue, bool, error) {
+	// only tables w/ a metatable can be elements, so plain responses don't
+	// load the runtime
+	if _, ok := v.(*lua.LTable); !ok || l.GetMetatable(v) == lua.LNil {
+		return nil, false, nil
+	}
+	if err := l.CallByParam(lua.P{Fn: l.GetGlobal("require"), NRet: 1, Protect: true}, lua.LString(lua.JSXLibName)); err != nil {
+		return nil, false, err
+	}
+	jsx := l.Get(-1)
+	l.Pop(1)
+
+	if err := l.CallByParam(lua.P{Fn: l.GetField(jsx, "isElement"), NRet: 1, Protect: true}, v); err != nil {
+		return nil, false, err
+	}
+	isElement := lua.LVAsBool(l.Get(-1))
+	l.Pop(1)
+	return jsx, isElement, nil
+}
+
+// renderElement renders `v` as an HTML document if it's a jsx element.
+func renderElement(l *lua.LState, v lua.LValue) (string, bool, error) {
+	jsx, isElement, err := jsxElement(l, v)
+	if err != nil || !isElement {
+		return "", false, err
+	}
+
+	if err := l.CallByParam(lua.P{Fn: l.GetField(jsx, "document"), NRet: 1, Protect: true}, v); err != nil {
+		return "", false, err
+	}
+	html := l.Get(-1).String()
+	l.Pop(1)
+	return html, true, nil
+}
+
+func setDefaultHeader(res *Response, key, value string) {
+	for k := range res.Headers {
+		if strings.EqualFold(k, key) {
+			return
+		}
+	}
+	if res.Headers == nil {
+		res.Headers = make(map[string]string)
+	}
+	res.Headers[key] = value
+}
+
+const htmlContentType = "text/html; charset=utf-8"
+
+// mapLuaResult maps what a handler / middleware returned to a response: a
+// response table, or a jsx element (rendered as an HTML document).
+func mapLuaResult(l *lua.LState, v lua.LValue) (Response, error) {
+	html, ok, err := renderElement(l, v)
+	if err != nil {
+		return Response{}, err
+	}
+	if ok {
+		res := Response{Status: http.StatusOK, Body: json.RawMessage(html)}
+		setDefaultHeader(&res, "Content-Type", htmlContentType)
+		return res, nil
+	}
+	return mapLuaResponse(l, v.(*lua.LTable))
+}
+
 func mapLuaResponse(l *lua.LState, luaRes *lua.LTable) (Response, error) {
 	res := Response{
 		Status: http.StatusOK,
 	}
+	isHTML := false
 	if cookiesTbl, ok := l.GetField(luaRes, "cookies").(*lua.LTable); ok {
 		res.Cookies = restlua.ParseLuaCookies(cookiesTbl)
 	}
@@ -190,6 +257,11 @@ func mapLuaResponse(l *lua.LState, luaRes *lua.LTable) (Response, error) {
 				mapErr = fmt.Errorf("expected table for headers, got %s", v.Type().String())
 			}
 		case "body":
+			// `body = <App/>`
+			if html, ok, err := renderElement(l, v); err != nil || ok {
+				res.Body, isHTML, mapErr = json.RawMessage(html), ok, err
+				return
+			}
 			switch b := v.(type) {
 			case lua.LString:
 				res.Body = json.RawMessage(b)
@@ -207,6 +279,9 @@ func mapLuaResponse(l *lua.LState, luaRes *lua.LTable) (Response, error) {
 			}
 		}
 	})
+	if isHTML {
+		setDefaultHeader(&res, "Content-Type", htmlContentType)
+	}
 	return res, mapErr
 }
 
@@ -220,18 +295,52 @@ func (s *Server) findMiddleware(name string) (*Middleware, bool) {
 }
 
 func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.ResponseWriter) (Response, bool, error) {
-	l := restlua.NewState()
-	defer l.Close()
-
 	res := Response{
 		Status: http.StatusOK,
 	}
 
-	if err := restlua.RegisterModules(l); err != nil {
-		return res, false, err
+	var l *lua.LState
+	stateID := ""
+	keepPage := false
+	if handler.pageActions && req.Header.Get(StateHeader) == "" {
+		return Response{Status: http.StatusBadRequest, Body: json.RawMessage(`{"error": "missing ` + StateHeader + ` header"}`)}, true, nil
 	}
+	if (handler.Stateful || handler.Page != "") && s.states != nil {
+		id, state, isNew, err := s.states.acquire(req)
+		if gone := (errStateGone{}); errors.As(err, &gone) {
+			body, _ := json.Marshal(map[string]string{"error": gone.Error()})
+			return Response{Status: http.StatusGone, Body: body}, true, nil
+		} else if err != nil {
+			return res, false, err
+		}
+		defer s.states.release(state)
+		l, stateID = state.l, id
+		if handler.Page != "" {
+			// a page's state is only kept if it has actions (see pageIsInteractive)
+			defer func() {
+				if !keepPage {
+					s.states.discard(id, state)
+				}
+			}()
+		}
+		if isNew {
+			if err := restlua.RegisterModules(l); err != nil {
+				return res, false, err
+			}
+		}
+	} else {
+		l = restlua.NewState()
+		defer l.Close()
+		if err := restlua.RegisterModules(l); err != nil {
+			return res, false, err
+		}
+	}
+
 	if err := populateGlobalObject(l, req); err != nil {
 		return res, false, err
+	}
+	if stateID != "" {
+		l.SetField(l.GetGlobal("rest"), "state", lua.LString(stateID))
 	}
 	if err := s.luaHelpers(l); err != nil {
 		return res, false, err
@@ -247,11 +356,10 @@ func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.Resp
 			return res, false, err
 		}
 		if l.GetTop() > 0 && l.Get(-1) != lua.LNil {
-			luaRes, ok := l.Get(-1).(*lua.LTable)
-			if !ok {
-				return res, false, fmt.Errorf("middleware %q must return a response table or nil", mwName)
+			if _, ok := l.Get(-1).(*lua.LTable); !ok {
+				return res, false, fmt.Errorf("middleware %q must return a response table, jsx element, or nil", mwName)
 			}
-			mapped, err := mapLuaResponse(l, luaRes)
+			mapped, err := mapLuaResult(l, l.Get(-1))
 			return mapped, true, err
 		}
 	}
@@ -261,16 +369,34 @@ func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.Resp
 		return validationResponse(err), true, nil
 	}
 
+	if handler.Page != "" {
+		l.SetTop(0)
+		if err := execute(l, handler.Page, handler.Lang); err != nil {
+			return res, false, err
+		}
+		if _, ok := l.Get(-1).(*lua.LTable); !ok {
+			return res, false, errors.New("page must return a jsx element or response table")
+		}
+		page, err := mountPageResult(l, l.Get(-1), req.URL.Path, stateID)
+		if err != nil {
+			return res, false, err
+		}
+		mapped, err := mapLuaResult(l, page)
+		if err == nil {
+			keepPage, err = pageIsInteractive(l)
+		}
+		return mapped, true, err
+	}
+
 	if handler.Fn != "" {
 		l.SetTop(0)
 		if err := execute(l, handler.Fn, handler.Lang); err != nil {
 			return res, false, err
 		}
-		luaRes, ok := l.Get(-1).(*lua.LTable)
-		if !ok {
-			return res, false, errors.New("handler fn must return a table")
+		if _, ok := l.Get(-1).(*lua.LTable); !ok {
+			return res, false, errors.New("handler fn must return a response table or jsx element")
 		}
-		mapped, err := mapLuaResponse(l, luaRes)
+		mapped, err := mapLuaResult(l, l.Get(-1))
 		return mapped, true, err
 	}
 

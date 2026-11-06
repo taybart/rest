@@ -319,6 +319,9 @@ func (p *Parser) Server() (server.Config, error) {
 		var mws, handlers int
 		for _, block := range body.Blocks {
 			attr := block.Body.Attributes["fn"]
+			if attr == nil {
+				attr = block.Body.Attributes["page"]
+			}
 			var expr hcl.Expression
 			if attr != nil {
 				expr = attr.Expr
@@ -727,7 +730,8 @@ func (p *Parser) scriptLang(expr hcl.Expression) string {
 	return restlua.LangLua
 }
 
-// heredocLang gets the lang from a heredoc marker, or "" if there isn't one.
+// heredocLang gets the lang from a heredoc marker, or from the extension of a
+// read("./script.erde") call, or "" if there isn't one.
 // For lists ([lib.dump, <<ERDE ...]) the first hinted element wins
 func (p *Parser) heredocLang(expr hcl.Expression) string {
 	if expr == nil {
@@ -738,6 +742,20 @@ func (p *Parser) heredocLang(expr hcl.Expression) string {
 			if lang := p.heredocLang(e); lang != "" {
 				return lang
 			}
+		}
+		return ""
+	}
+	if call, ok := expr.(*hclsyntax.FunctionCallExpr); ok {
+		if call.Name != "read" || len(call.Args) != 1 {
+			return ""
+		}
+		path, diags := call.Args[0].Value(p.Ctx)
+		if diags.HasErrors() || !path.IsKnown() || path.IsNull() || path.Type() != cty.String {
+			return ""
+		}
+		switch ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(path.AsString()), ".")); ext {
+		case restlua.LangLua, restlua.LangErde:
+			return ext
 		}
 		return ""
 	}

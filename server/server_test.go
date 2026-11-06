@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -115,6 +116,29 @@ func TestEcho(t *testing.T) {
 		t.Errorf("error creating request: %s", err)
 	}
 	checkResponse(t, req, Response{StatusCode: http.StatusOK, Body: `{"data": "hello"}`})
+}
+
+// Handlers on "/" w/ a method (ex. "GET /") used to conflict w/ the built in
+// "/__quit__" route, which panicked on startup.
+func TestRootHandlerWithMethod(t *testing.T) {
+	for _, method := range []string{"GET", "POST", "*"} {
+		ts := newServer(server.Config{
+			Quiet: true,
+			Handlers: []*server.Handler{
+				{Method: method, Path: "/", Fn: `return { status = 200, body = 'root' }`},
+			},
+		})
+		req, err := http.NewRequest("POST", ts.URL+"/", nil)
+		if err != nil {
+			t.Fatalf("error creating request: %s", err)
+		}
+		if method == "GET" {
+			checkResponse(t, req, Response{StatusCode: http.StatusNotFound, Body: ""})
+		} else {
+			checkResponse(t, req, Response{StatusCode: http.StatusOK, Body: "root"})
+		}
+		ts.Close()
+	}
 }
 
 func TestHandlerFnPathValue(t *testing.T) {
@@ -417,3 +441,224 @@ func TestJWTServerAndMiddleware(t *testing.T) {
 	})
 }
 
+// Handlers (and middleware) can return jsx elements, which are rendered as
+// HTML documents.
+func TestErdeJSXHandlers(t *testing.T) {
+	const page = `local App = props -> <main><h1>hi {props.name}</h1></main>`
+	ts := newServer(server.Config{
+		Quiet: true,
+		Middlewares: []*server.Middleware{
+			{
+				Name: "gate",
+				Lang: "erde",
+				Fn:   `if rest.req:query('blocked') { return <p>blocked</p> }`,
+			},
+		},
+		Handlers: []*server.Handler{
+			{
+				Method: "GET", Path: "/element", Lang: "erde", Middleware: []string{"gate"},
+				Fn: page + `
+					return <App name={rest.req:query('name')}/>`,
+			},
+			{
+				Method: "GET", Path: "/body", Lang: "erde",
+				Fn: page + `
+					return { status = 404, body = <App name="nobody"/> }`,
+			},
+			{
+				Method: "GET", Path: "/content-type", Lang: "erde",
+				Fn: `return { headers = { ['content-type'] = 'text/plain' }, body = <p/> }`,
+			},
+			{
+				Method: "GET", Path: "/plain", Lang: "erde",
+				Fn: `return { status = 200, body = { ok = true } }`,
+			},
+		},
+	})
+	defer ts.Close()
+
+	const html = "text/html; charset=utf-8"
+	cases := []struct {
+		path string
+		want Response
+	}{
+		{"/element?name=frankie", Response{StatusCode: 200, Headers: map[string]string{"Content-Type": html}, Body: "<!DOCTYPE html><main><h1>hi frankie</h1></main>"}},
+		{"/element?name=frankie&blocked=1", Response{StatusCode: 200, Headers: map[string]string{"Content-Type": html}, Body: "<!DOCTYPE html><p>blocked</p>"}},
+		{"/body", Response{StatusCode: 404, Headers: map[string]string{"Content-Type": html}, Body: "<!DOCTYPE html><main><h1>hi nobody</h1></main>"}},
+		{"/content-type", Response{StatusCode: 200, Headers: map[string]string{"Content-Type": "text/plain"}, Body: "<!DOCTYPE html><p></p>"}},
+		{"/plain", Response{StatusCode: 200, Body: `{"ok":true}`}},
+	}
+	for _, c := range cases {
+		req, err := http.NewRequest("GET", ts.URL+c.path, nil)
+		if err != nil {
+			t.Fatalf("error creating request: %s", err)
+		}
+		checkResponse(t, req, c.want)
+	}
+}
+
+// Stateful handlers keep their lua state between requests that send back
+// rest.state (in the X-Rest-State header).
+func TestStatefulHandlers(t *testing.T) {
+	ts := newServer(server.Config{
+		Quiet: true,
+		Handlers: []*server.Handler{
+			{
+				Method: "GET", Path: "/new", Stateful: true,
+				Fn: `count = 0; return { body = rest.state }`,
+			},
+			{
+				Method: "POST", Path: "/inc", Stateful: true,
+				Fn: `count = count + 1; return { body = tostring(count) .. ' ' .. rest.req.body }`,
+			},
+			{
+				Method: "GET", Path: "/plain",
+				Fn: `return { body = tostring(count) .. ' ' .. tostring(rest.state) }`,
+			},
+		},
+	})
+	defer ts.Close()
+
+	newState := func() string {
+		res, err := http.Get(ts.URL + "/new")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		id, _ := io.ReadAll(res.Body)
+		return string(id)
+	}
+	inc := func(state, body string, want Response) {
+		req, err := http.NewRequest("POST", ts.URL+"/inc", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set(server.StateHeader, state)
+		checkResponse(t, req, want)
+	}
+
+	a, b := newState(), newState()
+	if a == "" || a == b {
+		t.Fatalf("expected distinct state ids, got %q and %q", a, b)
+	}
+	inc(a, "x", Response{StatusCode: 200, Body: "1 x"})
+	inc(a, "y", Response{StatusCode: 200, Body: "2 y"}) // rest.req is per request
+	inc(b, "z", Response{StatusCode: 200, Body: "1 z"})
+	inc("bogus", "", Response{StatusCode: http.StatusGone, Body: `{"error":"state bogus is gone"}`})
+
+	// other handlers get a fresh state
+	req, _ := http.NewRequest("GET", ts.URL+"/plain", nil)
+	req.Header.Set(server.StateHeader, a)
+	checkResponse(t, req, Response{StatusCode: 200, Body: "nil nil"})
+}
+
+// Page handlers serve an interactive jsx page, w/ its actions as POSTs to the
+// same path.
+func TestPageHandlers(t *testing.T) {
+	ts := newServer(server.Config{
+		Quiet: true,
+		Middlewares: []*server.Middleware{
+			{Name: "gate", Lang: "erde", Fn: `if rest.req:query('blocked') { return { status = 403 } }`},
+		},
+		Handlers: []*server.Handler{
+			{
+				Method: "GET", Path: "/counter/{start}", Lang: "erde", Middleware: []string{"gate"},
+				Page: `
+					local { state } = require('erde.jsx')
+					local Counter = (props) -> {
+						local s = state({ count = tonumber(props.start) })
+						return <button onclick={() -> { s.count += 1 }}>{s.count}</button>
+					}
+					return <main><Counter start={rest.req:path_value('start')}/></main>`,
+			},
+			{
+				Method: "GET", Path: "/redirect", Lang: "erde",
+				Page: `return { status = 302, headers = { Location = '/counter/1' } }`,
+			},
+		},
+	})
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/counter/5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	if res.StatusCode != 200 || res.Header.Get("Content-Type") != "text/html; charset=utf-8" {
+		t.Fatalf("page: %d %s\n%s", res.StatusCode, res.Header.Get("Content-Type"), page)
+	}
+	// the client posts to the page's own path, w/ its state
+	cfg := regexp.MustCompile(`rpc: '([^']*)', headers: \{ 'X-Rest-State': '([^']*)' \}`).FindStringSubmatch(string(page))
+	action := regexp.MustCompile(`erde\.rpc\('([^']+)'`).FindStringSubmatch(string(page))
+	if cfg == nil || action == nil || cfg[1] != "/counter/5" || !strings.Contains(string(page), ">5</button>") {
+		t.Fatalf("page\n%s", page)
+	}
+	state := cfg[2]
+
+	post := func(state, query, body string, want Response) {
+		req, err := http.NewRequest("POST", ts.URL+"/counter/5"+query, strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state != "" {
+			req.Header.Set(server.StateHeader, state)
+		}
+		checkResponse(t, req, want)
+	}
+	click := `{"id": "` + action[1] + `", "data": {"type": "click"}}`
+	button := func(n string) string {
+		id := strings.Split(action[1], "#")[0]
+		return `<template data-erde-target="` + id + `"><button data-erde="` + id + `" onclick="erde.rpc('` + action[1] + `', event)">` + n + `</button></template>`
+	}
+	post(state, "", click, Response{StatusCode: 200, Body: button("6")})
+	post(state, "", click, Response{StatusCode: 200, Body: button("7")})
+	post("", "", click, Response{StatusCode: 400, Body: `{"error": "missing X-Rest-State header"}`})
+	post("bogus", "", click, Response{StatusCode: 410, Body: `{"error":"state bogus is gone"}`})
+	post(state, "", `nope`, Response{StatusCode: 400, Body: `{"error": "expected a json body w/ an action id"}`})
+	post(state, "?blocked=1", click, Response{StatusCode: 403}) // page middleware runs for actions too
+
+	// a page can also return a response table
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	res, err = client.Get(ts.URL + "/redirect")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != 302 || res.Header.Get("Location") != "/counter/1" {
+		t.Errorf("redirect: %d %s", res.StatusCode, res.Header.Get("Location"))
+	}
+}
+
+func TestPageHandlerConflicts(t *testing.T) {
+	for name, handlers := range map[string][]*server.Handler{
+		"fn and page": {{Method: "GET", Path: "/", Page: "return 1", Fn: "return 1"}},
+		"post on the same path": {
+			{Method: "GET", Path: "/x", Page: "return 1"},
+			{Method: "POST", Path: "/x", Fn: "return {}"},
+		},
+	} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("%s: expected a panic", name)
+				}
+			}()
+			newServer(server.Config{Quiet: true, Handlers: handlers}).Close()
+		}()
+	}
+}
+
+// Pages w/o actions are static: no client script, and no state is kept.
+func TestStaticPage(t *testing.T) {
+	ts := newServer(server.Config{
+		Quiet: true,
+		Handlers: []*server.Handler{
+			{Method: "GET", Path: "/static", Lang: "erde", Page: `return <p>hi {rest.req:query('n')}</p>`},
+		},
+	})
+	defer ts.Close()
+
+	req, _ := http.NewRequest("GET", ts.URL+"/static?n=1", nil)
+	checkResponse(t, req, Response{StatusCode: 200, Body: "<!DOCTYPE html><p>hi 1</p>"})
+}

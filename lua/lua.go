@@ -9,41 +9,88 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 
 	lua "github.com/taybart/go-erde"
+	"github.com/taybart/go-erde/parse"
 )
 
 //go:embed modules/*
 var library embed.FS
 
-func preloadModule(l *lua.LState, name, filename string) error {
+// Lua modules, as globals. They're loaded the first time they're used (most
+// scripts don't use all, or any, of them), and compiled once: their bytecode
+// is shared by every state.
+var lazyModules = map[string]string{
+	"colors":  "colors.lua",
+	"inspect": "inspect.lua",
+	"tools":   "tools.lua",
+}
+
+var moduleProtos sync.Map // filename -> *lua.FunctionProto
+
+func moduleProto(filename string) (*lua.FunctionProto, error) {
+	if proto, ok := moduleProtos.Load(filename); ok {
+		return proto.(*lua.FunctionProto), nil
+	}
 	code, err := library.ReadFile("modules/" + filename)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err := l.DoString(string(code)); err != nil {
-		return fmt.Errorf("failed to load module %s: %w", name, err)
+	chunk, err := parse.Parse(strings.NewReader(string(code)), filename)
+	if err != nil {
+		return nil, err
+	}
+	proto, err := lua.Compile(chunk, filename)
+	if err != nil {
+		return nil, err
+	}
+	actual, _ := moduleProtos.LoadOrStore(filename, proto)
+	return actual.(*lua.FunctionProto), nil
+}
+
+func loadModule(l *lua.LState, name, filename string) (lua.LValue, error) {
+	proto, err := moduleProto(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load module %s: %w", name, err)
+	}
+	l.Push(l.NewFunctionFromProto(proto))
+	if err := l.PCall(0, 1, nil); err != nil {
+		return nil, fmt.Errorf("failed to load module %s: %w", name, err)
 	}
 	module := l.Get(-1)
 	l.Pop(1)
 	if module.Type() != lua.LTTable {
-		return fmt.Errorf("module %s did not return a table", name)
+		return nil, fmt.Errorf("module %s did not return a table", name)
 	}
-	l.SetGlobal(name, module)
-	return nil
+	return module, nil
+}
+
+// registerLazyModules makes the lazy modules globals that load on first use
+// (w/ an __index on the globals table).
+func registerLazyModules(l *lua.LState) {
+	globals := l.Get(lua.GlobalsIndex).(*lua.LTable)
+	mt := l.NewTable()
+	l.SetField(mt, "__index", l.NewFunction(func(l *lua.LState) int {
+		name, ok := l.Get(2).(lua.LString)
+		filename, lazy := lazyModules[string(name)]
+		if !ok || !lazy {
+			l.Push(lua.LNil)
+			return 1
+		}
+		module, err := loadModule(l, string(name), filename)
+		if err != nil {
+			l.RaiseError("%s", err.Error())
+		}
+		l.RawSet(globals, name, module)
+		l.Push(module)
+		return 1
+	}))
+	l.SetMetatable(globals, mt)
 }
 
 func RegisterModules(l *lua.LState) error {
-	libs := map[string]string{
-		"colors":  "colors.lua",
-		"inspect": "inspect.lua",
-		"tools":   "tools.lua",
-	}
-	for name, filename := range libs {
-		if err := preloadModule(l, name, filename); err != nil {
-			return err
-		}
-	}
+	registerLazyModules(l)
 	registerBase64Module(l)
 	registerFormModule(l)
 	registerHTMLModule(l)

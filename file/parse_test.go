@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/taybart/rest"
@@ -545,6 +546,12 @@ server {
   handler "GET" "/plain" {
     fn = "return { status = 200 }"
   }
+  handler "GET" "/read_erde" {
+    fn = read("{{dir}}/script.erde")
+  }
+  handler "GET" "/read_lua" {
+    fn = read("{{dir}}/script.lua")
+  }
 }
 
 cli {
@@ -568,13 +575,19 @@ cli {
 			reqs: map[string]string{
 				"erde": "erde", "indented_lua": "lua", "plain": "lua", "none": "lua", "list": "erde",
 			},
-			setup: "erde", mw: "lua", hdl: []string{"erde", "lua"}, fn: "erde", loop: "lua",
+			setup: "erde", mw: "lua", hdl: []string{"erde", "lua", "erde", "lua"}, fn: "erde", loop: "lua",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filename := filepath.Join(t.TempDir(), "hints.rest")
-			if err := os.WriteFile(filename, []byte(scripts), 0644); err != nil {
+			dir := t.TempDir()
+			for name, src := range map[string]string{"script.erde": "return { status = 200 }", "script.lua": "return { status = 200 }"} {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(src), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			filename := filepath.Join(dir, "hints.rest")
+			if err := os.WriteFile(filename, []byte(strings.ReplaceAll(scripts, "{{dir}}", dir)), 0644); err != nil {
 				t.Fatal(err)
 			}
 			r, err := rest.NewFile(filename)
