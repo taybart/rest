@@ -156,7 +156,7 @@ request "get profile" {
 ## Custom Lua in `after` Hooks
 
 When writing `after = <<LUA ... LUA`:
-- **Erde:** use `<<ERDE ... ERDE` (or `<<-ERDE`) to write any script (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`) in [erde](https://erde-lang.github.io) instead. Any other heredoc marker or plain string is lua. Same globals. In erde, `"{x}"` interpolates; use `'...'` for literal braces. go-erde's experimental `match` is on: `match x { 1 | 2 => { ... } _ if cond => { ... } _ => { ... } }` (patterns compare w/ `==`, no fallthrough, `break`/`continue` apply to the enclosing loop).
+- **Erde:** use `<<ERDE ... ERDE` (or `<<-ERDE`) to write any script (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`/`page`) in [erde](https://erde-lang.github.io) instead, or `read("./x.erde")` (the `.erde` extension makes it erde). Any other heredoc marker or plain string is lua. `require('name')` also finds `./name.erde`. Same globals. In erde, `"{x}"` interpolates; use `'...'` for literal braces. go-erde's experimental `match` is on: `match x { 1 | 2 => { ... } _ if cond => { ... } _ => { ... } }` (patterns compare w/ `==`, no fallthrough, `break`/`continue` apply to the enclosing loop).
 - **Globals:** `json` (`encode`/`decode`), `jwt` (`sign`/`encode`, `decode`, `verify`, `is_valid`), `form` (`encode`/`decode`), `inspect` (`inspect(v)`, `inspect.print(v)`), `colors`, `base64` (`encode(str [, opts])`, `decode(str)`), `url` (`escape`/`unescape` for query values, `path_escape`/`path_unescape` for path segments), `html` (`escape`/`unescape` entities), `uuid` (`newv4`, `is_uuid`, `is_uuidv4`), `ulid` (`new([ms])` / `ulid([ms])`, `is_ulid`, `timestamp`), `nanoid` (`new([size [, alphabet]])` / `nanoid(...)`, `is_nanoid(str [, size])`), `tools` (`tools.expected()`), `copy(val)`, `fail(msg)`.
 - **Request & Response (`rest.req`, `rest.res`):**
   - Fields: `rest.req.body`, `rest.req.headers`, `rest.req.cookies`, `rest.req.method`, `rest.req.query`, `rest.req.url`, `rest.req.dump`
@@ -289,3 +289,25 @@ server {
 }
 ```
 Handlers can share a path with different methods (`handler "GET" "/x"` + `handler "POST" "/x"`; `"*"` = any method). Forward to another server with `proxy = "localhost:8081"` on the `server` block (fallback for anything no handler matches, so you can mock some routes and proxy the rest) or on a `handler` (one route, after its middleware and `expect`). For options use a block instead: `proxy { target = "...", strip = "/api", headers = { Authorization = "Bearer ${env("TOKEN")}", Cookie = "" } }` (one attribute per line; `strip` removes a path prefix; empty header value removes it; `insecure = true` skips TLS verification for that proxy only, independent of `config { insecure_no_verify_tls }`). For cookie options in server responses, WebSocket echo handlers (`ws = true`), proxy details, and full `kv` methods (`kv.get`, `kv.set`, `kv.del`, `kv.all`), consult `references/SERVER.md`.
+
+**HTML & interactive pages (erde jsx):** erde scripts have go-erde's `jsx` on, so a handler can `return <html>...</html>` (rendered as `text/html`; or `{ status = 404, body = <p>...</p> }`). A `page` handler (instead of `fn`) serves an interactive page: functions in `on*` attributes (`onclick={() -> { ... }}`, `onsubmit={e -> { ... e.form.field }}`) run on the server and only changed components are sent back. Actions are POSTs to the page's own path (so no other `POST` handler there), and the page's middleware runs for them.
+
+```hcl
+handler "GET" "/{$}" {
+  page = <<-ERDE
+    local App = require('app')   -- ./app.erde
+    return <App name={rest.req:query('name')}/>
+  ERDE
+}
+```
+```erde
+-- app.erde
+local { state, css } = require('erde.jsx')
+local s = css({ btn = { font_weight = 'bold', ['&:hover'] = { color = 'gold' } } }) -- scoped, s.btn is the class
+local Counter = () -> {
+  local st = state({ count = 0 })        -- per component instance
+  return <button class={s.btn} onclick={() -> { st.count += 1 }}>{st.count}</button>
+}
+return (props) -> <html><body><h1>hi {props.name || 'you'}</h1><Counter/></body></html>
+```
+Each page load gets its own lua state (module-level variables are per page). `stateful = true` does the same for an `fn` handler (`rest.state` is the id, sent back in the `X-Rest-State` header). Limits: `server { max_states = 1000, state_ttl = "30m" }`; a closed state gets a 410 (pages reload). In jsx: `{expr}` children / attributes, `class="a {b}"` interpolates, `{...props}` spreads, `<style>`/`<script>` content is raw css/js, `{--[[ comment ]]}`. Use `&&` / `||` / `!=` (erde, not lua's `and`/`or`/`~=`). See `references/SERVER.md` (Pages, Stateful handlers).

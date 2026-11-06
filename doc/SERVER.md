@@ -90,6 +90,10 @@ server {
     spa = true
     # forward every request no handler matches to another server (see Proxying below)
     # proxy = "localhost:8081"
+    # limits for stateful handlers and pages (see Stateful handlers below):
+    # how many lua states are kept (default 1000), and for how long when unused (default 30m)
+    max_states = 1000
+    state_ttl  = "30m"
     # if you need a more complicated test server you can add specific handlers
     # handlers can share a path with different methods ("GET" "/path" and "POST" "/path"), "*" matches any method
     handler "GET" "/path" {
@@ -97,6 +101,12 @@ server {
         ws = true
         # either use lua to create a more complex response
         fn = "similar concept to the after hook in the client files (see hander fns below)"
+        # keep the lua state between requests (see Stateful handlers below)
+        # stateful = true
+        # or serve an interactive page, written w/ jsx (see Pages below)
+        # page = <<-ERDE
+        #   return <App/>
+        # ERDE
         # or forward just this route to another server
         proxy = "localhost:8081"
         # or with options, use a block instead (see Proxying below)
@@ -160,6 +170,105 @@ rest.req = {
     body = "",
 }
 ```
+
+### Erde scripts
+
+Scripts (`fn`, `page`, `setup`, middleware) can be written in
+[erde](https://erde-lang.github.io) instead of lua, w/ an `<<ERDE` (or
+`<<-ERDE`) heredoc, or by reading a `.erde` file (`fn = read("./handler.erde")`).
+Anything else is lua. go-erde's experimental `match` and `jsx` are enabled.
+
+Erde modules can be `require`d too (`require('app')` finds `./app.erde`).
+Scripts and modules are compiled once (a changed file is compiled again), so
+they're cheap to use from every request.
+
+### Returning HTML (jsx)
+
+A handler (or middleware) can return a jsx element instead of a response table:
+it's rendered as an HTML document (`text/html`). Or use it as the body of a
+response table, to also set the status, headers, or cookies.
+
+```hcl
+handler "GET" "/hello" {
+  fn = <<-ERDE
+    local name = rest.req:query('name') || 'stranger'
+    return <html><body><h1>hello {name}</h1></body></html>
+  ERDE
+}
+handler "GET" "/missing" {
+  fn = <<-ERDE
+    return { status = 404, body = <p>nothing here</p> }
+  ERDE
+}
+```
+
+See go-erde's [JSX docs](https://github.com/taybart/go-erde/blob/main/docs/JSX.md)
+for the syntax, components, `state`, and scoped styles (`css`).
+
+### Pages (`page`)
+
+A `page` is like `fn`, but returns a jsx element that's served as an
+interactive page: functions in `on*` attributes (`onclick`, `on:input`, ...)
+run on the server when the event happens in the browser, and only the
+components that changed are sent back (and morphed into the page, so inputs
+keep focus).
+
+```hcl
+handler "GET" "/{$}" {
+  page = <<-ERDE
+    local App = require('app')   -- ./app.erde
+    return <App name={rest.req:query('name')}/>
+  ERDE
+}
+```
+
+```erde
+-- app.erde
+local { state, css } = require('erde.jsx')
+
+local s = css({ count = { font_weight = 'bold' } })
+
+local Counter = () -> {
+  local st = state({ count = 0 })
+  return <button onclick={() -> { st.count += 1 }}>
+    clicked <span class={s.count}>{st.count}</span> times
+  </button>
+}
+
+return (props) -> <html>
+  <body>
+    <h1>hello {props.name || 'stranger'}</h1>
+    <Counter/>
+    <form onsubmit={e -> { print(e.form.item) }}>
+      <input name="item"/>
+    </form>
+  </body>
+</html>
+```
+
+- Actions are POSTs to the page's own path (rest adds the route), so a page
+  can't have its own `POST` handler on the same path. They run the page's
+  middleware too.
+- An action gets a summary of the event: `{ type, value, checked, key, form }`.
+- Each page load gets its own lua state, kept for its actions (see Stateful
+  handlers). Module level variables are per page, `state` is per component.
+- Pages w/o actions are static: no client script, and no state is kept.
+- A page can also return a response table (ex. a redirect).
+- Changes to required `.erde` files show up on the next page load (the
+  `.rest` file itself needs a restart).
+
+### Stateful handlers
+
+`stateful = true` keeps a handler's lua state between requests (globals,
+required modules, closures). A request w/o a state id gets a new state, whose
+id is `rest.state`; requests that send it back in the `X-Rest-State` header
+reuse it (one request at a time). Pages are stateful automatically.
+
+States cost memory (roughly 0.3-2MB each, depending on what's loaded), so the
+server keeps at most `max_states` (default 1000, the least recently used is
+closed to make room), and closes states unused for `state_ttl` (default 30m).
+A request for a closed (or unknown) state gets a `410`, which makes a page
+reload itself.
 
 ### Validating requests (`expect`)
 

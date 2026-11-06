@@ -249,7 +249,7 @@ request "my request" {
 
 Hooks are defined in the `after` field. They are lua functions that are executed after the response is received. They can be used to do fancy lua stuff.
 
-Scripts (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`) can also be written in [erde](https://erde-lang.github.io) by using an `<<ERDE` (or `<<-ERDE`) heredoc. Any other script is lua. Both run in the same runtime, so the globals below are the same. go-erde's experimental `match` statement is enabled:
+Scripts (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`/`page`) can also be written in [erde](https://erde-lang.github.io) by using an `<<ERDE` (or `<<-ERDE`) heredoc, or by reading a `.erde` file (`read("./hook.erde")`). Any other script is lua. Both run in the same runtime, so the globals below are the same. go-erde's experimental `match` statement (and `jsx`, see [SERVER.md](SERVER.md#returning-html-jsx)) is enabled:
 
 ```erde
 match rest.res.status {
