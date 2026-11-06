@@ -41,7 +41,7 @@ request "completions" {
   body = {
     # model: "permissive",
     model: "gemma3:12b",
-    messages: json_dec(try_exports("conversation", env("conversation")))
+    messages: json_dec(exports::try("conversation", env("conversation")))
   }
   after = <<LUA
   if rest.res.status ~= 200 then error(rest.res.body) end

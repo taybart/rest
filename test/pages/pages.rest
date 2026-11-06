@@ -1,0 +1,11 @@
+server {
+  address = "localhost:8083"
+
+  # an interactive page: its actions are POSTs to the same path (handled by rest)
+  handler "GET" "/{$}" {
+    page = <<-ERDE
+      local App = require('app')
+      return <App name={rest.req:query('name') || 'stranger'}/>
+    ERDE
+  }
+}

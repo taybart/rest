@@ -2,6 +2,7 @@
 package client
 
 import (
+	"bytes"
 	"crypto/tls"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	restlua "github.com/taybart/rest/lua"
 	"github.com/taybart/rest/request"
 )
 
@@ -19,6 +21,8 @@ type Client struct {
 	Config request.Config
 	// Out is where after hooks print, defaults to stdout
 	Out io.Writer
+	// Cache keeps responses of requests w/ `cache` (in Run), nil disables it
+	Cache *Cache
 }
 
 func New(config request.Config) (*Client, error) {
@@ -30,9 +34,20 @@ func New(config request.Config) (*Client, error) {
 		}
 		client.Jar = jar
 	}
+	if config.NoFollowRedirect {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	}
+	if config.InsecureNoVerifyTLS {
+		client.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
 	return &Client{
 		client: &client,
 		Config: config,
+		Cache:  NewCache(DefaultCacheEntries),
 	}, nil
 }
 
@@ -55,18 +70,6 @@ func (c *Client) Do(r request.Request) (string, map[string]any, error) {
 		return "", nil, err
 	}
 
-	if c.Config.NoFollowRedirect {
-		c.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
-	}
-	if c.Config.InsecureNoVerifyTLS {
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-		c.client.Transport = tr
-	}
-
 	res, err := c.client.Do(req)
 	if err != nil {
 		return "", nil, err
@@ -84,6 +87,65 @@ func (c *Client) Do(r request.Request) (string, map[string]any, error) {
 
 	return dumped, nil, err
 }
+
+// Run sends a request like Do (w/ its expect and after hook), but instead of
+// a dump, returns the response, and what the after hook exported and
+// returned. It's safe to use concurrently.
+func (c *Client) Run(r request.Request) (*restlua.RequestResult, error) {
+	r.UserAgent = c.Config.UserAgent
+	if c.Out != nil {
+		r.Out = c.Out
+	}
+	req, err := r.Build()
+	if err != nil {
+		return nil, err
+	}
+	send := func() (*http.Response, []byte, error) {
+		if r.Delay != "" {
+			delay, err := time.ParseDuration(r.Delay)
+			if err != nil {
+				return nil, nil, err
+			}
+			time.Sleep(delay)
+		}
+		res, err := c.client.Do(req)
+		if err != nil {
+			return nil, nil, err
+		}
+		body, err := io.ReadAll(res.Body)
+		res.Body.Close()
+		return res, body, err
+	}
+	var res *http.Response
+	var body []byte
+	var entry *cacheEntry
+	if r.CacheTTL > 0 && c.Cache != nil {
+		res, body, entry, err = c.Cache.get(cacheKey(req, r.Body, c.client.Jar), r.CacheTTL, req, send)
+	} else {
+		res, body, err = send()
+	}
+	if err != nil {
+		return nil, err
+	}
+	reset := func() { res.Body = io.NopCloser(bytes.NewReader(body)) }
+
+	reset()
+	result := &restlua.RequestResult{Res: res, Body: body}
+	if entry != nil {
+		result.SharedJSON = entry.sharedJSON
+	}
+	if r.After != "" {
+		result.Exports, result.Returns, err = r.RunAfterHookReturns(res, c.client.Jar)
+	} else {
+		_, err = c.CheckExpectation(r, res)
+	}
+	reset()
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (c *Client) CheckExpectation(r request.Request, res *http.Response) (string, error) {
 	dumped, err := httputil.DumpResponse(res, true)
 	if err != nil {

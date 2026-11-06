@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	lua "github.com/taybart/go-erde"
 	"github.com/taybart/go-erde/parse"
@@ -58,7 +59,7 @@ const (
 // NewState makes a runtime w/ the experimental erde extensions on (only affects
 // erde scripts, ex. `match`)
 func NewState() *lua.LState {
-	return lua.NewState(lua.Options{Erde: parse.ErdeOptions{Match: true}})
+	return lua.NewState(lua.Options{Erde: parse.ErdeOptions{Match: true, Markup: true}})
 }
 
 // SetPrint makes lua's print write to w instead of stdout
@@ -78,16 +79,62 @@ func SetPrint(l *lua.LState, w io.Writer) {
 
 // Exec runs code as lua or erde (https://erde-lang.github.io)
 func Exec(l *lua.LState, code, lang string) error {
-	var err error
-	if lang == LangErde {
-		err = l.DoErdeString(code)
-	} else {
-		err = l.DoString(code)
+	fn, err := loadScript(l, code, lang)
+	if err == nil {
+		l.Push(fn)
+		err = l.PCall(0, lua.MultRet, nil)
 	}
 	if err != nil {
 		return FmtError(code, err)
 	}
 	return nil
+}
+
+// Scripts (handler fns, middleware, hooks, etc.) are compiled once: their
+// (immutable) compiled code is shared by every state that runs them. The
+// cache is bounded, in case code is ever generated.
+type scriptKey struct {
+	code, lang string
+	erde       parse.ErdeOptions
+}
+
+const scriptsMax = 256
+
+var scripts struct {
+	sync.Mutex
+	protos map[scriptKey]*lua.FunctionProto
+}
+
+func loadScript(l *lua.LState, code, lang string) (*lua.LFunction, error) {
+	key := scriptKey{code: code, lang: lang}
+	if lang == LangErde {
+		key.erde = l.Options.Erde
+	}
+	scripts.Lock()
+	proto := scripts.protos[key]
+	scripts.Unlock()
+	if proto != nil {
+		return l.NewFunctionFromProto(proto), nil
+	}
+
+	var fn *lua.LFunction
+	var err error
+	if lang == LangErde {
+		fn, err = l.LoadErdeString(code)
+	} else {
+		fn, err = l.LoadString(code)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	scripts.Lock()
+	if scripts.protos == nil || len(scripts.protos) >= scriptsMax {
+		scripts.protos = map[scriptKey]*lua.FunctionProto{}
+	}
+	scripts.protos[key] = fn.Proto
+	scripts.Unlock()
+	return fn, nil
 }
 
 // Quote makes a single quoted string literal, valid in both lua and erde

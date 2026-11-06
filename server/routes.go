@@ -19,15 +19,27 @@ func (s *Server) Routes(server *http.Server) {
 	if err := s.initKV(); err != nil {
 		log.Error(err)
 	}
-	s.Router.HandleFunc("/__quit__", s.HandleQuit(server))
-
-	if s.Config.Dir != "" {
-		s.Router.HandleFunc("/", gzipHandler(s.HandleDir()))
-		return
+	// w/ methods, so it's more specific than any handler pattern (a method-less
+	// "/__quit__" conflicts w/ ex. "GET /" in ServeMux, since neither is more
+	// specific than the other)
+	var ttl time.Duration
+	if s.Config.StateTTL != "" {
+		var err error
+		if ttl, err = time.ParseDuration(s.Config.StateTTL); err != nil {
+			panic(fmt.Errorf("invalid state_ttl %q: %w", s.Config.StateTTL, err))
+		}
 	}
-	// a server-level proxy forwards anything the handlers don't match
+	s.states = newStateStore(s.Config.MaxStates, ttl)
+	quit := s.HandleQuit(server)
+	s.Router.HandleFunc("GET /__quit__", quit)
+	s.Router.HandleFunc("POST /__quit__", quit)
+
+	// a directory (or else a server-level proxy) serves anything the handlers
+	// don't match
 	var fallback http.HandlerFunc
-	if s.Config.Proxy != nil {
+	if s.Config.Dir != "" {
+		fallback = gzipHandler(s.HandleDir())
+	} else if s.Config.Proxy != nil {
 		fallback = log.Middleware(s.ProxyHandler(s.Config.Proxy))
 	}
 	if len(s.Config.Handlers) > 0 {
@@ -53,8 +65,14 @@ func handlerPattern(h *Handler) string {
 }
 
 func (s *Server) registerHandlerFns(fallback http.HandlerFunc) {
+	if err := checkPages(s.Config.Handlers); err != nil {
+		panic(err) // like ServeMux's panics for conflicting patterns
+	}
 	rootRegistered := false
 	for _, handler := range s.Config.Handlers {
+		if handler.CacheTTL > 0 {
+			handler.cache = newResponseCache(handler.CacheTTL)
+		}
 		pattern := handlerPattern(handler)
 		if pattern == "/" {
 			rootRegistered = true
@@ -65,6 +83,11 @@ func (s *Server) registerHandlerFns(fallback http.HandlerFunc) {
 			s.Router.HandleFunc(pattern, s.HandleWSEcho("*"))
 		default:
 			s.Router.HandleFunc(pattern, log.Middleware(s.CustomHandlerFn(handler)))
+		}
+		if handler.Page != "" {
+			actions := pageActionsHandler(handler)
+			log.Infof("registering page actions %s%s%s\n", log.Blue, handlerPattern(actions), log.Reset)
+			s.Router.HandleFunc(handlerPattern(actions), log.Middleware(s.CustomHandlerFn(actions)))
 		}
 	}
 	if rootRegistered {
@@ -89,12 +112,14 @@ func (s *Server) CustomHandlerFn(handler *Handler) http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if len(handler.Middleware) > 0 || handler.Fn != "" {
+		if len(handler.Middleware) > 0 || handler.Fn != "" || handler.Page != "" {
 			// validation runs inside the pipeline, after middleware
 			res, handled, err := s.RunLuaPipeline(handler, r, w)
 			if err != nil {
+				// a script error is the server's (the error is only logged, it
+				// can have script source in it)
 				log.Error(err)
-				w.WriteHeader(http.StatusBadRequest)
+				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			if handled {

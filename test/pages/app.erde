@@ -1,0 +1,51 @@
+local { map, state } = require('erde.markup')
+
+-- module state lives as long as the page (rest `stateful = true`), and is
+-- shared by every component
+local items = { 'apples', 'pears' }
+
+local Card = (props) -> <section class="card">
+  <h2>{props.title}</h2>
+  {props.children}
+</section>
+
+-- component state is per instance
+local Counter = (props) -> {
+  local s = state({ count = props.start || 0 })
+  return <div class="counter">
+    <button onclick={() -> { s.count -= 1 }}>-</button>
+    <span>{s.count}</span>
+    <button onclick={() -> { s.count += 1 }}>+</button>
+  </div>
+}
+
+local name = ''
+local Greeter = () -> <div>
+  <input oninput={e -> { name = e.value }} value={name} placeholder="your name"/>
+  <p>hello {name}</p>
+</div>
+
+-- `e` is a summary of the browser event: { type, value, checked, key, form }
+local AddItem = () -> <form onsubmit={e -> { table.insert(items, e.form.item) }}>
+  <input name="item" placeholder="add an item"/>
+  <button>add</button>
+</form>
+
+return (props) -> <html>
+  <style>
+   html, body {
+    background-color: #000;
+    color: #fff;
+  }
+  </style>
+  <body id="main" class={{ 'page', dark = true }}>
+    <Card title="Fruit for {props.name}">
+      <Counter/>
+      <Counter start={10}/>
+      <Greeter/>
+      <ul>{map(items, (it, i) -> <li data-i={i}>{it}</li>)}</ul>
+      <AddItem/>
+      {props.admin && <p>you're an admin &mdash; careful</p>}
+    </Card>
+  </body>
+</html>

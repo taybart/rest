@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/hcl/v2"
 )
@@ -43,11 +44,15 @@ type Request struct {
 	ExpectStatus int     `hcl:"expect,optional"`
 	Delay        string  `hcl:"delay,optional"`
 	Skip         bool    `hcl:"skip,optional"`
+	// Cache keeps successful responses for this long (ex. "5m") when the
+	// request is run from lua (rest.request), see client.Cache
+	Cache string `hcl:"cache,optional"`
 
 	// ...rest
 	Remain hcl.Expression `hcl:"remain,optional"`
 
 	// parsed values
+	CacheTTL  time.Duration
 	UserAgent string
 	Body      string
 	Lang      string
@@ -117,6 +122,13 @@ func (r *Request) Build() (*http.Request, error) {
 func (r *Request) SetDefaults(ctx *hcl.EvalContext) error {
 	if r.Method == "" {
 		r.Method = "GET"
+	}
+	if r.Cache != "" {
+		ttl, err := time.ParseDuration(r.Cache)
+		if err != nil || ttl <= 0 {
+			return fmt.Errorf("request %s: cache must be a duration (ex. \"5m\"), got %q", r.Label, r.Cache)
+		}
+		r.CacheTTL = ttl
 	}
 	return nil
 }
@@ -225,6 +237,9 @@ func (r *Request) CombineFrom(from Request) {
 	}
 	if r.ExpectStatus == 0 {
 		r.ExpectStatus = from.ExpectStatus
+	}
+	if r.Cache == "" {
+		r.Cache, r.CacheTTL = from.Cache, from.CacheTTL
 	}
 }
 

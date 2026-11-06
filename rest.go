@@ -17,6 +17,7 @@ import (
 	"github.com/taybart/rest/exports"
 	"github.com/taybart/rest/exports/templates"
 	"github.com/taybart/rest/file"
+	restlua "github.com/taybart/rest/lua"
 	"github.com/taybart/rest/request"
 	"github.com/taybart/rest/server"
 )
@@ -79,6 +80,34 @@ func (rest *Rest) Request(label string) (request.Request, error) {
 		return request.Request{}, errors.New("request label not found")
 	}
 	return rest.Parser.Request(req)
+}
+
+// Requester runs the file's request blocks w/ c, for rest.request in lua (see
+// restlua.Requester). Each request is evaluated w/ its own exports, so it's
+// safe to use concurrently. Unlike running a file, skipped requests (ex.
+// imported ones) can be run.
+func (rest *Rest) Requester(c *client.Client) restlua.Requester {
+	return func(target any, exports map[string]any) (*restlua.RequestResult, error) {
+		var hreq *file.HCLRequest
+		switch t := target.(type) {
+		case string:
+			hreq = rest.Requests[t]
+		case int:
+			for _, r := range rest.Requests {
+				if r.BlockIndex == t {
+					hreq = r
+				}
+			}
+		}
+		if hreq == nil {
+			return nil, errors.New("request not found")
+		}
+		req, err := rest.Parser.WithExports(exports).Request(hreq)
+		if err != nil {
+			return nil, err
+		}
+		return c.Run(req)
+	}
 }
 
 func (rest *Rest) RunFile(ignoreFail bool) error {
@@ -191,16 +220,33 @@ func (rest *Rest) RunSocket(socketArg string) error {
 }
 
 func (rest *Rest) RunServer() error {
-	config, err := rest.Parser.Server()
+	s, err := rest.Server()
 	if err != nil {
 		return err
 	}
-	if config.Addr == "" {
+	if s.Config.Addr == "" {
 		return errors.New("missing required server block")
 	}
-
-	s := server.New(config)
 	return s.Serve()
+}
+
+// Server makes the file's server, which can run its request blocks
+// (rest.request in lua).
+func (rest *Rest) Server() (*server.Server, error) {
+	config, err := rest.Parser.Server()
+	if err != nil {
+		return nil, err
+	}
+	// the server's requests don't share cookies (between its users)
+	cfg := rest.Parser.Config
+	cfg.NoCookies = true
+	c, err := client.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	config.Requester = rest.Requester(c)
+	s := server.New(config)
+	return &s, nil
 }
 
 func (rest *Rest) Export(export, label string, block int) error {

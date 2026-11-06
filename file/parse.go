@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math/big"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -225,6 +227,7 @@ func (p *Parser) parse(filename string, src []byte, root *Root) error {
 		p.writeDiags(diags)
 		return errors.New("failed to decode rest file")
 	}
+	p.warn(deprecations(p.Files[filename].Body))
 	return nil
 }
 
@@ -319,6 +322,9 @@ func (p *Parser) Server() (server.Config, error) {
 		var mws, handlers int
 		for _, block := range body.Blocks {
 			attr := block.Body.Attributes["fn"]
+			if attr == nil {
+				attr = block.Body.Attributes["page"]
+			}
 			var expr hcl.Expression
 			if attr != nil {
 				expr = attr.Expr
@@ -368,6 +374,13 @@ func (p *Parser) Server() (server.Config, error) {
 			seen[key] = true
 		}
 		for k, handler := range serv.Handlers {
+			if handler.Cache != "" {
+				if err := parseHandlerCache(handler); err != nil {
+					return serv, err
+				}
+			} else if len(handler.Vary) > 0 {
+				return serv, fmt.Errorf("handler %s %s: vary needs cache", handler.Method, handler.Path)
+			}
 			if serv.Handlers[k].Proxy, err = p.parseProxy(handler.ProxyHCL, handler.Proxy); err != nil {
 				return serv, fmt.Errorf("handler %s %s: proxy: %w", handler.Method, handler.Path, err)
 			}
@@ -396,6 +409,24 @@ func (p *Parser) Server() (server.Config, error) {
 		}
 	}
 	return serv, nil
+}
+
+// parseHandlerCache checks a handler's `cache`, which only works for GET
+// handlers that run lua (fn or page), and not stateful ones.
+func parseHandlerCache(h *server.Handler) error {
+	ttl, err := time.ParseDuration(h.Cache)
+	switch {
+	case err != nil || ttl <= 0:
+		return fmt.Errorf("handler %s %s: cache must be a duration (ex. \"1m\"), got %q", h.Method, h.Path, h.Cache)
+	case !strings.EqualFold(h.Method, "GET"):
+		return fmt.Errorf("handler %s %s: cache only works for GET handlers", h.Method, h.Path)
+	case h.Fn == "" && h.Page == "":
+		return fmt.Errorf("handler %s %s: cache needs fn or page", h.Method, h.Path)
+	case h.Stateful:
+		return fmt.Errorf("handler %s %s: cache doesn't work w/ stateful (each visitor has their own state)", h.Method, h.Path)
+	}
+	h.CacheTTL = ttl
+	return nil
 }
 
 // validateHandlerExpect catches expect blocks that can never pass, like a
@@ -572,6 +603,26 @@ func (p *Parser) AddExportsCtx(exports map[string]any) {
 	}
 	p.Ctx.Variables["exports"] = cty.ObjectVal(p.Exports)
 	p.Ctx.Functions["try_exports"] = makeTryExportsFunc(p.Exports)
+	p.Ctx.Functions["exports::try"] = p.Ctx.Functions["try_exports"]
+}
+
+// WithExports returns a copy of the parser whose context has the parser's
+// exports and `exports` (which win). The copy has its own exports, so
+// requests decoded w/ it (ex. by concurrent server handlers) don't affect
+// the parser or each other.
+func (p *Parser) WithExports(exports map[string]any) *Parser {
+	c := *p
+	c.RawExports = make(map[string]any, len(p.RawExports)+len(exports))
+	c.Exports = make(map[string]cty.Value, len(p.Exports)+len(exports))
+	maps.Copy(c.RawExports, p.RawExports)
+	maps.Copy(c.Exports, p.Exports)
+	ctx := &hcl.EvalContext{
+		Variables: maps.Clone(p.Ctx.Variables),
+		Functions: maps.Clone(p.Ctx.Functions),
+	}
+	c.Ctx = ctx
+	c.AddExportsCtx(exports)
+	return &c
 }
 
 func (p *Parser) makeContext() {
@@ -606,7 +657,8 @@ func (p *Parser) makeContext() {
 			"raw":              makeRawFunc(),
 			"read":             makeFileReadFunc(),
 			"tmpl":             makeGoTemplateFunc(),
-			"try_exports":      makeTryExportsFunc(p.Exports),
+			"try_exports":      makeTryExportsFunc(p.Exports), // deprecated: exports::try
+			"exports::try":     makeTryExportsFunc(p.Exports),
 			"trim":             makeTrimFunc(),
 			"ulid":             makeULIDFunc(),
 			"uuid":             makeUUIDFunc(),
@@ -727,7 +779,8 @@ func (p *Parser) scriptLang(expr hcl.Expression) string {
 	return restlua.LangLua
 }
 
-// heredocLang gets the lang from a heredoc marker, or "" if there isn't one.
+// heredocLang gets the lang from a heredoc marker, or from the extension of a
+// read("./script.erde") call, or "" if there isn't one.
 // For lists ([lib.dump, <<ERDE ...]) the first hinted element wins
 func (p *Parser) heredocLang(expr hcl.Expression) string {
 	if expr == nil {
@@ -738,6 +791,20 @@ func (p *Parser) heredocLang(expr hcl.Expression) string {
 			if lang := p.heredocLang(e); lang != "" {
 				return lang
 			}
+		}
+		return ""
+	}
+	if call, ok := expr.(*hclsyntax.FunctionCallExpr); ok {
+		if call.Name != "read" || len(call.Args) != 1 {
+			return ""
+		}
+		path, diags := call.Args[0].Value(p.Ctx)
+		if diags.HasErrors() || !path.IsKnown() || path.IsNull() || path.Type() != cty.String {
+			return ""
+		}
+		switch ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(path.AsString()), ".")); ext {
+		case restlua.LangLua, restlua.LangErde:
+			return ext
 		}
 		return ""
 	}

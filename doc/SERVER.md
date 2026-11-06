@@ -84,12 +84,17 @@ server {
     quiet = true
     # add cors headers (default false)
     cors = true
-    # serve a directory, this will override response if provided (except headers)
+    # serve a directory, this will override response if provided (except headers).
+    # w/ handlers, it serves what they don't match (ex. css, images next to pages)
     directory = "./test"
     # should this be treated as a single page application (ie frontend routing) by returning index.html instead of 404 (default false)
     spa = true
     # forward every request no handler matches to another server (see Proxying below)
     # proxy = "localhost:8081"
+    # limits for stateful handlers and pages (see Stateful handlers below):
+    # how many lua states are kept (default 1000), and for how long when unused (default 30m)
+    max_states = 1000
+    state_ttl  = "30m"
     # if you need a more complicated test server you can add specific handlers
     # handlers can share a path with different methods ("GET" "/path" and "POST" "/path"), "*" matches any method
     handler "GET" "/path" {
@@ -97,6 +102,16 @@ server {
         ws = true
         # either use lua to create a more complex response
         fn = "similar concept to the after hook in the client files (see hander fns below)"
+        # keep the lua state between requests (see PAGES.md)
+        # stateful = true
+        # keep (GET) responses of fn / page for this long, by path, query, and
+        # the vary headers (see PAGES.md)
+        # cache = "1m"
+        # vary = ["Accept-Language"]
+        # or serve an interactive page, written w/ erde markup (see PAGES.md)
+        # page = <<-ERDE
+        #   return <App/>
+        # ERDE
         # or forward just this route to another server
         proxy = "localhost:8081"
         # or with options, use a block instead (see Proxying below)
@@ -148,7 +163,7 @@ return {
 }
 ```
 
-Handler functions are passed a global `rest` table containing `rest.path`, `rest.ctx`, and `rest.req`:
+Handler functions are passed a global `rest` table containing `rest.path`, `rest.ctx`, `rest.req`, `rest.exports`, and `rest.request` (see [Requests](#requests-restrequest)):
 
 ```lua
 rest.req = {
@@ -160,6 +175,32 @@ rest.req = {
     body = "",
 }
 ```
+
+### Erde scripts
+
+Scripts (`fn`, `page`, `setup`, middleware) can be written in
+[erde](https://erde-lang.github.io) instead of lua, w/ an `<<ERDE` (or
+`<<-ERDE`) heredoc, or by reading a `.erde` file (`fn = read("./handler.erde")`).
+Anything else is lua. go-erde's experimental `match` and `markup` are enabled.
+
+Erde modules can be `require`d too (`require('app')` finds `./app.erde`).
+Scripts and modules are compiled once (a changed file is compiled again), so
+they're cheap to use from every request.
+
+### Pages, HTML, and stateful handlers
+
+Handlers can return HTML (w/ go-erde's markup), serve interactive `page`s, and
+keep their lua state between requests (`stateful = true`): see
+[PAGES.md](PAGES.md).
+
+### Requests (`rest.request`)
+
+Scripts (handlers, pages, middleware, and `setup`) can run the file's `request`
+blocks (including imported ones) w/ `rest.request(label [, exports])` (or a
+block index), see [CLIENT.md](CLIENT.md#running-requests-from-lua-restrequest).
+`rest.exports` is what request blocks see as `exports`: each request has its
+own, starting from what `setup` exported, and a `stateful` handler's are kept
+in its state. The server doesn't keep cookies from responses.
 
 ### Validating requests (`expect`)
 
@@ -328,6 +369,14 @@ server {
         kv.set("boot_token", uuid.newv4())
     LUA
 }
+```
+
+`setup` can also use `rest.request`, and what it sets in `rest.exports` is where every request's exports start:
+
+```hcl
+setup = <<LUA
+    assert(rest.request("login")) -- its after hook sets rest.exports.token
+LUA
 ```
 
 ### Middleware

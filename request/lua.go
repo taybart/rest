@@ -137,7 +137,9 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 	return nil
 }
 
-func execute(l *lua.LState, code, lang string) error {
+// execute runs code, returning what it returned (copied out of the state, as
+// data)
+func execute(l *lua.LState, code, lang string) ([]any, error) {
 	var cleanError error
 
 	l.SetGlobal("fail", l.NewFunction(func(L *lua.LState) int {
@@ -148,17 +150,31 @@ func execute(l *lua.LState, code, lang string) error {
 		return 10
 	}))
 
+	base := l.GetTop()
 	if err := restlua.Exec(l, code, lang); err != nil {
-		return err
+		return nil, err
 	}
-
+	if cleanError != nil {
+		return nil, cleanError
+	}
 	if err := syncExportsTable(l); err != nil {
-		return err
+		return nil, err
 	}
-	return cleanError
+	var returns []any
+	for i := base + 1; i <= l.GetTop(); i++ {
+		returns = append(returns, restlua.LValueToAny(l.Get(i)))
+	}
+	return returns, nil
 }
 
 func (r *Request) RunAfterHook(res *http.Response, jar http.CookieJar) (map[string]any, error) {
+	exports, _, err := r.RunAfterHookReturns(res, jar)
+	return exports, err
+}
+
+// RunAfterHookReturns runs the after hook, returning its exports and what it
+// returned (nil if it didn't return anything).
+func (r *Request) RunAfterHookReturns(res *http.Response, jar http.CookieJar) (map[string]any, []any, error) {
 
 	l := restlua.NewState()
 	defer l.Close()
@@ -167,18 +183,19 @@ func (r *Request) RunAfterHook(res *http.Response, jar http.CookieJar) (map[stri
 	}
 
 	if err := restlua.RegisterModules(l); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := populateGlobalObject(l, r, res, jar); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if err := execute(l, r.After, r.Lang); err != nil {
-		return nil, err
+	returns, err := execute(l, r.After, r.Lang)
+	if err != nil {
+		return nil, nil, err
 	}
 	exportsTable, err := getExportsTable(l)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return restlua.LTableToMap(exportsTable), nil
+	return restlua.LTableToMap(exportsTable), returns, nil
 }

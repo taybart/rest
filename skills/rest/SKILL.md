@@ -10,6 +10,7 @@ description: Write, run, test, debug, and export `.rest` files using the `rest` 
 For full reference documentation and working examples, read:
 - `references/CLIENT.md` — Detailed client config, functions, Lua `after` hooks, `expect` matchers, WebSockets, exports, and `cli` blocks.
 - `references/SERVER.md` — Detailed server config, routes, `handler` functions, `middleware`, `kv` store, and `setup` hooks.
+- `references/PAGES.md` — HTML apps on the server: returning go-erde markup, interactive `page` handlers, fetching data with `rest.request`, and stateful handlers.
 - `references/examples/` — Complete client (`references/examples/client/`) and server (`references/examples/server/`) `.rest` files.
 
 ---
@@ -120,7 +121,7 @@ request "login" {
 
 request "get profile" {
   url          = "${locals.base_url}/me"
-  bearer_token = exports.auth_token # or try_exports("auth_token", "fallback")
+  bearer_token = exports.auth_token # or exports::try("auth_token", "fallback")
   query        = { expand = "roles" }
   expect       = 200
   after        = [lib.expected, lib.inspect_res]
@@ -133,7 +134,7 @@ request "get profile" {
 - **Environment & Files:** `env("VAR")`, `read("./path/to/file")`
 - **IDs:** `uuid()`, `ulid()`, `nanoid([size [, alphabet]])`
 - **Encoding & Templates:** `json_enc(map)`, `json_dec(str)`, `jwt_sign(claims, secret [, opts])` / `jwt_enc(...)`, `jwt_dec(token)`, `form(map)`, `btmpl(str, map_or_list)`, `tmpl(str, map)`
-- **Exports:** `exports.<key>` (or `rest.exports.<key>`), `try_exports("key", "default")`
+- **Exports:** `exports.<key>` (or `rest.exports.<key>`), `exports::try("key", "default")` (`try_exports` is the deprecated name)
 - **Pre-canned `after` hooks (`lib`):**
   - `lib.expected` — checks the `expect` status/block and fails the run on mismatch (always include in `after` when both `expect` and `after` are set, as custom `after` hooks override automatic `expect` checking unless `lib.expected` or `tools.expected()` is called)
   - `lib.inspect_res`, `lib.inspect_req`, `lib.inspect_jwt` — decode and pretty-print response/request body or JWT
@@ -156,13 +157,14 @@ request "get profile" {
 ## Custom Lua in `after` Hooks
 
 When writing `after = <<LUA ... LUA`:
-- **Erde:** use `<<ERDE ... ERDE` (or `<<-ERDE`) to write any script (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`) in [erde](https://erde-lang.github.io) instead. Any other heredoc marker or plain string is lua. Same globals. In erde, `"{x}"` interpolates; use `'...'` for literal braces. go-erde's experimental `match` is on: `match x { 1 | 2 => { ... } _ if cond => { ... } _ => { ... } }` (patterns compare w/ `==`, no fallthrough, `break`/`continue` apply to the enclosing loop).
+- **Erde:** use `<<ERDE ... ERDE` (or `<<-ERDE`) to write any script (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`/`page`) in [erde](https://erde-lang.github.io) instead, or `read("./x.erde")` (the `.erde` extension makes it erde). Any other heredoc marker or plain string is lua. `require('name')` also finds `./name.erde`. Same globals. In erde, `"{x}"` interpolates; use `'...'` for literal braces. go-erde's experimental `match` is on: `match x { 1 | 2 => { ... } _ if cond => { ... } _ => { ... } }` (patterns compare w/ `==`, no fallthrough, `break`/`continue` apply to the enclosing loop).
 - **Globals:** `json` (`encode`/`decode`), `jwt` (`sign`/`encode`, `decode`, `verify`, `is_valid`), `form` (`encode`/`decode`), `inspect` (`inspect(v)`, `inspect.print(v)`), `colors`, `base64` (`encode(str [, opts])`, `decode(str)`), `url` (`escape`/`unescape` for query values, `path_escape`/`path_unescape` for path segments), `html` (`escape`/`unescape` entities), `uuid` (`newv4`, `is_uuid`, `is_uuidv4`), `ulid` (`new([ms])` / `ulid([ms])`, `is_ulid`, `timestamp`), `nanoid` (`new([size [, alphabet]])` / `nanoid(...)`, `is_nanoid(str [, size])`), `tools` (`tools.expected()`), `copy(val)`, `fail(msg)`.
 - **Request & Response (`rest.req`, `rest.res`):**
   - Fields: `rest.req.body`, `rest.req.headers`, `rest.req.cookies`, `rest.req.method`, `rest.req.query`, `rest.req.url`, `rest.req.dump`
   - Fields: `rest.res.body`, `rest.res.headers`, `rest.res.cookies`, `rest.res.status`, `rest.res.dump`
   - Methods (use `:`): `rest.req:header("name")`, `rest.req:query("key")`, `rest.req:cookie("name")`, `rest.req:bearer_token()`, `rest.res:header("name")`, `rest.res:cookie("name")`
 - **Sharing state to subsequent requests:** `rest.exports.my_key = "value"`
+- **Running request blocks from lua:** `local res, err = rest.request("label" or index, { id = 1 })` (in `cli` fns and server handlers/pages/middleware/`setup`). The exports table is set in `rest.exports` first (read it in the block with `exports.id` / `exports::try("id", default)`); runs `expect` + `after` like `-l` (after-hook exports merge into `rest.exports`); returns a `rest.res`-like table with `:json()` — or, if the after hook `return`s values, those instead (copied as data), so post-process in the block's hook — or `nil, err`. A block with an after hook only checks `expect` if the hook includes `lib.expected`. Works on `skip = true` / skipped imported blocks. In a server, each request has its own exports (seeded from `setup`'s; kept across requests for `stateful` handlers/pages), and no cookie jar. Make outbound requests this way, as request blocks, not ad hoc. Add `cache = "5m"` to a block to keep its 2xx responses (keyed by everything sent; shared across server requests; `expect`/`after` still run; only applies to `rest.request`, not `rest -f`; a cached response's `:json()` is decoded once and shared read-only, so writing to it errors — copy first).
 
 ---
 
@@ -201,7 +203,7 @@ cli {
 }
 
 request "fetch user" {
-  url   = "https://api.example.com/users/${try_exports("user", "default")}"
+  url   = "https://api.example.com/users/${exports::try("user", "default")}"
   after = export_res({ result = "name" })
 }
 ```
@@ -236,7 +238,7 @@ server {
   address   = "localhost:18080"
   cors      = true
   quiet     = false
-  # directory = "./public"
+  # directory = "./public"  # with handlers: serves whatever no handler matches
   # spa       = true
   # tls       = "./keys/site.com" # expects .key and .crt
   # tailscale = true
@@ -289,3 +291,25 @@ server {
 }
 ```
 Handlers can share a path with different methods (`handler "GET" "/x"` + `handler "POST" "/x"`; `"*"` = any method). Forward to another server with `proxy = "localhost:8081"` on the `server` block (fallback for anything no handler matches, so you can mock some routes and proxy the rest) or on a `handler` (one route, after its middleware and `expect`). For options use a block instead: `proxy { target = "...", strip = "/api", headers = { Authorization = "Bearer ${env("TOKEN")}", Cookie = "" } }` (one attribute per line; `strip` removes a path prefix; empty header value removes it; `insecure = true` skips TLS verification for that proxy only, independent of `config { insecure_no_verify_tls }`). For cookie options in server responses, WebSocket echo handlers (`ws = true`), proxy details, and full `kv` methods (`kv.get`, `kv.set`, `kv.del`, `kv.all`), consult `references/SERVER.md`.
+
+**HTML & interactive pages (erde markup):** erde scripts have go-erde's `markup` on, so a handler can `return <html>...</html>` (rendered as `text/html`; or `{ status = 404, body = <p>...</p> }`). A `page` handler (instead of `fn`) serves an interactive page: functions in `on*` attributes (`onclick={() -> { ... }}`, `onsubmit={e -> { ... e.form.field }}`) run on the server and only changed components are sent back. Actions are POSTs to the page's own path (so no other `POST` handler there), and the page's middleware runs for them.
+
+```hcl
+handler "GET" "/{$}" {
+  page = <<-ERDE
+    local App = require('app')   -- ./app.erde
+    return <App name={rest.req:query('name')}/>
+  ERDE
+}
+```
+```erde
+-- app.erde
+local { state, css } = require('erde.markup')
+local s = css({ btn = { font_weight = 'bold', ['&:hover'] = { color = 'gold' } } }) -- scoped, s.btn is the class
+local Counter = () -> {
+  local st = state({ count = 0 })        -- per component instance
+  return <button class={s.btn} onclick={() -> { st.count += 1 }}>{st.count}</button>
+}
+return (props) -> <html><body><h1>hi {props.name || 'you'}</h1><Counter/></body></html>
+```
+Each page load gets its own lua state (module-level variables are per page). `stateful = true` does the same for an `fn` handler (`rest.state` is the id, sent back in the `X-Rest-State` header). Limits: `server { max_states = 1000, state_ttl = "30m" }`; a closed state gets a 410 (pages reload). In markup: `{expr}` children / attributes, `class="a {b}"` interpolates, `{...props}` spreads, `<style>`/`<script>` content is raw css/js, `{--[[ comment ]]}`. Use `&&` / `||` / `!=` (erde, not lua's `and`/`or`/`~=`). `cache = "1m"` on a GET `fn`/`page` handler serves its 200 responses from memory, keyed by path + query (+ `vary = ["Header"]`): only for output that's the same for every visitor; interactive pages and cookie-setting responses are never cached; middleware still runs. See `references/PAGES.md` (HTML, pages, fetching data w/ `rest.request`, caching, stateful handlers).

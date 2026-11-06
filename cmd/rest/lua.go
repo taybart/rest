@@ -172,13 +172,17 @@ func populateGlobalObject(l *lua.LState, f *rest.Rest, cliBlock file.CLI, cliFla
 		return 0
 	}
 
-	l.SetGlobal("rest", restlua.MakeLTable(l, map[string]lua.LValue{
+	restGlobal := restlua.MakeLTable(l, map[string]lua.LValue{
 		"file":    l.NewFunction(lDoFile),
 		"label":   l.NewFunction(lDoLabel),
 		"block":   l.NewFunction(lDoIndex),
 		"loop":    l.NewFunction(lDoLoop),
 		"exports": exportsTable,
-	}))
+	})
+	l.SetGlobal("rest", restGlobal)
+	restlua.SetRequester(l, restGlobal, func(target any, exports map[string]any) (*restlua.RequestResult, error) {
+		return f.Requester(rclient)(target, exports)
+	})
 
 	l.SetGlobal("sleep", l.NewFunction(func(l *lua.LState) int {
 		time.Sleep(time.Duration(l.ToInt(1)) * time.Second)

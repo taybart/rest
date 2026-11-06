@@ -102,7 +102,7 @@ cli {
 request "hello rest" {
   url = "${locals.url}/get"
     # try to use rest.exports.name or default to "world"
-  query = { name = try_exports("name", "world") }
+  query = { name = exports::try("name", "world") }
 }
 ```
 
