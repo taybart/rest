@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/taybart/rest/server"
 )
@@ -104,6 +106,44 @@ func TestDir(t *testing.T) {
 		t.Errorf("error creating request: %s", err)
 	}
 	checkResponse(t, req, Response{StatusCode: http.StatusOK, Body: string(f)})
+}
+
+// A directory serves what the handlers don't match.
+func TestDirWithHandlers(t *testing.T) {
+	ts := newServer(server.Config{
+		Quiet: true,
+		Dir:   "../test",
+		Handlers: []*server.Handler{
+			{Method: "GET", Path: "/{$}", Response: &server.Response{Status: 200, Body: []byte(`"root"`)}},
+			{Method: "GET", Path: "/response.json", Response: &server.Response{Status: 200, Body: []byte(`"handler"`)}},
+		},
+	})
+	defer ts.Close()
+	get := func(path string) Response {
+		res, err := http.Get(ts.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+		return Response{StatusCode: res.StatusCode, Body: string(body)}
+	}
+	cases := []struct {
+		path string
+		want Response
+	}{
+		{"/", Response{StatusCode: 200, Body: `"root"`}},
+		{"/response.json", Response{StatusCode: 200, Body: `"handler"`}}, // handlers win
+		{"/jsx/../response.json", Response{StatusCode: 200, Body: `"handler"`}},
+		{"/cli-tool/client.rest", Response{StatusCode: 200}},
+		{"/nope.txt", Response{StatusCode: 404}},
+	}
+	for _, c := range cases {
+		got := get(c.path)
+		if got.StatusCode != c.want.StatusCode || (c.want.Body != "" && got.Body != c.want.Body) {
+			t.Errorf("%s: got %d %q, want %d %q", c.path, got.StatusCode, got.Body, c.want.StatusCode, c.want.Body)
+		}
+	}
 }
 
 func TestEcho(t *testing.T) {
@@ -441,9 +481,9 @@ func TestJWTServerAndMiddleware(t *testing.T) {
 	})
 }
 
-// Handlers (and middleware) can return jsx elements, which are rendered as
+// Handlers (and middleware) can return markup elements, which are rendered as
 // HTML documents.
-func TestErdeJSXHandlers(t *testing.T) {
+func TestErdeMarkupHandlers(t *testing.T) {
 	const page = `local App = props -> <main><h1>hi {props.name}</h1></main>`
 	ts := newServer(server.Config{
 		Quiet: true,
@@ -552,7 +592,7 @@ func TestStatefulHandlers(t *testing.T) {
 	checkResponse(t, req, Response{StatusCode: 200, Body: "nil nil"})
 }
 
-// Page handlers serve an interactive jsx page, w/ its actions as POSTs to the
+// Page handlers serve an interactive markup page, w/ its actions as POSTs to the
 // same path.
 func TestPageHandlers(t *testing.T) {
 	ts := newServer(server.Config{
@@ -564,7 +604,7 @@ func TestPageHandlers(t *testing.T) {
 			{
 				Method: "GET", Path: "/counter/{start}", Lang: "erde", Middleware: []string{"gate"},
 				Page: `
-					local { state } = require('erde.jsx')
+					local { state } = require('erde.markup')
 					local Counter = (props) -> {
 						local s = state({ count = tonumber(props.start) })
 						return <button onclick={() -> { s.count += 1 }}>{s.count}</button>
@@ -630,6 +670,36 @@ func TestPageHandlers(t *testing.T) {
 	}
 }
 
+// A script that doesn't return a response is a 500, w/ a hint in the log.
+func TestBadHandlerReturns(t *testing.T) {
+	cases := []struct{ script, hint string }{
+		{"return function() end", "render it w/ `return <App/>`"},
+		{"local x = 1", "is the return missing?"},
+		{"return 'hi'", "got a string"},
+	}
+	for _, c := range cases {
+		err := func() error {
+			s := server.Server{Config: server.Config{}}
+			_, _, err := s.RunLuaPipeline(&server.Handler{Page: c.script}, httptest.NewRequest("GET", "/", nil), httptest.NewRecorder())
+			return err
+		}()
+		if err == nil || !strings.Contains(err.Error(), c.hint) {
+			t.Errorf("%q: got %v, want %q", c.script, err, c.hint)
+		}
+	}
+
+	ts := newServer(server.Config{Handlers: []*server.Handler{{Method: "GET", Path: "/", Fn: "return function() end"}}})
+	defer ts.Close()
+	res, err := http.Get(ts.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != 500 {
+		t.Errorf("got %d, want 500", res.StatusCode)
+	}
+}
+
 func TestPageHandlerConflicts(t *testing.T) {
 	for name, handlers := range map[string][]*server.Handler{
 		"fn and page": {{Method: "GET", Path: "/", Page: "return 1", Fn: "return 1"}},
@@ -661,4 +731,86 @@ func TestStaticPage(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", ts.URL+"/static?n=1", nil)
 	checkResponse(t, req, Response{StatusCode: 200, Body: "<!DOCTYPE html><p>hi 1</p>"})
+}
+
+// Handlers w/ cache keep their responses (see cache.go).
+func TestHandlerCache(t *testing.T) {
+	counter := `local n = (kv.get('n') or 0) + 1; kv.set('n', n)`
+	erdeCounter := `local n = (kv.get('n') || 0) + 1; kv.set('n', n)`
+	ts := newServer(server.Config{Quiet: true, Middlewares: []*server.Middleware{
+		{Name: "auth", Fn: `if not rest.req:header('Authorization') then return { status = 401 } end`},
+	}, Handlers: []*server.Handler{
+		{Method: "GET", Path: "/fn/{id}", CacheTTL: time.Minute, Vary: []string{"Accept-Language"},
+			Fn: counter + `; return { status = 200, body = rest.req:path_value('id') .. ' ' .. n }`},
+		{Method: "GET", Path: "/short", CacheTTL: 50 * time.Millisecond, Fn: counter + `; return { status = 200, body = tostring(n) }`},
+		{Method: "GET", Path: "/missing", CacheTTL: time.Minute, Fn: counter + `; return { status = 404, body = tostring(n) }`},
+		{Method: "GET", Path: "/cookie", CacheTTL: time.Minute, Fn: counter + `; return { status = 200, cookies = { a = 'b' }, body = tostring(n) }`},
+		{Method: "GET", Path: "/auth", CacheTTL: time.Minute, Middleware: []string{"auth"}, Fn: counter + `; return { status = 200, body = tostring(n) }`},
+		{Method: "GET", Path: "/static", CacheTTL: time.Minute, Lang: "erde", Page: erdeCounter + "\nreturn <p>{n}</p>"},
+		{Method: "GET", Path: "/interactive", CacheTTL: time.Minute, Lang: "erde", Page: erdeCounter + "\nreturn <button onclick={() -> {}}>{n}</button>"},
+	}})
+	defer ts.Close()
+
+	get := func(path string, header ...string) (string, http.Header) {
+		t.Helper()
+		req, _ := http.NewRequest("GET", ts.URL+path, nil)
+		for i := 0; i+1 < len(header); i += 2 {
+			req.Header.Set(header[i], header[i+1])
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+		return fmt.Sprintf("%d %s", res.StatusCode, body), res.Header
+	}
+
+	steps := []struct {
+		path   string
+		header []string
+		want   string
+	}{
+		{"/fn/a", nil, "200 a 1"},
+		{"/fn/a", nil, "200 a 1"},                               // cached
+		{"/fn/b", nil, "200 b 2"},                               // another path
+		{"/fn/a?x=1&y=2", nil, "200 a 3"},                       // another query
+		{"/fn/a?y=2&x=1", nil, "200 a 3"},                       // (sorted)
+		{"/fn/a", []string{"Accept-Language", "fr"}, "200 a 4"}, // a vary header
+		{"/missing", nil, "404 5"},
+		{"/missing", nil, "404 6"}, // not a 200
+		{"/cookie", nil, "200 7"},
+		{"/cookie", nil, "200 8"}, // sets cookies
+		{"/auth", nil, "401 "},    // middleware runs first
+		{"/auth", []string{"Authorization", "x"}, "200 9"},
+		{"/auth", []string{"Authorization", "y"}, "200 9"}, // (not part of the key)
+		{"/auth", nil, "401 "},                             // even for cached responses
+	}
+	for _, s := range steps {
+		if got, _ := get(s.path, s.header...); got != s.want {
+			t.Errorf("%s %v: got %q, want %q", s.path, s.header, got, s.want)
+		}
+	}
+
+	if _, h := get("/fn/a"); h.Get("Cache-Control") != "public, max-age=60" {
+		t.Errorf("Cache-Control: %q", h.Get("Cache-Control"))
+	}
+
+	// a static page is cached, an interactive one isn't
+	static, _ := get("/static")
+	if again, _ := get("/static"); again != static {
+		t.Errorf("static page: %q then %q", static, again)
+	}
+	interactive, _ := get("/interactive")
+	if again, _ := get("/interactive"); again == interactive {
+		t.Errorf("interactive page was cached: %q", again)
+	}
+
+	// entries expire
+	first, _ := get("/short")
+	second, _ := get("/short")
+	time.Sleep(80 * time.Millisecond)
+	if third, _ := get("/short"); first != second || third == first {
+		t.Errorf("expiry: %q %q %q", first, second, third)
+	}
 }

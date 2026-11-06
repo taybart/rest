@@ -1,13 +1,16 @@
 package file_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/taybart/rest"
+	"github.com/taybart/rest/file"
 	"github.com/taybart/rest/request"
 )
 
@@ -899,5 +902,52 @@ request "r" {
 	}
 	if got := req.Body; got != "from home" {
 		t.Errorf("expected body %q, got %q", "from home", got)
+	}
+}
+
+func TestDeprecationWarnings(t *testing.T) {
+	src := `
+request "a" {
+  url = "http://localhost/${try_exports("id", 1)}"
+}
+request "b" {
+  url = "http://localhost/${exports::try("id", 1)}"
+}
+`
+	var out bytes.Buffer
+	if _, err := file.NewParserFromSource("deprecated.rest", []byte(src), &out); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	if strings.Count(got, "Warning: try_exports is deprecated") != 1 || !strings.Contains(got, "deprecated.rest line 3") {
+		t.Errorf("expected one warning for try_exports on line 3, got:\n%s", got)
+	}
+}
+
+func TestHandlerCacheValidation(t *testing.T) {
+	cases := []struct{ handler, want string }{
+		{`handler "GET" "/" { cache = "soon"; fn = "return {}" }`, "cache must be a duration"},
+		{`handler "POST" "/" { cache = "1m"; fn = "return {}" }`, "only works for GET"},
+		{`handler "GET" "/" { cache = "1m"; response { status = 200 } }`, "needs fn or page"},
+		{`handler "GET" "/" { cache = "1m"; stateful = true; fn = "return {}" }`, "stateful"},
+		{`handler "GET" "/" { vary = ["Accept"]; fn = "return {}" }`, "vary needs cache"},
+		{`handler "GET" "/" { cache = "90s"; vary = ["Accept"]; fn = "return {}" }`, ""},
+	}
+	for _, c := range cases {
+		handler := strings.Replace(c.handler, "{ ", "{\n", 1)
+		handler = strings.TrimSuffix(handler, " }") + "\n}"
+		src := "server {\n  address = \"localhost:0\"\n  " + strings.ReplaceAll(handler, "; ", "\n") + "\n}\n"
+		p, err := file.NewParserFromSource("cache.rest", []byte(src), &bytes.Buffer{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := p.Server()
+		if c.want == "" {
+			if err != nil || cfg.Handlers[0].CacheTTL != 90*time.Second {
+				t.Errorf("%s: %v %v", c.handler, err, cfg.Handlers)
+			}
+		} else if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: got %v, want %q", c.handler, err, c.want)
+		}
 	}
 }

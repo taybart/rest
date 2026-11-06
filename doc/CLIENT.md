@@ -138,6 +138,10 @@ request "my request" {
   # skip is not copied over and not used when comparing requests
   skip = false
 
+  # when run from lua (rest.request), keep successful responses for this long
+  # (see "Running requests from lua")
+  # cache = "5m"
+
   # url must include protocol (http(s) for now)
   url = "http://localhost:8080/"
 
@@ -212,6 +216,7 @@ There are a few functions that can be used in a rest file:
 - `form({key = "value"}")` - turn map value into a url-encoded form string
 - `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
 - `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map (currently only map[string]strings are supported)
+- `exports::try("key", "default")` - an export, or `"default"` if it isn't set (`exports.key` is an error then). `try_exports` is the old (deprecated) name
 - `raw("CONNECT token")` - mark a [socket](#sockets) playbook entry to be sent as a raw text frame instead of being JSON encoded
 - `is.<type>` / `is("...")` - expectation matchers for `expect { body = ... }` and `expect { headers = ... }`:
   - `is.uuid`, `is.uuidv4`, `is.ulid`, `is.nanoid`, `is.jwt`, `is.email`, `is.url`
@@ -249,7 +254,7 @@ request "my request" {
 
 Hooks are defined in the `after` field. They are lua functions that are executed after the response is received. They can be used to do fancy lua stuff.
 
-Scripts (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`/`page`) can also be written in [erde](https://erde-lang.github.io) by using an `<<ERDE` (or `<<-ERDE`) heredoc, or by reading a `.erde` file (`read("./hook.erde")`). Any other script is lua. Both run in the same runtime, so the globals below are the same. go-erde's experimental `match` statement (and `jsx`, see [SERVER.md](SERVER.md#returning-html-jsx)) is enabled:
+Scripts (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`/`page`) can also be written in [erde](https://erde-lang.github.io) by using an `<<ERDE` (or `<<-ERDE`) heredoc, or by reading a `.erde` file (`read("./hook.erde")`). Any other script is lua. Both run in the same runtime, so the globals below are the same. go-erde's experimental `match` statement (and `markup`, see [PAGES.md](PAGES.md)) is enabled:
 
 ```erde
 match rest.res.status {
@@ -374,6 +379,7 @@ Hooks are also passed a `rest` table that contains the following:
 - `rest.res:header(key)` - case-insensitive lookup returning the first header value and matched key (or `nil`)
 - `rest.res:header_values(key)` - case-insensitive lookup returning a table of values and matched key (or `nil`)
 - `rest.res:cookie(name)` - get the value of a response cookie by name (and a second return value with cookie attributes when set via `Set-Cookie`)
+- `rest.res:json()` - the body, decoded from json
 
 ### exports
 
@@ -401,6 +407,32 @@ request "forward status" {
 ```
 
 An example of using more complicated hooks can be found [here](https://github.com/taybart/search)
+
+### Running requests from lua (`rest.request`)
+
+`rest.request(label [, exports])` (or a block index, `rest.request(0)`) runs a request block from lua: in a `cli` block, and in a server's handlers, pages, middleware, and `setup` (see [SERVER.md](SERVER.md#requests-restrequest)). The exports are set in `rest.exports` first, so the block can use them, and it runs like `rest -l` does (`expect`, then the `after` hook, whose exports end up in `rest.exports`). It returns the response (like `rest.res`, w/ `status`, `headers`, `body`, `cookies`, and `:json()`), or `nil` and an error for a network error, a failed `expect`, or `fail()` in the after hook. If the after hook `return`s something, that's returned instead, so a block can post process its response in one place, for everything that uses it (values are copied out of the hook as data: strings, numbers, booleans, and tables; hooks w/o a `return`, like `lib.*`, return the response). Note that a block w/ an after hook only checks its `expect` if the hook does (`lib.expected`), like when it's run w/ `-l`. Blocks w/ `skip = true` (and skipped imports) can be run this way, so a file can be a library of requests.
+
+A block w/ `cache = "5m"` (any duration) keeps its successful (2xx) responses for that long, when it's run w/ `rest.request` (running a file, or `-l`, always sends requests). Responses are keyed by everything that's sent (method, url, query, headers, cookies, and body), so `rest.request('item', { id = 1 })` and `{ id = 2 }` are cached separately, and concurrent requests for the same missing response share one request. `expect` and the `after` hook still run every time, on the cached response. A server shares its cache between requests, and keeps up to 1000 responses. A cached response's `:json()` is decoded once and shared by everything that uses it (ex. every page of a server), so it's read-only: changing it is an error (`attempt to modify a read-only table`), copy what you need to change.
+
+```hcl
+request "item" {
+  # runs on its own too (rest -f hn.rest -l item), w/ id 8863
+  url    = "https://api.hackerwebapp.com/item/${exports::try("id", 8863)}"
+  expect = 200
+  after  = [lib.expected, <<-ERDE
+    local item = rest.res:json()
+    return { title = item.title, url = item.url || "/post/{item.id}" }
+  ERDE
+  ]
+}
+
+cli {
+  fn = <<-ERDE
+    local item, err = rest.request('item', { id = cli.id })
+    print(err || item.title)
+  ERDE
+}
+```
 
 ## Sockets
 
@@ -652,7 +684,7 @@ flags = {
 
 - The default is evaluated like the rest of the file, so `env()` and interpolation (e.g. `"${locals.dir}"`) work.
 - A defaulted flag is **always** present on the Lua `cli` table. Without a default, an unset flag is `nil`, so `if cli.dir then` distinguishes "user passed it" from "fell back" — a defaulted flag can't tell you that.
-- Defaults are Lua-side only: they don't reach the HCL context. To use a flag value in a request with an HCL-side fallback, export it (`rest.exports`) and read it with `try_exports` — see [Exports](#exports).
+- Defaults are Lua-side only: they don't reach the HCL context. To use a flag value in a request with an HCL-side fallback, export it (`rest.exports`) and read it with `exports::try` — see [Exports](#exports).
 - Bool flags ignore `default` and are exposed as real Lua booleans: `--loud` → `true`, `--loud=false` → `false`, not passed → `nil`.
 
 ### CLI Loop
@@ -730,7 +762,7 @@ request "completions" {
   headers = { "Content-Type" = "application/json" }
   body = {
     model = "gpt-4"
-    messages: json_dec(try_exports("conversation", env("conversation")))
+    messages: json_dec(exports::try("conversation", env("conversation")))
   }
 }
 ```

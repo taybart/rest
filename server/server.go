@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/rs/cors"
 	"github.com/taybart/log"
+	restlua "github.com/taybart/rest/lua"
 )
 
 const (
@@ -48,9 +49,16 @@ type Handler struct {
 	WS       bool           `json:"ws" hcl:"ws,optional"`
 	// Stateful keeps the lua state between requests (see state.go).
 	Stateful bool `json:"stateful" hcl:"stateful,optional"`
-	// Page is like Fn, but returns a jsx element that's served as an
+	// Page is like Fn, but returns a markup element that's served as an
 	// interactive page (see page.go).
 	Page string `json:"page,omitempty" hcl:"page,optional"`
+	// Cache keeps the handler's responses for this long (ex. "1m"), see
+	// cache.go. Vary lists request headers that are part of the cache key
+	// (besides the path and query).
+	Cache    string        `json:"cache,omitempty" hcl:"cache,optional"`
+	Vary     []string      `json:"vary,omitempty" hcl:"vary,optional"`
+	CacheTTL time.Duration `json:"-"`
+	cache    *responseCache
 	// set on the POST handler rest adds for a page's actions
 	pageActions bool
 	Response    *Response `hcl:"response,block"`
@@ -78,6 +86,8 @@ type Server struct {
 	kvMu   sync.RWMutex
 	kvOnce sync.Once
 	kv     map[string]any
+	// rest.exports set by setup (read only after kvOnce)
+	setupExports map[string]any
 	// lua states of stateful handlers (set up by Routes)
 	states *stateStore
 }
@@ -107,6 +117,8 @@ type Config struct {
 	SPA         bool           `hcl:"spa,optional"`
 	// set by the parser
 	SetupLang string
+	// runs the file's request blocks (rest.request in lua)
+	Requester restlua.Requester `json:"-"`
 }
 
 func New(c Config) Server {

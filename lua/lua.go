@@ -226,7 +226,9 @@ func AnyToLValue(state *lua.LState, value any) lua.LValue {
 	case bool:
 		return lua.LBool(v)
 	case []any:
-		tbl := state.NewTable()
+		// sized exactly: NewTable preallocates room for 32 items and 32
+		// keys (~2KB), a lot for a decoded json object w/ a few fields
+		tbl := state.CreateTable(len(v), 0)
 		for i, item := range v {
 			tbl.RawSetInt(i+1, AnyToLValue(state, item))
 		}
@@ -241,7 +243,7 @@ func AnyToLValue(state *lua.LState, value any) lua.LValue {
 }
 
 func MapToLTable(state *lua.LState, data map[string]any) *lua.LTable {
-	table := state.NewTable()
+	table := state.CreateTable(0, len(data))
 
 	for key, value := range data {
 		lval := AnyToLValue(state, value)

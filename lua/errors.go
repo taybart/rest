@@ -59,7 +59,7 @@ const (
 // NewState makes a runtime w/ the experimental erde extensions on (only affects
 // erde scripts, ex. `match`)
 func NewState() *lua.LState {
-	return lua.NewState(lua.Options{Erde: parse.ErdeOptions{Match: true, JSX: true}})
+	return lua.NewState(lua.Options{Erde: parse.ErdeOptions{Match: true, Markup: true}})
 }
 
 // SetPrint makes lua's print write to w instead of stdout

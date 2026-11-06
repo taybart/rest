@@ -84,7 +84,8 @@ server {
     quiet = true
     # add cors headers (default false)
     cors = true
-    # serve a directory, this will override response if provided (except headers)
+    # serve a directory, this will override response if provided (except headers).
+    # w/ handlers, it serves what they don't match (ex. css, images next to pages)
     directory = "./test"
     # should this be treated as a single page application (ie frontend routing) by returning index.html instead of 404 (default false)
     spa = true
@@ -101,9 +102,13 @@ server {
         ws = true
         # either use lua to create a more complex response
         fn = "similar concept to the after hook in the client files (see hander fns below)"
-        # keep the lua state between requests (see Stateful handlers below)
+        # keep the lua state between requests (see PAGES.md)
         # stateful = true
-        # or serve an interactive page, written w/ jsx (see Pages below)
+        # keep (GET) responses of fn / page for this long, by path, query, and
+        # the vary headers (see PAGES.md)
+        # cache = "1m"
+        # vary = ["Accept-Language"]
+        # or serve an interactive page, written w/ erde markup (see PAGES.md)
         # page = <<-ERDE
         #   return <App/>
         # ERDE
@@ -158,7 +163,7 @@ return {
 }
 ```
 
-Handler functions are passed a global `rest` table containing `rest.path`, `rest.ctx`, and `rest.req`:
+Handler functions are passed a global `rest` table containing `rest.path`, `rest.ctx`, `rest.req`, `rest.exports`, and `rest.request` (see [Requests](#requests-restrequest)):
 
 ```lua
 rest.req = {
@@ -176,99 +181,26 @@ rest.req = {
 Scripts (`fn`, `page`, `setup`, middleware) can be written in
 [erde](https://erde-lang.github.io) instead of lua, w/ an `<<ERDE` (or
 `<<-ERDE`) heredoc, or by reading a `.erde` file (`fn = read("./handler.erde")`).
-Anything else is lua. go-erde's experimental `match` and `jsx` are enabled.
+Anything else is lua. go-erde's experimental `match` and `markup` are enabled.
 
 Erde modules can be `require`d too (`require('app')` finds `./app.erde`).
 Scripts and modules are compiled once (a changed file is compiled again), so
 they're cheap to use from every request.
 
-### Returning HTML (jsx)
+### Pages, HTML, and stateful handlers
 
-A handler (or middleware) can return a jsx element instead of a response table:
-it's rendered as an HTML document (`text/html`). Or use it as the body of a
-response table, to also set the status, headers, or cookies.
+Handlers can return HTML (w/ go-erde's markup), serve interactive `page`s, and
+keep their lua state between requests (`stateful = true`): see
+[PAGES.md](PAGES.md).
 
-```hcl
-handler "GET" "/hello" {
-  fn = <<-ERDE
-    local name = rest.req:query('name') || 'stranger'
-    return <html><body><h1>hello {name}</h1></body></html>
-  ERDE
-}
-handler "GET" "/missing" {
-  fn = <<-ERDE
-    return { status = 404, body = <p>nothing here</p> }
-  ERDE
-}
-```
+### Requests (`rest.request`)
 
-See go-erde's [JSX docs](https://github.com/taybart/go-erde/blob/main/docs/JSX.md)
-for the syntax, components, `state`, and scoped styles (`css`).
-
-### Pages (`page`)
-
-A `page` is like `fn`, but returns a jsx element that's served as an
-interactive page: functions in `on*` attributes (`onclick`, `on:input`, ...)
-run on the server when the event happens in the browser, and only the
-components that changed are sent back (and morphed into the page, so inputs
-keep focus).
-
-```hcl
-handler "GET" "/{$}" {
-  page = <<-ERDE
-    local App = require('app')   -- ./app.erde
-    return <App name={rest.req:query('name')}/>
-  ERDE
-}
-```
-
-```erde
--- app.erde
-local { state, css } = require('erde.jsx')
-
-local s = css({ count = { font_weight = 'bold' } })
-
-local Counter = () -> {
-  local st = state({ count = 0 })
-  return <button onclick={() -> { st.count += 1 }}>
-    clicked <span class={s.count}>{st.count}</span> times
-  </button>
-}
-
-return (props) -> <html>
-  <body>
-    <h1>hello {props.name || 'stranger'}</h1>
-    <Counter/>
-    <form onsubmit={e -> { print(e.form.item) }}>
-      <input name="item"/>
-    </form>
-  </body>
-</html>
-```
-
-- Actions are POSTs to the page's own path (rest adds the route), so a page
-  can't have its own `POST` handler on the same path. They run the page's
-  middleware too.
-- An action gets a summary of the event: `{ type, value, checked, key, form }`.
-- Each page load gets its own lua state, kept for its actions (see Stateful
-  handlers). Module level variables are per page, `state` is per component.
-- Pages w/o actions are static: no client script, and no state is kept.
-- A page can also return a response table (ex. a redirect).
-- Changes to required `.erde` files show up on the next page load (the
-  `.rest` file itself needs a restart).
-
-### Stateful handlers
-
-`stateful = true` keeps a handler's lua state between requests (globals,
-required modules, closures). A request w/o a state id gets a new state, whose
-id is `rest.state`; requests that send it back in the `X-Rest-State` header
-reuse it (one request at a time). Pages are stateful automatically.
-
-States cost memory (roughly 0.3-2MB each, depending on what's loaded), so the
-server keeps at most `max_states` (default 1000, the least recently used is
-closed to make room), and closes states unused for `state_ttl` (default 30m).
-A request for a closed (or unknown) state gets a `410`, which makes a page
-reload itself.
+Scripts (handlers, pages, middleware, and `setup`) can run the file's `request`
+blocks (including imported ones) w/ `rest.request(label [, exports])` (or a
+block index), see [CLIENT.md](CLIENT.md#running-requests-from-lua-restrequest).
+`rest.exports` is what request blocks see as `exports`: each request has its
+own, starting from what `setup` exported, and a `stateful` handler's are kept
+in its state. The server doesn't keep cookies from responses.
 
 ### Validating requests (`expect`)
 
@@ -437,6 +369,14 @@ server {
         kv.set("boot_token", uuid.newv4())
     LUA
 }
+```
+
+`setup` can also use `rest.request`, and what it sets in `rest.exports` is where every request's exports start:
+
+```hcl
+setup = <<LUA
+    assert(rest.request("login")) -- its after hook sets rest.exports.token
+LUA
 ```
 
 ### Middleware

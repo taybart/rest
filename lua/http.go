@@ -344,7 +344,7 @@ func SetRequestMetatable(l *lua.LState, reqTbl *lua.LTable, req *http.Request) {
 }
 
 // SetResponseMetatable attaches the underlying *http.Response as hidden userdata
-// and registers response helper methods (header, header_values, cookie) on resTbl.
+// and registers response helper methods (header, header_values, cookie, json) on resTbl.
 func SetResponseMetatable(l *lua.LState, resTbl *lua.LTable, res *http.Response) {
 	ud := l.NewUserData()
 	ud.Value = res
@@ -354,6 +354,7 @@ func SetResponseMetatable(l *lua.LState, resTbl *lua.LTable, res *http.Response)
 		"header":        resHeader,
 		"header_values": resHeaderValues,
 		"cookie":        resCookie,
+		"json":          resJSON,
 	}))
 	l.SetMetatable(resTbl, mt)
 }
