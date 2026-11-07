@@ -10,7 +10,7 @@ require (
 	github.com/rs/cors v1.11.1
 	github.com/stretchr/testify v1.9.0
 	github.com/taybart/args v0.0.11
-	github.com/taybart/go-erde v0.0.0-20261107033851-9adf4c419653
+	github.com/taybart/go-erde v0.0.0-20261107052139-cd12ef50a1f8
 	github.com/taybart/log v1.6.8
 	github.com/zclconf/go-cty v1.19.0
 	golang.org/x/term v0.47.0

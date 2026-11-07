@@ -27,6 +27,47 @@ func marshalJSON(v any) ([]byte, error) {
 	return bytes.TrimRight(buf.Bytes(), "\n"), nil
 }
 
+// jsonObject is a JSON object that keeps its keys' order.
+type jsonObject []jsonField
+
+type jsonField struct {
+	key   string
+	value any
+}
+
+func (o jsonObject) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	for i, f := range o {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		key, err := marshalJSON(f.key)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(key)
+		buf.WriteByte(':')
+		val, err := marshalJSON(f.value)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(val)
+	}
+	buf.WriteByte('}')
+	return buf.Bytes(), nil
+}
+
+// EncodeJSON encodes a lua value like json.encode (objects keep their keys'
+// order, no HTML escaping).
+func EncodeJSON(v lua.LValue) ([]byte, error) {
+	goVal, err := luaToJSONValue(v, make(map[*lua.LTable]bool))
+	if err != nil {
+		return nil, err
+	}
+	return marshalJSON(goVal)
+}
+
 func luaToJSONValue(val lua.LValue, visited map[*lua.LTable]bool) (any, error) {
 	switch v := val.(type) {
 	case *lua.LNilType:
@@ -91,21 +132,14 @@ func luaToJSONValue(val lua.LValue, visited map[*lua.LTable]bool) (any, error) {
 			return arr, nil
 		}
 
-		obj := make(map[string]any, count)
-		var convErr error
-		v.ForEach(func(key, value lua.LValue) {
-			if convErr != nil {
-				return
-			}
+		// (in the order the keys were added, like JSON.stringify)
+		obj := make(jsonObject, 0, count)
+		for key, value := v.Next(lua.LNil); key != lua.LNil; key, value = v.Next(key) {
 			elem, err := luaToJSONValue(value, visited)
 			if err != nil {
-				convErr = err
-				return
+				return nil, err
 			}
-			obj[string(key.(lua.LString))] = elem
-		})
-		if convErr != nil {
-			return nil, convErr
+			obj = append(obj, jsonField{string(key.(lua.LString)), elem})
 		}
 		return obj, nil
 	default:

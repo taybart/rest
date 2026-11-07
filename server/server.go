@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/rs/cors"
+	lua "github.com/taybart/go-erde"
 	"github.com/taybart/log"
 	restlua "github.com/taybart/rest/lua"
 )
@@ -122,6 +123,9 @@ type Config struct {
 }
 
 func New(c Config) Server {
+	// every request requires its scripts' modules in a new state: check their
+	// files at most once a second (edits are still seen right away, ~1s)
+	lua.StatCacheTTL = time.Second
 
 	s := Server{
 		Router: http.NewServeMux(),
@@ -132,6 +136,9 @@ func New(c Config) Server {
 		Addr:         c.Addr,
 		WriteTimeout: httpTimeout,
 		ReadTimeout:  httpTimeout,
+		// keep-alive connections (w/o it, the read timeout): longer than a
+		// proxy's (ex. nginx's 60s), so it never reuses one rest just closed
+		IdleTimeout: 75 * time.Second,
 	}
 	// weird thing: pass server in for shutdown route
 	s.Routes(server)

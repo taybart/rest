@@ -85,7 +85,9 @@ func (w *gzipResponseWriter) decide() {
 	if w.shouldCompress() {
 		h.Del("Content-Length")
 		h.Set("Content-Encoding", "gzip")
-		w.gz = gzip.NewWriter(w.ResponseWriter)
+		// live responses favor speed (cached ones are compressed once, at the
+		// default level: see cache.go)
+		w.gz, _ = gzip.NewWriterLevel(w.ResponseWriter, gzip.BestSpeed)
 	}
 	if isCompressible(h.Get("Content-Type")) {
 		h.Add("Vary", "Accept-Encoding")

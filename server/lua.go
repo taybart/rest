@@ -239,7 +239,7 @@ func mapLuaResponse(l *lua.LState, luaRes *lua.LTable) (Response, error) {
 	res := Response{
 		Status: http.StatusOK,
 	}
-	isHTML := false
+	isHTML, isJSON := false, false
 	if cookiesTbl, ok := l.GetField(luaRes, "cookies").(*lua.LTable); ok {
 		res.Cookies = restlua.ParseLuaCookies(cookiesTbl)
 	}
@@ -274,12 +274,13 @@ func mapLuaResponse(l *lua.LState, luaRes *lua.LTable) (Response, error) {
 			case lua.LString:
 				res.Body = json.RawMessage(b)
 			case *lua.LTable:
-				encoded, err := json.Marshal(restlua.LValueToAny(b))
+				encoded, err := restlua.EncodeJSON(b)
 				if err != nil {
 					mapErr = err
 					return
 				}
 				res.Body = json.RawMessage(encoded)
+				isJSON = true
 			case *lua.LNilType:
 				// leave empty
 			default:
@@ -289,6 +290,9 @@ func mapLuaResponse(l *lua.LState, luaRes *lua.LTable) (Response, error) {
 	})
 	if isHTML {
 		setDefaultHeader(&res, "Content-Type", htmlContentType)
+	}
+	if isJSON {
+		setDefaultHeader(&res, "Content-Type", "application/json")
 	}
 	return res, mapErr
 }

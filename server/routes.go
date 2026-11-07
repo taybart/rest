@@ -41,7 +41,7 @@ func (s *Server) Routes(server *http.Server) {
 	if s.Config.Dir != "" {
 		fallback = gzipHandler(s.HandleDir())
 	} else if s.Config.Proxy != nil {
-		fallback = log.Middleware(s.ProxyHandler(s.Config.Proxy))
+		fallback = s.logged(s.ProxyHandler(s.Config.Proxy))
 	}
 	if len(s.Config.Handlers) > 0 {
 		s.registerHandlerFns(fallback)
@@ -52,8 +52,16 @@ func (s *Server) Routes(server *http.Server) {
 		return
 	}
 	s.Router.HandleFunc("/__ws__", s.HandleWSEcho("*"))
-	s.Router.HandleFunc("/__echo__", log.Middleware(gzipHandler(s.HandleEcho())))
-	s.Router.HandleFunc("/", log.Middleware(gzipHandler(s.HandleRoot())))
+	s.Router.HandleFunc("/__echo__", s.logged(gzipHandler(s.HandleEcho())))
+	s.Router.HandleFunc("/", s.logged(gzipHandler(s.HandleRoot())))
+}
+
+// logged logs fn's requests, unless the server is quiet.
+func (s *Server) logged(fn http.HandlerFunc) http.HandlerFunc {
+	if s.Config.Quiet {
+		return fn
+	}
+	return log.Middleware(fn)
 }
 
 // handlerPattern builds a ServeMux pattern. Including the method lets
@@ -83,12 +91,12 @@ func (s *Server) registerHandlerFns(fallback http.HandlerFunc) {
 		case handler.WS:
 			s.Router.HandleFunc(pattern, s.HandleWSEcho("*"))
 		default:
-			s.Router.HandleFunc(pattern, log.Middleware(gzipHandler(s.CustomHandlerFn(handler))))
+			s.Router.HandleFunc(pattern, s.logged(gzipHandler(s.CustomHandlerFn(handler))))
 		}
 		if handler.Page != "" {
 			actions := pageActionsHandler(handler)
 			log.Infof("registering page actions %s%s%s\n", log.Blue, handlerPattern(actions), log.Reset)
-			s.Router.HandleFunc(handlerPattern(actions), log.Middleware(gzipHandler(s.CustomHandlerFn(actions))))
+			s.Router.HandleFunc(handlerPattern(actions), s.logged(gzipHandler(s.CustomHandlerFn(actions))))
 		}
 	}
 	if rootRegistered {
@@ -99,7 +107,7 @@ func (s *Server) registerHandlerFns(fallback http.HandlerFunc) {
 		return
 	}
 	// catch all with s.Config.Response as default if specified
-	s.Router.HandleFunc("/", log.Middleware(func(w http.ResponseWriter, r *http.Request) {
+	s.Router.HandleFunc("/", s.logged(func(w http.ResponseWriter, r *http.Request) {
 		s.WriteResponseWithDefault(w, Response{Status: http.StatusNotFound})
 	}))
 }
