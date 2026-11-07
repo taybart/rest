@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/taybart/rest/server"
 )
@@ -124,4 +125,60 @@ func TestDirGzip(t *testing.T) {
 			t.Errorf("expected empty uncompressed 304, got %d bytes, headers %v", len(body), res.Header)
 		}
 	})
+}
+
+// Handler responses are gzipped too, and cached ones are kept gzipped (and
+// decompressed for clients that don't accept it).
+func TestHandlerGzip(t *testing.T) {
+	counter := `local n = (kv.get('n') or 0) + 1; kv.set('n', n)`
+	long := strings.Repeat("hello world ", 200)
+	ts := newServer(server.Config{Quiet: true, Handlers: []*server.Handler{
+		{Method: "GET", Path: "/page", CacheTTL: time.Minute, Lang: "erde",
+			Page: "local n = (kv.get('n') || 0) + 1; kv.set('n', n)\nreturn <p>{n} " + long + "</p>"},
+		{Method: "GET", Path: "/fn", Fn: counter + `; return { status = 200, body = '` + long + `' }`},
+		{Method: "GET", Path: "/small", Fn: `return { status = 200, body = 'hi' }`},
+	}})
+	defer ts.Close()
+
+	gunzip := func(t *testing.T, b []byte) string {
+		t.Helper()
+		zr, err := gzip.NewReader(bytes.NewReader(b))
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, _ := io.ReadAll(zr)
+		return string(out)
+	}
+	plain := func(path string) (*http.Response, string) {
+		res, body := rawGet(t, ts.URL+path, map[string]string{"Accept-Encoding": "identity"})
+		return res, string(body)
+	}
+
+	// a page: rendered (gzipped on the fly), then from the cache (stored gzipped)
+	for i, from := range []string{"render", "cache"} {
+		res, body := rawGet(t, ts.URL+"/page", nil)
+		if res.Header.Get("Content-Encoding") != "gzip" || res.Header.Get("Vary") != "Accept-Encoding" {
+			t.Fatalf("%s: headers %v", from, res.Header)
+		}
+		if got := gunzip(t, body); !strings.Contains(got, "<p>1 hello world") {
+			t.Fatalf("%s %d: body %.60q", from, i, got)
+		}
+	}
+	// the cached one for a client w/o gzip
+	res, body := plain("/page")
+	if res.Header.Get("Content-Encoding") != "" || !strings.Contains(body, "<p>1 hello world") {
+		t.Fatalf("plain cached page: headers %v, body %.60q", res.Header, body)
+	}
+
+	// fn handlers
+	if res, body := rawGet(t, ts.URL+"/fn", nil); res.Header.Get("Content-Encoding") != "gzip" || gunzip(t, body) != long {
+		t.Fatalf("fn: headers %v", res.Header)
+	}
+	if res, body := plain("/fn"); res.Header.Get("Content-Encoding") != "" || body != long {
+		t.Fatalf("plain fn: headers %v", res.Header)
+	}
+	// small bodies aren't worth it
+	if res, body := rawGet(t, ts.URL+"/small", nil); res.Header.Get("Content-Encoding") != "" || string(body) != "hi" {
+		t.Fatalf("small: headers %v, body %q", res.Header, body)
+	}
 }

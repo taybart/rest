@@ -318,7 +318,7 @@ func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.Resp
 	if cache != nil && (req.Method == http.MethodGet || req.Method == http.MethodHead) {
 		cacheKey = responseCacheKey(handler, req)
 		if len(handler.Middleware) == 0 {
-			if cached, ok := cache.get(cacheKey); ok {
+			if cached, ok := cache.get(cacheKey, acceptsGzip(req)); ok {
 				return cached, true, nil
 			}
 		}
@@ -401,7 +401,7 @@ func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.Resp
 	}
 	// w/ middleware, it's run first (ex. auth), even for cached responses
 	if cache != nil && len(handler.Middleware) > 0 {
-		if cached, ok := cache.get(cacheKey); ok {
+		if cached, ok := cache.get(cacheKey, acceptsGzip(req)); ok {
 			return cached, true, nil
 		}
 	}

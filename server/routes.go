@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -82,12 +83,12 @@ func (s *Server) registerHandlerFns(fallback http.HandlerFunc) {
 		case handler.WS:
 			s.Router.HandleFunc(pattern, s.HandleWSEcho("*"))
 		default:
-			s.Router.HandleFunc(pattern, log.Middleware(s.CustomHandlerFn(handler)))
+			s.Router.HandleFunc(pattern, log.Middleware(gzipHandler(s.CustomHandlerFn(handler))))
 		}
 		if handler.Page != "" {
 			actions := pageActionsHandler(handler)
 			log.Infof("registering page actions %s%s%s\n", log.Blue, handlerPattern(actions), log.Reset)
-			s.Router.HandleFunc(handlerPattern(actions), log.Middleware(s.CustomHandlerFn(actions)))
+			s.Router.HandleFunc(handlerPattern(actions), log.Middleware(gzipHandler(s.CustomHandlerFn(actions))))
 		}
 	}
 	if rootRegistered {
@@ -150,8 +151,12 @@ func writeHandlerResponse(w http.ResponseWriter, res Response) {
 	for _, c := range res.Cookies {
 		http.SetCookie(w, c)
 	}
+	// (the body's complete: w/ its length, gzipHandler skips small ones)
+	if w.Header().Get("Content-Length") == "" && w.Header().Get("Content-Encoding") == "" {
+		w.Header().Set("Content-Length", strconv.Itoa(len(res.Body)))
+	}
 	w.WriteHeader(res.Status)
-	fmt.Fprint(w, string(res.Body))
+	w.Write(res.Body)
 }
 
 func (s *Server) HandleQuit(server *http.Server) http.HandlerFunc {

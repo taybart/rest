@@ -134,10 +134,15 @@ func isCompressible(contentType string) bool {
 	return false
 }
 
+// acceptsGzip is whether gzipHandler compresses responses to r.
+func acceptsGzip(r *http.Request) bool {
+	// byte ranges index into the uncompressed file, so never mix them with gzip
+	return strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") && r.Header.Get("Range") == ""
+}
+
 func gzipHandler(fn http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// byte ranges index into the uncompressed file, so never mix them with gzip
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") || r.Header.Get("Range") != "" {
+		if !acceptsGzip(r) {
 			fn(w, r)
 			return
 		}

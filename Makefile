@@ -1,6 +1,9 @@
 rest:
 	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o rest ./cmd/rest
 
+linux-amd64:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o rest-linux-amd64 ./cmd/rest
+
 install:
 	CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" ./cmd/rest
 
@@ -20,6 +23,6 @@ nix-lock:
 		python3 -I scripts/gomod2nix.py; \
 	fi
 
-.PHONY: rest wasm serve-wasm nix-lock
+.PHONY: rest linux-amd64 wasm serve-wasm nix-lock
 
 default: rest
