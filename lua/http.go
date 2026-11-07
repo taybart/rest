@@ -1,6 +1,8 @@
 package restlua
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/textproto"
 	"strings"
@@ -357,4 +359,44 @@ func SetResponseMetatable(l *lua.LState, resTbl *lua.LTable, res *http.Response)
 		"json":          resJSON,
 	}))
 	l.SetMetatable(resTbl, mt)
+}
+
+// SetRestGlobal sets the `rest` global for a server side request:
+// rest.req (url, method, query, headers, body, and methods, see
+// SetRequestMetatable), rest.path, and an empty rest.ctx. The request's body
+// is read (and replaced w/ a reader of what was read).
+//
+// An existing `rest` table is kept (only req, path, and ctx are replaced), so
+// in a state that's kept between requests, what's on it (ex. rest.exports)
+// is too.
+func SetRestGlobal(l *lua.LState, req *http.Request) error {
+	var body []byte
+	if req.Body != nil {
+		var err error
+		body, err = io.ReadAll(req.Body)
+		req.Body.Close()
+		if err != nil {
+			return err
+		}
+		req.Body = io.NopCloser(bytes.NewReader(body))
+	}
+
+	reqTbl := MakeLTable(l, map[string]lua.LValue{
+		"url":     lua.LString(req.URL.String()),
+		"method":  lua.LString(req.Method),
+		"query":   MakeLTableFromMapOfArr(l, req.URL.Query()),
+		"headers": MakeLTableFromMapOfArr(l, req.Header),
+		"body":    lua.LString(body),
+	})
+	SetRequestMetatable(l, reqTbl, req)
+
+	rest, ok := l.GetGlobal("rest").(*lua.LTable)
+	if !ok {
+		rest = l.NewTable()
+		l.SetGlobal("rest", rest)
+	}
+	l.SetField(rest, "path", lua.LString(req.URL.Path))
+	l.SetField(rest, "req", reqTbl)
+	l.SetField(rest, "ctx", l.NewTable())
+	return nil
 }

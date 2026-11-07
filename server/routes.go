@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/taybart/log"
+	"github.com/taybart/rest/pages"
 )
 
 func (s *Server) Routes(server *http.Server) {
@@ -30,7 +31,7 @@ func (s *Server) Routes(server *http.Server) {
 			panic(fmt.Errorf("invalid state_ttl %q: %w", s.Config.StateTTL, err))
 		}
 	}
-	s.states = newStateStore(s.Config.MaxStates, ttl)
+	s.states = pages.NewStateStore(s.Config.MaxStates, ttl)
 	quit := s.HandleQuit(server)
 	s.Router.HandleFunc("GET /__quit__", quit)
 	s.Router.HandleFunc("POST /__quit__", quit)

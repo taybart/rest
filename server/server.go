@@ -17,6 +17,7 @@ import (
 	lua "github.com/taybart/go-erde"
 	"github.com/taybart/log"
 	restlua "github.com/taybart/rest/lua"
+	"github.com/taybart/rest/pages"
 )
 
 const (
@@ -90,7 +91,7 @@ type Server struct {
 	// rest.exports set by setup (read only after kvOnce)
 	setupExports map[string]any
 	// lua states of stateful handlers (set up by Routes)
-	states *stateStore
+	states *pages.StateStore
 }
 
 type Config struct {
