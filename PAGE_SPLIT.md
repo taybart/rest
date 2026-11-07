@@ -187,8 +187,19 @@ profiles.
      `pages.Exports(func(r) ...)` (per page load, merged on top). Kept states
      keep their whole `rest` table (`restlua.SetRestGlobal` only replaces
      req / path / ctx), so exports survive between actions, in `server` too.
-2. Empty `rpc` → client posts to the current document (go-erde `markup.lua`).
-3. `LuaFuncs` + the current-request plumbing.
+2. ~~Empty `rpc` → client posts to the current document (go-erde `markup.lua`).~~
+   Done (go-erde change, used via an untracked `go.work` until go-erde is
+   bumped). Engine pages default to it, `pages.ActionURL` overrides; `server`
+   pages use it too (actions now also see the page's query). Also fixed in
+   the client: idiomorph's `ignoreActiveValue` skipped a focused element's
+   children, so a clicked button's own text never updated; it's now only on
+   while an input / textarea / select / contenteditable has focus.
+3. ~~`LuaFuncs` + the current-request plumbing.~~ Done.
+   `pages.LuaFuncs(module, map[string]lua.LGFunction)` preloads a module per
+   page state; `pages.Request(l)` is the request being handled (the action's
+   for actions). It's kept in the lua registry (so coroutines see it too) and
+   cleared after each request. Not via `l.SetContext`: that switches the VM
+   to a loop that checks the context on every instruction (slower renders).
 4. Reflection `Funcs`, with tests for registration errors and conversions,
    and a benchmark vs `LuaFuncs`.
 5. Example app with std mux and gin (`test/pages/embed/`?).

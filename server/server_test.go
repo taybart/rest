@@ -628,13 +628,13 @@ func TestPageHandlers(t *testing.T) {
 	if res.StatusCode != 200 || res.Header.Get("Content-Type") != "text/html; charset=utf-8" {
 		t.Fatalf("page: %d %s\n%s", res.StatusCode, res.Header.Get("Content-Type"), page)
 	}
-	// the client posts to the page's own path, w/ its state
-	cfg := regexp.MustCompile(`rpc: '([^']*)', headers: \{ 'X-Rest-State': '([^']*)' \}`).FindStringSubmatch(string(page))
+	// the client posts to the page's own url (rpc: null), w/ its state
+	cfg := regexp.MustCompile(`rpc: null, headers: \{ 'X-Rest-State': '([^']*)' \}`).FindStringSubmatch(string(page))
 	action := regexp.MustCompile(`erde\.rpc\('([^']+)'`).FindStringSubmatch(string(page))
-	if cfg == nil || action == nil || cfg[1] != "/counter/5" || !strings.Contains(string(page), ">5</button>") {
+	if cfg == nil || action == nil || !strings.Contains(string(page), ">5</button>") {
 		t.Fatalf("page\n%s", page)
 	}
-	state := cfg[2]
+	state := cfg[1]
 
 	post := func(state, query, body string, want Response) {
 		req, err := http.NewRequest("POST", ts.URL+"/counter/5"+query, strings.NewReader(body))

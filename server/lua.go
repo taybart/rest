@@ -259,7 +259,7 @@ func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.Resp
 		if _, ok := l.Get(-1).(*lua.LTable); !ok {
 			return res, false, fmt.Errorf("page must return a markup element or response table%s", returnedHint(l.Get(-1)))
 		}
-		page, err := pages.Mount(l, l.Get(-1), req.URL.Path, stateID)
+		page, err := pages.Mount(l, l.Get(-1), "", stateID) // actions POST to the page's url
 		if err != nil {
 			return res, false, err
 		}

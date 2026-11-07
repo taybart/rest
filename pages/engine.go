@@ -76,11 +76,64 @@ func Props(fn func(r *http.Request) (any, error)) Option {
 	return func(h *handler) { h.props = fn }
 }
 
+// ActionURL sets the url a page's actions POST to. By default, it's the
+// page's own url as the browser sees it (so it works behind
+// http.StripPrefix, router groups, proxies, ...), which has to be routed to
+// the page handler. Set it if actions should go elsewhere, ex. a separate
+// route to the same handler.
+func ActionURL(url string) Option {
+	return func(h *handler) { h.actionURL = url }
+}
+
 // Exports adds to a page's rest.exports (on top of the engine's Exports),
 // by the request that loads the page. They're kept, w/ what rest.request
 // adds, for the page's actions (it isn't called again for them).
 func Exports(fn func(r *http.Request) (map[string]any, error)) Option {
 	return func(h *handler) { h.exports = fn }
+}
+
+// LuaFuncs makes fns a module of the page, `require(module)`, a table of the
+// functions by name. They're plain gopher-lua functions (see go-erde): they
+// get their args from the stack, push their results, and raise errors w/
+// l.RaiseError / l.ArgError (pcall-able in the page). Request(l) is the
+// request being handled (the page load's, or the action's).
+func LuaFuncs(module string, fns map[string]lua.LGFunction) Option {
+	return func(h *handler) {
+		h.modules = append(h.modules, luaModule{name: module, fns: fns})
+	}
+}
+
+type luaModule struct {
+	name string
+	fns  map[string]lua.LGFunction
+}
+
+// requestKey is where the request being handled is kept, in the registry
+// (shared by the state's coroutines).
+const requestKey = "pages.request"
+
+// Request returns the request a page's state is handling (the page load's,
+// or the action's), for Go functions called by the page (see LuaFuncs). It's
+// nil outside of a request.
+func Request(l *lua.LState) *http.Request {
+	ud, ok := l.GetField(l.Get(lua.RegistryIndex), requestKey).(*lua.LUserData)
+	if !ok {
+		return nil
+	}
+	r, _ := ud.Value.(*http.Request)
+	return r
+}
+
+// setRequest sets the request a state is handling (nil once it's done, so a
+// kept state doesn't keep it).
+func setRequest(l *lua.LState, r *http.Request) {
+	var v lua.LValue = lua.LNil
+	if r != nil {
+		ud := l.NewUserData()
+		ud.Value = r
+		v = ud
+	}
+	l.SetField(l.Get(lua.RegistryIndex), requestKey, v)
 }
 
 // File serves the page at path: an erde (or lua) file that returns a
@@ -120,9 +173,11 @@ type handler struct {
 	// package.path of the page's own modules (before the engine's Path)
 	path string
 	// load runs the page's entry, leaving what it returned on the stack
-	load    func(l *lua.LState) error
-	props   func(r *http.Request) (any, error)
-	exports func(r *http.Request) (map[string]any, error)
+	load      func(l *lua.LState) error
+	props     func(r *http.Request) (any, error)
+	exports   func(r *http.Request) (map[string]any, error)
+	actionURL string // "" for the page's own url
+	modules   []luaModule
 }
 
 func (h *handler) with(opts []Option) *handler {
@@ -158,6 +213,16 @@ func (h *handler) setup(l *lua.LState, r *http.Request, stateID string) error {
 	if err := restlua.RegisterModules(l); err != nil {
 		return err
 	}
+	for _, m := range h.modules {
+		l.PreloadModule(m.name, func(l *lua.LState) int {
+			mod := l.CreateTable(0, len(m.fns))
+			for name, fn := range m.fns {
+				l.SetField(mod, name, l.NewFunction(fn))
+			}
+			l.Push(mod)
+			return 1
+		})
+	}
 	if err := request(l, r, stateID); err != nil {
 		return err
 	}
@@ -186,8 +251,9 @@ func (h *handler) setup(l *lua.LState, r *http.Request, stateID string) error {
 }
 
 // request sets the `rest` global for a request (a kept state keeps its rest
-// table, w/ its exports and rest.request).
+// table, w/ its exports and rest.request), and the request for Request.
 func request(l *lua.LState, r *http.Request, stateID string) error {
+	setRequest(l, r)
 	if err := restlua.SetRestGlobal(l, r); err != nil {
 		return err
 	}
@@ -199,13 +265,15 @@ func request(l *lua.LState, r *http.Request, stateID string) error {
 func (h *handler) render(r *http.Request) (Response, error) {
 	id, st := h.engine.states.New()
 	keep := false
+	l := st.L
 	defer func() {
-		if !keep {
+		if keep {
+			setRequest(l, nil)
+		} else {
 			h.engine.states.Discard(id, st)
 		}
 		h.engine.states.Release(st)
 	}()
-	l := st.L
 
 	if err := h.setup(l, r, id); err != nil {
 		return Response{}, err
@@ -232,7 +300,7 @@ func (h *handler) render(r *http.Request) (Response, error) {
 	if _, ok := page.(*lua.LTable); !ok {
 		return Response{}, fmt.Errorf("page must return a component, markup element, or response table%s", returnedHint(page))
 	}
-	mounted, err := Mount(l, page, r.URL.Path, id)
+	mounted, err := Mount(l, page, h.actionURL, id)
 	if err != nil {
 		return Response{}, err
 	}
@@ -257,8 +325,11 @@ func (h *handler) action(r *http.Request) (Response, error) {
 	} else if err != nil {
 		return Response{}, err
 	}
-	defer h.engine.states.Release(st)
 	l := st.L
+	defer func() {
+		setRequest(l, nil)
+		h.engine.states.Release(st)
+	}()
 
 	if err := request(l, r, id); err != nil {
 		return Response{}, err

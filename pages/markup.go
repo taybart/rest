@@ -14,7 +14,7 @@ import (
 // its id back in the StateHeader.
 
 // mountScript mounts the element a page script returned (args: element, rpc
-// url, state id), so rendering it includes the client side of actions.
+// url or nil, state id), so rendering it includes the client side of actions.
 const mountScript = `
 local root, rpc, state = ...
 return require('erde.markup').mount(function() return root end, {
@@ -70,9 +70,9 @@ func RenderDocument(l *lua.LState, v lua.LValue) (string, bool, error) {
 }
 
 // Mount mounts what a page script returned, if it's an element, so it renders
-// w/ the client side of its actions (which POST to rpc w/ the state id). A
-// page may also return a response table (ex. a redirect), which is returned
-// as is.
+// w/ the client side of its actions, which POST to rpc w/ the state id. W/ an
+// empty rpc, they POST to the page's own url (as the browser sees it). A page
+// may also return a response table (ex. a redirect), which is returned as is.
 func Mount(l *lua.LState, v lua.LValue, rpc, stateID string) (lua.LValue, error) {
 	if _, isElement, err := MarkupElement(l, v); err != nil || !isElement {
 		return v, err
@@ -81,7 +81,11 @@ func Mount(l *lua.LState, v lua.LValue, rpc, stateID string) (lua.LValue, error)
 	if err != nil {
 		return nil, err
 	}
-	if err := l.CallByParam(lua.P{Fn: fn, NRet: 1, Protect: true}, v, lua.LString(rpc), lua.LString(stateID)); err != nil {
+	var rpcURL lua.LValue = lua.LNil
+	if rpc != "" {
+		rpcURL = lua.LString(rpc)
+	}
+	if err := l.CallByParam(lua.P{Fn: fn, NRet: 1, Protect: true}, v, rpcURL, lua.LString(stateID)); err != nil {
 		return nil, err
 	}
 	mounted := l.Get(-1)
