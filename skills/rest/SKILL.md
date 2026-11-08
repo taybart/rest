@@ -10,7 +10,7 @@ description: Write, run, test, debug, and export `.rest` files using the `rest` 
 For full reference documentation and working examples, read:
 - `references/CLIENT.md` — Detailed client config, functions, Lua `after` hooks, `expect` matchers, WebSockets, exports, and `cli` blocks.
 - `references/SERVER.md` — Detailed server config, routes, `handler` functions, `middleware`, `kv` store, and `setup` hooks.
-- `references/PAGES.md` — HTML apps on the server: returning go-erde markup, interactive `page` handlers, fetching data with `rest.request`, and stateful handlers.
+- `references/PAGES.md` — HTML apps on the server: returning midnight markup, interactive `page` handlers, fetching data with `rest.request`, and stateful handlers.
 - `references/examples/` — Complete client (`references/examples/client/`) and server (`references/examples/server/`) `.rest` files.
 
 ---
@@ -157,7 +157,7 @@ request "get profile" {
 ## Custom Lua in `after` Hooks
 
 When writing `after = <<LUA ... LUA`:
-- **Erde:** use `<<ERDE ... ERDE` (or `<<-ERDE`) to write any script (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`/`page`) in [erde](https://erde-lang.github.io) instead, or `read("./x.erde")` (the `.erde` extension makes it erde). Any other heredoc marker or plain string is lua. `require('name')` also finds `./name.erde`. Same globals. In erde, `"{x}"` interpolates; use `'...'` for literal braces. go-erde's experimental `match` is on: `match x { 1 | 2 => { ... } _ if cond => { ... } _ => { ... } }` (patterns compare w/ `==`, no fallthrough, `break`/`continue` apply to the enclosing loop).
+- **Midnight:** use `<<MN ... MN` or `<<MIDNIGHT ... MIDNIGHT` (or `<<-MN` / `<<-MIDNIGHT`) to write any script (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`/`page`) in [Midnight](https://github.com/taybart/midnight) instead, or `read("./x.mn")` (the `.mn` or `.midnight` extension makes it midnight). Any other heredoc marker or plain string is lua. `require('name')` also finds `./name.mn`. Same globals. In midnight, `"{x}"` interpolates; use `'...'` for literal braces. midnight has `match`: `match x { 1 | 2 => { ... } _ if cond => { ... } _ => { ... } }` (patterns compare w/ `==`, no fallthrough, `break`/`continue` apply to the enclosing loop).
 - **Globals:** `json` (`encode`/`decode`), `jwt` (`sign`/`encode`, `decode`, `verify`, `is_valid`), `form` (`encode`/`decode`), `inspect` (`inspect(v)`, `inspect.print(v)`), `colors`, `base64` (`encode(str [, opts])`, `decode(str)`), `url` (`escape`/`unescape` for query values, `path_escape`/`path_unescape` for path segments), `html` (`escape`/`unescape` entities), `uuid` (`newv4`, `is_uuid`, `is_uuidv4`), `ulid` (`new([ms])` / `ulid([ms])`, `is_ulid`, `timestamp`), `nanoid` (`new([size [, alphabet]])` / `nanoid(...)`, `is_nanoid(str [, size])`), `tools` (`tools.expected()`), `copy(val)`, `fail(msg)`.
 - **Request & Response (`rest.req`, `rest.res`):**
   - Fields: `rest.req.body`, `rest.req.headers`, `rest.req.cookies`, `rest.req.method`, `rest.req.query`, `rest.req.url`, `rest.req.dump`
@@ -292,19 +292,19 @@ server {
 ```
 Handlers can share a path with different methods (`handler "GET" "/x"` + `handler "POST" "/x"`; `"*"` = any method). Forward to another server with `proxy = "localhost:8081"` on the `server` block (fallback for anything no handler matches, so you can mock some routes and proxy the rest) or on a `handler` (one route, after its middleware and `expect`). For options use a block instead: `proxy { target = "...", strip = "/api", headers = { Authorization = "Bearer ${env("TOKEN")}", Cookie = "" } }` (one attribute per line; `strip` removes a path prefix; empty header value removes it; `insecure = true` skips TLS verification for that proxy only, independent of `config { insecure_no_verify_tls }`). For cookie options in server responses, WebSocket echo handlers (`ws = true`), proxy details, and full `kv` methods (`kv.get`, `kv.set`, `kv.del`, `kv.all`), consult `references/SERVER.md`.
 
-**HTML & interactive pages (erde markup):** erde scripts have go-erde's `markup` on, so a handler can `return <html>...</html>` (rendered as `text/html`; or `{ status = 404, body = <p>...</p> }`). A `page` handler (instead of `fn`) serves an interactive page: functions in `on*` attributes (`onclick={() -> { ... }}`, `onsubmit={e -> { ... e.form.field }}`) run on the server and only changed components are sent back. Actions are POSTs to the page's own path (so no other `POST` handler there), and the page's middleware runs for them.
+**HTML & interactive pages (midnight markup):** midnight scripts have midnight's `markup` on, so a handler can `return <html>...</html>` (rendered as `text/html`; or `{ status = 404, body = <p>...</p> }`). A `page` handler (instead of `fn`) serves an interactive page: functions in `on*` attributes (`onclick={() -> { ... }}`, `onsubmit={e -> { ... e.form.field }}`) run on the server and only changed components are sent back. Actions are POSTs to the page's own path (so no other `POST` handler there), and the page's middleware runs for them.
 
 ```hcl
 handler "GET" "/{$}" {
-  page = <<-ERDE
-    local App = require('app')   -- ./app.erde
+  page = <<-MIDNIGHT
+    local App = require('app')   -- ./app.mn
     return <App name={rest.req:query('name')}/>
-  ERDE
+  MIDNIGHT
 }
 ```
-```erde
--- app.erde
-local { state, css } = require('erde.markup')
+```midnight
+-- app.mn
+local { state, css } = require('midnight.markup')
 local s = css({ btn = { font_weight = 'bold', ['&:hover'] = { color = 'gold' } } }) -- scoped, s.btn is the class
 local Counter = () -> {
   local st = state({ count = 0 })        -- per component instance
@@ -312,4 +312,4 @@ local Counter = () -> {
 }
 return (props) -> <html><body><h1>hi {props.name || 'you'}</h1><Counter/></body></html>
 ```
-Each page load gets its own lua state (module-level variables are per page). `stateful = true` does the same for an `fn` handler (`rest.state` is the id, sent back in the `X-Rest-State` header). Limits: `server { max_states = 1000, state_ttl = "30m" }`; a closed state gets a 410 (pages reload). In markup: `{expr}` children / attributes, `class="a {b}"` interpolates, `{...props}` spreads, `<style>`/`<script>` content is raw css/js, `{--[[ comment ]]}`. Use `&&` / `||` / `!=` (erde, not lua's `and`/`or`/`~=`). `cache = "1m"` on a GET `fn`/`page` handler serves its 200 responses from memory, keyed by path + query (+ `vary = ["Header"]`): only for output that's the same for every visitor; interactive pages and cookie-setting responses are never cached; middleware still runs. See `references/PAGES.md` (HTML, pages, fetching data w/ `rest.request`, caching, stateful handlers).
+Each page load gets its own lua state (module-level variables are per page). `stateful = true` does the same for an `fn` handler (`rest.state` is the id, sent back in the `X-Rest-State` header). Limits: `server { max_states = 1000, state_ttl = "30m" }`; a closed state gets a 410 (pages reload). In markup: `{expr}` children / attributes, `class="a {b}"` interpolates, `{...props}` spreads, `<style>`/`<script>` content is raw css/js, `{--[[ comment ]]}`. Use `&&` / `||` / `!=` (midnight, not lua's `and`/`or`/`~=`). `cache = "1m"` on a GET `fn`/`page` handler serves its 200 responses from memory, keyed by path + query (+ `vary = ["Header"]`): only for output that's the same for every visitor; interactive pages and cookie-setting responses are never cached; middleware still runs. See `references/PAGES.md` (HTML, pages, fetching data w/ `rest.request`, caching, stateful handlers).

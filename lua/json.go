@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 )
 
 func registerJSONModule(l *lua.LState) {

@@ -108,10 +108,10 @@ server {
         # the vary headers (see PAGES.md)
         # cache = "1m"
         # vary = ["Accept-Language"]
-        # or serve an interactive page, written w/ erde markup (see PAGES.md)
-        # page = <<-ERDE
+        # or serve an interactive page, written w/ midnight markup (see PAGES.md)
+        # page = <<-MIDNIGHT
         #   return <App/>
-        # ERDE
+        # MIDNIGHT
         # or forward just this route to another server
         proxy = "localhost:8081"
         # or with options, use a block instead (see Proxying below)
@@ -176,20 +176,20 @@ rest.req = {
 }
 ```
 
-### Erde scripts
+### Midnight scripts
 
 Scripts (`fn`, `page`, `setup`, middleware) can be written in
-[erde](https://erde-lang.github.io) instead of lua, w/ an `<<ERDE` (or
-`<<-ERDE`) heredoc, or by reading a `.erde` file (`fn = read("./handler.erde")`).
-Anything else is lua. go-erde's experimental `match` and `markup` are enabled.
+[Midnight](https://github.com/taybart/midnight) instead of lua, w/ a `<<MN` or `<<MIDNIGHT` (or
+`<<-MN` / `<<-MIDNIGHT`) heredoc, or by reading a `.mn` (or `.midnight`) file (`fn = read("./handler.mn")`).
+Anything else is lua. midnight's `match` and markup work too.
 
-Erde modules can be `require`d too (`require('app')` finds `./app.erde`).
+Midnight modules can be `require`d too (`require('app')` finds `./app.mn`).
 Scripts and modules are compiled once (a changed file is compiled again), so
 they're cheap to use from every request.
 
 ### Pages, HTML, and stateful handlers
 
-Handlers can return HTML (w/ go-erde's markup), serve interactive `page`s, and
+Handlers can return HTML (w/ midnight's markup), serve interactive `page`s, and
 keep their lua state between requests (`stateful = true`): see
 [PAGES.md](PAGES.md).
 

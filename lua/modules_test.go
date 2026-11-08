@@ -3,7 +3,7 @@ package restlua
 import (
 	"testing"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 )
 
 // The lua modules are globals that load on first use.

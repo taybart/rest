@@ -245,8 +245,7 @@ func (rest *Rest) Server() (*server.Server, error) {
 		return nil, err
 	}
 	config.Requester = rest.Requester(c)
-	s := server.New(config)
-	return &s, nil
+	return server.New(config), nil
 }
 
 func (rest *Rest) Export(export, label string, block int) error {

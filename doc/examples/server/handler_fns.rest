@@ -19,7 +19,7 @@ server {
   # LUA
 
   middleware "auth" {
-    fn = <<ERDE
+    fn = <<MIDNIGHT
       local token = rest.req:cookie('token') || rest.req:bearer_token()
       local unauth = (msg) -> ({ status = 401, body = json.encode({error = msg}) })
       if !uuid.is_uuidv4(token) {
@@ -29,11 +29,11 @@ server {
       	return unauth('invalid credentials')
       }
       rest.ctx.token = token
-    ERDE
+    MIDNIGHT
   }
 
   handler "POST" "/login" {
-    fn = <<ERDE
+    fn = <<MIDNIGHT
       local {username, password} = json.decode(rest.req.body)
       if username == 'root' && password == 'toor' {
       	local token = uuid.newv4()
@@ -53,11 +53,11 @@ server {
       	}
       }
       return { status = 401, body = json.encode({ error = 'invalid credentials' }) }
-    ERDE
+    MIDNIGHT
   }
   handler "GET" "/user" {
     middleware = ["auth"]
-    fn         = <<ERDE
+    fn         = <<MIDNIGHT
       local q = rest.req:query('q')
       local db = kv.get('db')
       local user
@@ -73,11 +73,11 @@ server {
       	status = 404,
       	body = json.encode({ error = 'user not found' }),
       }}
-    ERDE
+    MIDNIGHT
   }
   handler "GET" "/user/{id}" {
     middleware = ["auth"]
-    fn         = <<ERDE
+    fn         = <<MIDNIGHT
       -- get id from path
       local id = rest.req:path_value('id')
       local db = kv.get('db')
@@ -85,7 +85,7 @@ server {
       if !user { return { status = 404, body = json.encode({ error = 'user not found' }) } }
       local res = json.encode({ id = id, name = user.name, role = user.role })
       return { status = 200, body = res }
-    ERDE
+    MIDNIGHT
   }
 }
 

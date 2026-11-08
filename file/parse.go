@@ -770,7 +770,7 @@ func (p *Parser) marshalBody(bodyHCL hcl.Expression) (string, error) {
 	return "", nil
 }
 
-// scriptLang picks the lang for a script from its heredoc marker (<<ERDE),
+// scriptLang picks the lang for a script from its heredoc marker (<<MN or <<MIDNIGHT),
 // anything else is lua
 func (p *Parser) scriptLang(expr hcl.Expression) string {
 	if lang := p.heredocLang(expr); lang != "" {
@@ -780,8 +780,8 @@ func (p *Parser) scriptLang(expr hcl.Expression) string {
 }
 
 // heredocLang gets the lang from a heredoc marker, or from the extension of a
-// read("./script.erde") call, or "" if there isn't one.
-// For lists ([lib.dump, <<ERDE ...]) the first hinted element wins
+// read("./script.mn") (or .midnight) call, or "" if there isn't one.
+// For lists ([lib.dump, <<MIDNIGHT ...]) the first hinted element wins
 func (p *Parser) heredocLang(expr hcl.Expression) string {
 	if expr == nil {
 		return ""
@@ -802,11 +802,7 @@ func (p *Parser) heredocLang(expr hcl.Expression) string {
 		if diags.HasErrors() || !path.IsKnown() || path.IsNull() || path.Type() != cty.String {
 			return ""
 		}
-		switch ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(path.AsString()), ".")); ext {
-		case restlua.LangLua, restlua.LangErde:
-			return ext
-		}
-		return ""
+		return restlua.LangFromName(strings.TrimPrefix(filepath.Ext(path.AsString()), "."))
 	}
 	rng := expr.Range()
 	f, ok := p.Files[rng.Filename]
@@ -822,11 +818,7 @@ func (p *Parser) heredocLang(expr hcl.Expression) string {
 	if end < 0 {
 		return ""
 	}
-	switch marker := strings.ToLower(string(src[:end])); marker {
-	case restlua.LangLua, restlua.LangErde:
-		return marker
-	}
-	return ""
+	return restlua.LangFromName(string(src[:end]))
 }
 
 func (p *Parser) marshalAfter(afterHCL hcl.Expression) (string, error) {

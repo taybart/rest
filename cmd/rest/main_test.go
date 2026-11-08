@@ -327,7 +327,7 @@ request "specific_label" {
 	}
 }
 
-func TestRunCLIErde(t *testing.T) {
+func TestRunCLIMidnight(t *testing.T) {
 	origArgs := os.Args
 	origStdin := os.Stdin
 	defer func() {
@@ -342,25 +342,25 @@ func TestRunCLIErde(t *testing.T) {
 	defer ts.Close()
 
 	tmpDir := t.TempDir()
-	outFile := filepath.Join(tmpDir, "erde_out.txt")
-	scriptFile := filepath.Join(tmpDir, "erde.rest")
+	outFile := filepath.Join(tmpDir, "midnight_out.txt")
+	scriptFile := filepath.Join(tmpDir, "midnight.rest")
 	content := `request "user" {
   url = "` + ts.URL + `"
-  after = <<ERDE
+  after = <<MIDNIGHT
     local body = json.decode(rest.res.body)
     rest.exports.user = "{body.name}:{rest.res.status}"
-  ERDE
+  MIDNIGHT
 }
 
 cli {
-  fn = <<ERDE
+  fn = <<MIDNIGHT
     history = { rest.exports.user || "missing" }
     rest.loop()
     local f = io.open("` + outFile + `", "w")
     f:write(table.concat(history, ","))
     f:close()
-  ERDE
-  loop = <<ERDE
+  MIDNIGHT
+  loop = <<MIDNIGHT
     match input {
       "quit" => { break }
       "skip" | "ignore" => { continue }
@@ -370,7 +370,7 @@ cli {
       }
     }
     table.insert(history, input)
-  ERDE
+  MIDNIGHT
 }
 `
 	if err := os.WriteFile(scriptFile, []byte(content), 0644); err != nil {

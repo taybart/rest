@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 )
 
 // Requester runs one of the file's request blocks (w/ its expect and after

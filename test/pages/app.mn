@@ -1,4 +1,4 @@
-local { map, state } = require('erde.markup')
+local { map, state } = require('midnight.markup')
 
 -- module state lives as long as the page (rest `stateful = true`), and is
 -- shared by every component

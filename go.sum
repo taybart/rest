@@ -35,11 +35,11 @@ github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsT
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/taybart/args v0.0.11 h1:93KbUfDYbQPMD7IRRfgROVA/ib2kuQeuhZjf6VYoKdk=
 github.com/taybart/args v0.0.11/go.mod h1:aZ8Gg0AdpDyO3BjBfPEiwkIHu/gV/k1Iz4FDJtytGIw=
-github.com/taybart/go-erde v0.0.0-20261107052139-cd12ef50a1f8 h1:C+Y2aC/EDAJoSaIqGFJeZi9DiMvAzqJojHz9uCSifc0=
-github.com/taybart/go-erde v0.0.0-20261107052139-cd12ef50a1f8/go.mod h1:XbZ0t2wTWkE0aJNjABwGyVSA+UVmQsNN97MBlSc1YTk=
 github.com/taybart/log v1.5.1/go.mod h1:zG3tAVOXRh0zQfyxs0dTqarj1hTKFOUWk/oKeiugmZA=
 github.com/taybart/log v1.6.8 h1:30rz86POQrAHWkEsXRGUvcvrb6Tqt1f9RI8CjDH5va0=
 github.com/taybart/log v1.6.8/go.mod h1:zG3tAVOXRh0zQfyxs0dTqarj1hTKFOUWk/oKeiugmZA=
+github.com/taybart/midnight v0.0.0-20261108010512-82d3ae947c57 h1:S2SAcP+CAKgTbc55m9SK9Y/l9uGoQ3mVrQob8C4nPt4=
+github.com/taybart/midnight v0.0.0-20261108010512-82d3ae947c57/go.mod h1:eVAs02G0EoPRuZ2yTV0EsfPXPi3iHTUFExqNTAaNBIk=
 github.com/zclconf/go-cty v1.19.0 h1:IV8WdqYZc2c5rLX9bEoLNXKojBAp0MZPBHMIrCoa/s4=
 github.com/zclconf/go-cty v1.19.0/go.mod h1:12W89jGn3JCOIQi7infWr9m80rOkb5RNYJqXMZcN4c8=
 github.com/zclconf/go-cty-debug v0.0.0-20240509010212-0d6042c53940 h1:4r45xpDWB6ZMSMNJFMOjqrGHynW3DIBuR2H9j0ug+Mo=

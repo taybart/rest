@@ -40,8 +40,8 @@
   <script src="vendor/codemirror/vim.min.js"></script>
   <script src="wasm_exec.js"></script>
   <script>
-    // keywords and operators from go-erde's lexer (parse/erde_lexer.go, parse/erde_parser.go)
-    CodeMirror.defineSimpleMode("erde", {
+    // keywords and operators from midnight's lexer (parse/midnight_lexer.go, parse/midnight_parser.go)
+    CodeMirror.defineSimpleMode("midnight", {
       start: [
         { regex: /--\[(=*)\[/, token: "comment", next: "blockComment" },
         { regex: /--.*/, token: "comment" },
@@ -76,13 +76,13 @@
       meta: { lineComment: "--", electricChars: "}])" },
     });
 
-    // just enough hcl to be readable, <<LUA and <<ERDE heredocs get their own modes
+    // just enough hcl to be readable, <<LUA and <<MIDNIGHT heredocs get their own modes
     // (lang markers are case insensitive, same as heredocLang in file/parse.go)
     CodeMirror.defineSimpleMode("hcl", {
       start: [
         { regex: /"(?:[^\\"]|\\.)*?"/, token: "string" },
         { regex: /<<-?\s*lua\s*$/i, token: "string", mode: { spec: "lua", end: /^\s*lua\s*$/i, endToken: "string" } },
-        { regex: /<<-?\s*erde\s*$/i, token: "string", mode: { spec: "erde", end: /^\s*erde\s*$/i, endToken: "string" } },
+        { regex: /<<-?\s*midnight\s*$/i, token: "string", mode: { spec: "midnight", end: /^\s*midnight\s*$/i, endToken: "string" } },
         { regex: /<<-?\s*([A-Za-z_]+)/, token: "string", next: "heredoc" },
         { regex: /(?:#|\/\/).*/, token: "comment" },
         { regex: /\/\*/, token: "comment", next: "comment" },

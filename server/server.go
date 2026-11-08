@@ -14,9 +14,10 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/rs/cors"
-	lua "github.com/taybart/go-erde"
 	"github.com/taybart/log"
+	lua "github.com/taybart/midnight"
 	restlua "github.com/taybart/rest/lua"
+	"github.com/taybart/rest/pages"
 )
 
 const (
@@ -90,7 +91,7 @@ type Server struct {
 	// rest.exports set by setup (read only after kvOnce)
 	setupExports map[string]any
 	// lua states of stateful handlers (set up by Routes)
-	states *stateStore
+	states *pages.StateStore
 }
 
 type Config struct {
@@ -122,12 +123,14 @@ type Config struct {
 	Requester restlua.Requester `json:"-"`
 }
 
-func New(c Config) Server {
+// New makes a server. It's a pointer because its routes are bound to it:
+// handlers use its kv, setup exports, and states, so a copy wouldn't see them.
+func New(c Config) *Server {
 	// every request requires its scripts' modules in a new state: check their
 	// files at most once a second (edits are still seen right away, ~1s)
 	lua.StatCacheTTL = time.Second
 
-	s := Server{
+	s := &Server{
 		Router: http.NewServeMux(),
 		Config: c,
 	}

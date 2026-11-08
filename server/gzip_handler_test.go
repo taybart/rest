@@ -133,7 +133,7 @@ func TestHandlerGzip(t *testing.T) {
 	counter := `local n = (kv.get('n') or 0) + 1; kv.set('n', n)`
 	long := strings.Repeat("hello world ", 200)
 	ts := newServer(server.Config{Quiet: true, Handlers: []*server.Handler{
-		{Method: "GET", Path: "/page", CacheTTL: time.Minute, Lang: "erde",
+		{Method: "GET", Path: "/page", CacheTTL: time.Minute, Lang: "midnight",
 			Page: "local n = (kv.get('n') || 0) + 1; kv.set('n', n)\nreturn <p>{n} " + long + "</p>"},
 		{Method: "GET", Path: "/fn", Fn: counter + `; return { status = 200, body = '` + long + `' }`},
 		{Method: "GET", Path: "/small", Fn: `return { status = 200, body = 'hi' }`},

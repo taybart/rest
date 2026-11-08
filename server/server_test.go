@@ -292,13 +292,13 @@ func TestMiddleware(t *testing.T) {
 	})
 }
 
-func TestErdeMiddleware(t *testing.T) {
+func TestMidnightMiddleware(t *testing.T) {
 	ts := newServer(server.Config{
 		Quiet: true,
 		Middlewares: []*server.Middleware{
 			{
 				Name: "auth",
-				Lang: "erde",
+				Lang: "midnight",
 				Fn: `
 					local token = rest.req:cookie("token") || rest.req:bearer_token()
 					if token != "valid-token" {
@@ -313,7 +313,7 @@ func TestErdeMiddleware(t *testing.T) {
 				Method:     "GET",
 				Path:       "/user/{id}",
 				Middleware: []string{"auth"},
-				Lang:       "erde",
+				Lang:       "midnight",
 				Fn: `
 					local id = rest.req:path_value("id")
 					return { status = 200, body = "{id}:{rest.ctx.user}" }
@@ -483,34 +483,34 @@ func TestJWTServerAndMiddleware(t *testing.T) {
 
 // Handlers (and middleware) can return markup elements, which are rendered as
 // HTML documents.
-func TestErdeMarkupHandlers(t *testing.T) {
+func TestMidnightMarkupHandlers(t *testing.T) {
 	const page = `local App = props -> <main><h1>hi {props.name}</h1></main>`
 	ts := newServer(server.Config{
 		Quiet: true,
 		Middlewares: []*server.Middleware{
 			{
 				Name: "gate",
-				Lang: "erde",
+				Lang: "midnight",
 				Fn:   `if rest.req:query('blocked') { return <p>blocked</p> }`,
 			},
 		},
 		Handlers: []*server.Handler{
 			{
-				Method: "GET", Path: "/element", Lang: "erde", Middleware: []string{"gate"},
+				Method: "GET", Path: "/element", Lang: "midnight", Middleware: []string{"gate"},
 				Fn: page + `
 					return <App name={rest.req:query('name')}/>`,
 			},
 			{
-				Method: "GET", Path: "/body", Lang: "erde",
+				Method: "GET", Path: "/body", Lang: "midnight",
 				Fn: page + `
 					return { status = 404, body = <App name="nobody"/> }`,
 			},
 			{
-				Method: "GET", Path: "/content-type", Lang: "erde",
+				Method: "GET", Path: "/content-type", Lang: "midnight",
 				Fn: `return { headers = { ['content-type'] = 'text/plain' }, body = <p/> }`,
 			},
 			{
-				Method: "GET", Path: "/plain", Lang: "erde",
+				Method: "GET", Path: "/plain", Lang: "midnight",
 				Fn: `return { status = 200, body = { ok = true } }`,
 			},
 		},
@@ -598,13 +598,13 @@ func TestPageHandlers(t *testing.T) {
 	ts := newServer(server.Config{
 		Quiet: true,
 		Middlewares: []*server.Middleware{
-			{Name: "gate", Lang: "erde", Fn: `if rest.req:query('blocked') { return { status = 403 } }`},
+			{Name: "gate", Lang: "midnight", Fn: `if rest.req:query('blocked') { return { status = 403 } }`},
 		},
 		Handlers: []*server.Handler{
 			{
-				Method: "GET", Path: "/counter/{start}", Lang: "erde", Middleware: []string{"gate"},
+				Method: "GET", Path: "/counter/{start}", Lang: "midnight", Middleware: []string{"gate"},
 				Page: `
-					local { state } = require('erde.markup')
+					local { state } = require('midnight.markup')
 					local Counter = (props) -> {
 						local s = state({ count = tonumber(props.start) })
 						return <button onclick={() -> { s.count += 1 }}>{s.count}</button>
@@ -612,7 +612,7 @@ func TestPageHandlers(t *testing.T) {
 					return <main><Counter start={rest.req:path_value('start')}/></main>`,
 			},
 			{
-				Method: "GET", Path: "/redirect", Lang: "erde",
+				Method: "GET", Path: "/redirect", Lang: "midnight",
 				Page: `return { status = 302, headers = { Location = '/counter/1' } }`,
 			},
 		},
@@ -628,13 +628,13 @@ func TestPageHandlers(t *testing.T) {
 	if res.StatusCode != 200 || res.Header.Get("Content-Type") != "text/html; charset=utf-8" {
 		t.Fatalf("page: %d %s\n%s", res.StatusCode, res.Header.Get("Content-Type"), page)
 	}
-	// the client posts to the page's own path, w/ its state
-	cfg := regexp.MustCompile(`rpc: '([^']*)', headers: \{ 'X-Rest-State': '([^']*)' \}`).FindStringSubmatch(string(page))
-	action := regexp.MustCompile(`erde\.rpc\('([^']+)'`).FindStringSubmatch(string(page))
-	if cfg == nil || action == nil || cfg[1] != "/counter/5" || !strings.Contains(string(page), ">5</button>") {
+	// the client posts to the page's own url (rpc: null), w/ its state
+	cfg := regexp.MustCompile(`rpc: null, headers: \{ 'X-Rest-State': '([^']*)' \}`).FindStringSubmatch(string(page))
+	action := regexp.MustCompile(`midnight\.rpc\('([^']+)'`).FindStringSubmatch(string(page))
+	if cfg == nil || action == nil || !strings.Contains(string(page), ">5</button>") {
 		t.Fatalf("page\n%s", page)
 	}
-	state := cfg[2]
+	state := cfg[1]
 
 	post := func(state, query, body string, want Response) {
 		req, err := http.NewRequest("POST", ts.URL+"/counter/5"+query, strings.NewReader(body))
@@ -649,7 +649,7 @@ func TestPageHandlers(t *testing.T) {
 	click := `{"id": "` + action[1] + `", "data": {"type": "click"}}`
 	button := func(n string) string {
 		id := strings.Split(action[1], "#")[0]
-		return `<template data-erde-target="` + id + `"><button data-erde="` + id + `" onclick="erde.rpc('` + action[1] + `', event)">` + n + `</button></template>`
+		return `<template data-midnight-target="` + id + `"><button data-midnight="` + id + `" onclick="midnight.rpc('` + action[1] + `', event)">` + n + `</button></template>`
 	}
 	post(state, "", click, Response{StatusCode: 200, Body: button("6")})
 	post(state, "", click, Response{StatusCode: 200, Body: button("7")})
@@ -724,7 +724,7 @@ func TestStaticPage(t *testing.T) {
 	ts := newServer(server.Config{
 		Quiet: true,
 		Handlers: []*server.Handler{
-			{Method: "GET", Path: "/static", Lang: "erde", Page: `return <p>hi {rest.req:query('n')}</p>`},
+			{Method: "GET", Path: "/static", Lang: "midnight", Page: `return <p>hi {rest.req:query('n')}</p>`},
 		},
 	})
 	defer ts.Close()
@@ -736,7 +736,7 @@ func TestStaticPage(t *testing.T) {
 // Handlers w/ cache keep their responses (see cache.go).
 func TestHandlerCache(t *testing.T) {
 	counter := `local n = (kv.get('n') or 0) + 1; kv.set('n', n)`
-	erdeCounter := `local n = (kv.get('n') || 0) + 1; kv.set('n', n)`
+	midnightCounter := `local n = (kv.get('n') || 0) + 1; kv.set('n', n)`
 	ts := newServer(server.Config{Quiet: true, Middlewares: []*server.Middleware{
 		{Name: "auth", Fn: `if not rest.req:header('Authorization') then return { status = 401 } end`},
 	}, Handlers: []*server.Handler{
@@ -746,8 +746,8 @@ func TestHandlerCache(t *testing.T) {
 		{Method: "GET", Path: "/missing", CacheTTL: time.Minute, Fn: counter + `; return { status = 404, body = tostring(n) }`},
 		{Method: "GET", Path: "/cookie", CacheTTL: time.Minute, Fn: counter + `; return { status = 200, cookies = { a = 'b' }, body = tostring(n) }`},
 		{Method: "GET", Path: "/auth", CacheTTL: time.Minute, Middleware: []string{"auth"}, Fn: counter + `; return { status = 200, body = tostring(n) }`},
-		{Method: "GET", Path: "/static", CacheTTL: time.Minute, Lang: "erde", Page: erdeCounter + "\nreturn <p>{n}</p>"},
-		{Method: "GET", Path: "/interactive", CacheTTL: time.Minute, Lang: "erde", Page: erdeCounter + "\nreturn <button onclick={() -> {}}>{n}</button>"},
+		{Method: "GET", Path: "/static", CacheTTL: time.Minute, Lang: "midnight", Page: midnightCounter + "\nreturn <p>{n}</p>"},
+		{Method: "GET", Path: "/interactive", CacheTTL: time.Minute, Lang: "midnight", Page: midnightCounter + "\nreturn <button onclick={() -> {}}>{n}</button>"},
 	}})
 	defer ts.Close()
 
