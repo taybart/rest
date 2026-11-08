@@ -181,7 +181,7 @@ rest.req = {
 Scripts (`fn`, `page`, `setup`, middleware) can be written in
 [Midnight](https://github.com/taybart/midnight) instead of lua, w/ a `<<MN` or `<<MIDNIGHT` (or
 `<<-MN` / `<<-MIDNIGHT`) heredoc, or by reading a `.mn` (or `.midnight`) file (`fn = read("./handler.mn")`).
-Anything else is lua. midnight's experimental `match` and `markup` are enabled.
+Anything else is lua. midnight's `match` and markup work too.
 
 Midnight modules can be `require`d too (`require('app')` finds `./app.mn`).
 Scripts and modules are compiled once (a changed file is compiled again), so

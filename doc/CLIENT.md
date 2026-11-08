@@ -254,7 +254,7 @@ request "my request" {
 
 Hooks are defined in the `after` field. They are lua functions that are executed after the response is received. They can be used to do fancy lua stuff.
 
-Scripts (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`/`page`) can also be written in [Midnight](https://github.com/taybart/midnight) by using a `<<MN` or `<<MIDNIGHT` heredoc (or `<<-MN` / `<<-MIDNIGHT`), or by reading a `.mn` (or `.midnight`) file (`read("./hook.mn")`). Any other script is lua. Both run in the same runtime, so the globals below are the same. midnight's experimental `match` statement (and `markup`, see [PAGES.md](PAGES.md)) is enabled:
+Scripts (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`/`page`) can also be written in [Midnight](https://github.com/taybart/midnight) by using a `<<MN` or `<<MIDNIGHT` heredoc (or `<<-MN` / `<<-MIDNIGHT`), or by reading a `.mn` (or `.midnight`) file (`read("./hook.mn")`). Any other script is lua. Both run in the same runtime, so the globals below are the same. midnight's `match` statement (and markup, see [PAGES.md](PAGES.md)) work too:
 
 ```midnight
 match rest.res.status {

@@ -4,8 +4,8 @@ import (
 	lua "github.com/taybart/midnight"
 )
 
-// Pages are midnight scripts that return a markup element (midnight's markup
-// experiment, ex. `return <App/>`), served as interactive pages. Functions in
+// Pages are midnight scripts that return a markup element (ex.
+// `return <App/>`), served as interactive pages. Functions in
 // `on*` attributes of its elements become actions: clicking (etc.) POSTs to
 // the page's rpc url, which runs the function and responds w/ the components
 // that changed (see midnight.markup's mount / dispatch).
@@ -34,7 +34,7 @@ return require('midnight.markup').dispatch(body.id, body.data)
 `
 
 // MarkupElement returns the markup runtime if v is a markup element (built by
-// midnight.markup, ex. `<App/>` in a midnight script w/ the markup experiment).
+// midnight.markup, ex. `<App/>` in a midnight script).
 func MarkupElement(l *lua.LState, v lua.LValue) (lua.LValue, bool, error) {
 	// only tables w/ a metatable can be elements, so plain responses don't
 	// load the runtime

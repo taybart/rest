@@ -68,10 +68,9 @@ func LangFromName(name string) string {
 	return ""
 }
 
-// NewState makes a runtime w/ the experimental midnight extensions on (only affects
-// midnight scripts, ex. `match`)
+// NewState makes a runtime for lua and midnight scripts.
 func NewState() *lua.LState {
-	return lua.NewState(lua.Options{Midnight: parse.MidnightOptions{Match: true, Markup: true}})
+	return lua.NewState()
 }
 
 // SetPrint makes lua's print write to w instead of stdout
