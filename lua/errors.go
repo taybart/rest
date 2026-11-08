@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	lua "github.com/taybart/go-erde"
-	"github.com/taybart/go-erde/parse"
 	"github.com/taybart/log"
+	lua "github.com/taybart/midnight"
+	"github.com/taybart/midnight/parse"
 )
 
 func extractLineNumber(errMsg string) int {
@@ -52,14 +52,26 @@ func extractErrorMessage(fullError string) string {
 }
 
 const (
-	LangLua  = "lua"
-	LangErde = "erde"
+	LangLua      = "lua"
+	LangMidnight = "midnight"
 )
 
-// NewState makes a runtime w/ the experimental erde extensions on (only affects
-// erde scripts, ex. `match`)
+// LangFromName maps a heredoc marker or file extension (case insensitive, w/o
+// the dot) to a lang: "lua", or "mn"/"midnight" for midnight. "" if neither.
+func LangFromName(name string) string {
+	switch strings.ToLower(name) {
+	case "lua":
+		return LangLua
+	case "mn", "midnight":
+		return LangMidnight
+	}
+	return ""
+}
+
+// NewState makes a runtime w/ the experimental midnight extensions on (only affects
+// midnight scripts, ex. `match`)
 func NewState() *lua.LState {
-	return lua.NewState(lua.Options{Erde: parse.ErdeOptions{Match: true, Markup: true}})
+	return lua.NewState(lua.Options{Midnight: parse.MidnightOptions{Match: true, Markup: true}})
 }
 
 // SetPrint makes lua's print write to w instead of stdout
@@ -77,7 +89,7 @@ func SetPrint(l *lua.LState, w io.Writer) {
 	}))
 }
 
-// Exec runs code as lua or erde (https://erde-lang.github.io)
+// Exec runs code as lua or Midnight
 func Exec(l *lua.LState, code, lang string) error {
 	fn, err := loadScript(l, code, lang)
 	if err == nil {
@@ -95,7 +107,7 @@ func Exec(l *lua.LState, code, lang string) error {
 // cache is bounded, in case code is ever generated.
 type scriptKey struct {
 	code, lang string
-	erde       parse.ErdeOptions
+	midnight   parse.MidnightOptions
 }
 
 const scriptsMax = 256
@@ -107,8 +119,8 @@ var scripts struct {
 
 func loadScript(l *lua.LState, code, lang string) (*lua.LFunction, error) {
 	key := scriptKey{code: code, lang: lang}
-	if lang == LangErde {
-		key.erde = l.Options.Erde
+	if lang == LangMidnight {
+		key.midnight = l.Options.Midnight
 	}
 	scripts.Lock()
 	proto := scripts.protos[key]
@@ -119,8 +131,8 @@ func loadScript(l *lua.LState, code, lang string) (*lua.LFunction, error) {
 
 	var fn *lua.LFunction
 	var err error
-	if lang == LangErde {
-		fn, err = l.LoadErdeString(code)
+	if lang == LangMidnight {
+		fn, err = l.LoadMidnightString(code)
 	} else {
 		fn, err = l.LoadString(code)
 	}
@@ -137,8 +149,8 @@ func loadScript(l *lua.LState, code, lang string) (*lua.LFunction, error) {
 	return fn, nil
 }
 
-// Quote makes a single quoted string literal, valid in both lua and erde
-// (erde interpolates {} in double quoted strings)
+// Quote makes a single quoted string literal, valid in both lua and midnight
+// (midnight interpolates {} in double quoted strings)
 func Quote(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `'`, `\'`, "\n", `\n`, "\r", `\r`, "\x00", `\0`)
 	return "'" + r.Replace(s) + "'"

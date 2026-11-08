@@ -3,7 +3,7 @@ package restlua
 import (
 	"html"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 )
 
 func registerHTMLModule(l *lua.LState) {

@@ -1,14 +1,14 @@
 package pages
 
 import (
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 )
 
-// Pages are erde scripts that return a markup element (go-erde's markup
+// Pages are midnight scripts that return a markup element (midnight's markup
 // experiment, ex. `return <App/>`), served as interactive pages. Functions in
 // `on*` attributes of its elements become actions: clicking (etc.) POSTs to
 // the page's rpc url, which runs the function and responds w/ the components
-// that changed (see erde.markup's mount / dispatch).
+// that changed (see midnight.markup's mount / dispatch).
 //
 // A page's lua state is kept for its actions (see StateStore): the page sends
 // its id back in the StateHeader.
@@ -17,7 +17,7 @@ import (
 // url or nil, state id), so rendering it includes the client side of actions.
 const mountScript = `
 local root, rpc, state = ...
-return require('erde.markup').mount(function() return root end, {
+return require('midnight.markup').mount(function() return root end, {
   rpc = rpc,
   headers = { ['` + StateHeader + `'] = state },
 })
@@ -30,11 +30,11 @@ local ok, body = pcall(json.decode, rest.req.body)
 if not ok or type(body) ~= 'table' or type(body.id) ~= 'string' then
   return { status = 400, body = '{"error": "expected a json body w/ an action id"}' }
 end
-return require('erde.markup').dispatch(body.id, body.data)
+return require('midnight.markup').dispatch(body.id, body.data)
 `
 
 // MarkupElement returns the markup runtime if v is a markup element (built by
-// erde.markup, ex. `<App/>` in an erde script w/ the markup experiment).
+// midnight.markup, ex. `<App/>` in a midnight script w/ the markup experiment).
 func MarkupElement(l *lua.LState, v lua.LValue) (lua.LValue, bool, error) {
 	// only tables w/ a metatable can be elements, so plain responses don't
 	// load the runtime
@@ -99,7 +99,7 @@ func IsInteractive(l *lua.LState) (bool, error) {
 	if l.GetField(l.GetField(l.GetGlobal("package"), "loaded"), lua.MarkupLibName) == lua.LNil {
 		return false, nil // not a markup page (ex. a redirect)
 	}
-	fn, err := l.LoadString(`return require('erde.markup').isInteractive()`)
+	fn, err := l.LoadString(`return require('midnight.markup').isInteractive()`)
 	if err != nil {
 		return false, err
 	}

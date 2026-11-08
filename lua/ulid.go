@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"time"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 )
 
 const ulidEncoding = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"

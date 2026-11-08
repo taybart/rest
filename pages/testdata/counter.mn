@@ -1,4 +1,4 @@
-local { state } = require('erde.markup')
+local { state } = require('midnight.markup')
 
 return () -> {
   local s = state({ count = 0 })

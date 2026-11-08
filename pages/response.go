@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 	restlua "github.com/taybart/rest/lua"
 )
 

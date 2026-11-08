@@ -21,7 +21,7 @@ func TestPageStateKeptOnlyIfInteractive(t *testing.T) {
 		{`return <button onclick={() -> {}}>live</button>`, 1},
 	} {
 		before := s.states.Len()
-		s.RunLuaPipeline(&Handler{Method: "GET", Path: "/", Page: c.page, Lang: "erde"}, pageRequest(), nil)
+		s.RunLuaPipeline(&Handler{Method: "GET", Path: "/", Page: c.page, Lang: "midnight"}, pageRequest(), nil)
 		if kept := s.states.Len() - before; kept != c.kept {
 			t.Errorf("%s: kept %d states, want %d", c.page, kept, c.kept)
 		}

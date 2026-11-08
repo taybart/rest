@@ -7,7 +7,7 @@ import (
 	"net/textproto"
 	"strings"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 )
 
 const (

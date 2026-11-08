@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 	"github.com/taybart/rest"
 	"github.com/taybart/rest/client"
 	"github.com/taybart/rest/file"
@@ -235,8 +235,8 @@ func runLoop(l *lua.LState, loopCode, lang string) error {
 	}
 	l.SetGlobal("__rest_readline", l.NewFunction(readlineFn))
 
-	if lang == restlua.LangErde {
-		// erde has continue built in
+	if lang == restlua.LangMidnight {
+		// midnight has continue built in
 		return execute(l, fmt.Sprintf(`
 		while true {
 			local input = __rest_readline(PROMPT || "> ")

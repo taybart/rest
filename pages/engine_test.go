@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 	restlua "github.com/taybart/rest/lua"
 	"github.com/taybart/rest/pages"
 )
 
-var actionID = regexp.MustCompile(`erde\.rpc\('([^']+)'`)
+var actionID = regexp.MustCompile(`midnight\.rpc\('([^']+)'`)
 
 func get(t *testing.T, url string) (*http.Response, string) {
 	t.Helper()
@@ -48,7 +48,7 @@ func TestFilePage(t *testing.T) {
 	eng := pages.New(pages.Options{OnError: func(_ *http.Request, err error) { t.Error(err) }})
 	defer eng.Close()
 	mux := http.NewServeMux()
-	mux.Handle("/app", eng.File("testdata/app.erde", pages.Props(func(r *http.Request) (any, error) {
+	mux.Handle("/app", eng.File("testdata/app.mn", pages.Props(func(r *http.Request) (any, error) {
 		return map[string]any{"name": r.URL.Query().Get("name")}, nil
 	})))
 	ts := httptest.NewServer(mux)
@@ -98,7 +98,7 @@ func TestSourcePage(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	if res, html := get(t, ts.URL+"/static?x=there"); res.StatusCode != 200 || !strings.Contains(html, "<p>hi there</p>") || strings.Contains(html, "erde.rpc") {
+	if res, html := get(t, ts.URL+"/static?x=there"); res.StatusCode != 200 || !strings.Contains(html, "<p>hi there</p>") || strings.Contains(html, "midnight.rpc") {
 		t.Errorf("static: %d\n%s", res.StatusCode, html)
 	}
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}

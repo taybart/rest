@@ -57,7 +57,7 @@ schema = 3
     version = 'v0.0.11'
     hash = 'sha256-sZzCT+UJ2PF5fQ90UyfnW0rWmDNgo+ZvCCMiwpMRS+U='
 
-  [mod.'github.com/taybart/go-erde']
+  [mod.'github.com/taybart/midnight']
     version = 'v0.0.0-20261029220904-1cf3a63e1723'
     hash = 'sha256-5aNlS5shWrlC7S9NlpASZfykeJOV8v38HWUh9iDcfQY='
 

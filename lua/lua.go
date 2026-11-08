@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	lua "github.com/taybart/go-erde"
-	"github.com/taybart/go-erde/parse"
+	lua "github.com/taybart/midnight"
+	"github.com/taybart/midnight/parse"
 )
 
 //go:embed modules/*

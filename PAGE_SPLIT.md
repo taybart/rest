@@ -1,7 +1,7 @@
 # Pages split (temp design notes)
 
-Goal: use rest's `page`s (interactive erde markup) from other Go apps, so any
-router (std mux, gin, fiber, ...) can mount an `.erde` page as an
+Goal: use rest's `page`s (interactive midnight markup) from other Go apps, so any
+router (std mux, gin, fiber, ...) can mount an `.mn` page as an
 `http.Handler`. Not final; moves to `doc/` once the design is settled.
 
 ## Status of the decisions
@@ -16,7 +16,7 @@ router (std mux, gin, fiber, ...) can mount an `.erde` page as an
 
 ## Package layout
 
-`pages` imports only `rest/lua` and go-erde (so no hcl, cty, cors, websocket,
+`pages` imports only `rest/lua` and midnight (so no hcl, cty, cors, websocket,
 `rest/request`). The module stays the same, and Go only links the packages
 that are imported.
 
@@ -35,11 +35,11 @@ Moves out of `server`:
 eng := pages.New(pages.Options{
     MaxStates: 1000,             // shared by every page of the engine
     StateTTL:  30 * time.Minute,
-    Path:      "./ui/?.erde",    // package.path for require
+    Path:      "./ui/?.mn",    // package.path for require
 })
 defer eng.Close()
 
-h := eng.File("ui/app.erde",
+h := eng.File("ui/app.mn",
     pages.Props(func(r *http.Request) (any, error) {
         return map[string]any{"name": r.URL.Query().Get("name")}, nil
     }),
@@ -57,12 +57,12 @@ app.All("/app", adaptor.HTTPHandler(h))   // fiber
 - The engine owns the state store, so `MaxStates` and the TTL cleanup
   goroutine apply to all of its pages.
 - The entry (file or source) returns a component, `(props) -> <html>…</html>`,
-  (like `test/pages/app.erde`) or an element. The handler calls it with what
+  (like `test/pages/app.mn`) or an element. The handler calls it with what
   `Props(r)` returned. It can also return a response table (ex. a redirect).
 - GET renders and POST dispatches an action, so the handler has to be mounted
   for both methods, and the app can't have its own POST on that path.
 - The `rest` global stays (`rest.req`, `rest.state`, `rest.exports`), so the
-  same `.erde` files work under `rest` and in other apps. `rest.request` only
+  same `.mn` files work under `rest` and in other apps. `rest.request` only
   exists when a Requester is set (the `server` case).
 - The app's router middleware wraps the handler, so it runs for actions too
   (ex. auth).
@@ -88,13 +88,13 @@ Actions run in later requests than the page load, in the page's kept state.
 So functions must see the **current** request (the action's), not the one
 the page was loaded with. The engine stores the current `*http.Request` on
 the state before each run, and a function whose first param is
-`context.Context` or `*http.Request` gets it (not an erde argument).
+`context.Context` or `*http.Request` gets it (not a midnight argument).
 
 ```go
 func (db *DB) AddItem(ctx context.Context, item string) error
 ```
 
-```erde
+```midnight
 local db = require('app.db')
 local AddItem = () -> <form onsubmit={e -> { db.add_item(e.form.item) }}>…</form>
 ```
@@ -122,7 +122,7 @@ anyway. If it shows up in profiles, use the escape hatch or a generic adapter
 
 Supported types (to start):
 
-| Go | erde |
+| Go | midnight |
 |---|---|
 | `string`, `bool`, ints, floats | string, boolean, number (non-integer numbers into ints are an error) |
 | `[]T` | array table |
@@ -132,14 +132,14 @@ Supported types (to start):
 | `error` (last result) | non-nil → lua error w/ the message (`pcall`able) |
 
 Returns: `()`, `(T)`, `(error)`, `(T, error)`. More than one non-error
-result is rejected at registration, to keep the erde side simple.
+result is rejected at registration, to keep the midnight side simple.
 
 Arg errors name the function and position: `app.db.add_item: arg 1: expected
 string, got nil`.
 
 ### Escape hatch
 
-Raw gopher-lua functions, for full control or hot paths. These expose go-erde
+Raw gopher-lua functions, for full control or hot paths. These expose midnight
 types, which is the trade-off:
 
 ```go
@@ -167,8 +167,8 @@ profiles.
 ## Later
 
 - **`fs.FS` / embed**: a loader in `package.loaders` that resolves `require`
-  against an `fs.FS` (probably in go-erde), with compiled chunks cached for
-  good (embedded files don't change). Or precompile the `.erde` files to
+  against an `fs.FS` (probably in midnight), with compiled chunks cached for
+  good (embedded files don't change). Or precompile the `.mn` files to
   bytecode at build time and embed that. Until then, files live on disk like
   they do today.
 - Cache / gzip as handler options (`pages.Cache(ttl, vary...)`).
@@ -179,7 +179,7 @@ profiles.
 
 1. ~~Create `pages`: move the state store and mount/dispatch, `Engine`,
    `File`, `Source`, `Props`. `server` uses it, and its tests pass unchanged.~~
-   Done. `pages` deps: go-erde, taybart/log, uuid, nanoid (via `rest/lua`).
+   Done. `pages` deps: midnight, taybart/log, uuid, nanoid (via `rest/lua`).
    Not yet: cache/gzip options.
    - Exports: `Options.Requester` (enables `rest.request`, ex.
      `rest.NewFile("api.rest")` → `.Requester(client)`; only apps that use it
@@ -187,8 +187,8 @@ profiles.
      `pages.Exports(func(r) ...)` (per page load, merged on top). Kept states
      keep their whole `rest` table (`restlua.SetRestGlobal` only replaces
      req / path / ctx), so exports survive between actions, in `server` too.
-2. ~~Empty `rpc` → client posts to the current document (go-erde `markup.lua`).~~
-   Done (go-erde change, used via an untracked `go.work` until go-erde is
+2. ~~Empty `rpc` → client posts to the current document (midnight `markup.lua`).~~
+   Done (midnight change, used via an untracked `go.work` until midnight is
    bumped). Engine pages default to it, `pages.ActionURL` overrides; `server`
    pages use it too (actions now also see the page's query). Also fixed in
    the client: idiomorph's `ignoreActiveValue` skipped a focused element's
@@ -200,6 +200,25 @@ profiles.
    for actions). It's kept in the lua registry (so coroutines see it too) and
    cleared after each request. Not via `l.SetContext`: that switches the VM
    to a loop that checks the context on every instruction (slower renders).
-4. Reflection `Funcs`, with tests for registration errors and conversions,
-   and a benchmark vs `LuaFuncs`.
-5. Example app with std mux and gin (`test/pages/embed/`?).
+4. ~~Reflection `Funcs`, with tests for registration errors and conversions,
+   and a benchmark vs `LuaFuncs`.~~ Done (`pages/funcs.go`, `pages/convert.go`).
+   - Differences from the design above: structs work as params too (not only
+     results), and so do `time.Time` (RFC 3339 strings), `[]byte` (strings),
+     and recursive types. `Props` uses the same converters (it used
+     `restlua.AnyToLValue`, which turned structs into `fmt.Sprint` strings).
+   - Benchmarks (M-series, per call, incl. the lua loop):
+     `LuaFuncs` add 34ns / 1 alloc, `Funcs` add 156ns / 6 allocs;
+     `(ctx, string) (string, error)` 53ns vs 302ns; a struct result 340ns.
+     A whole action on `testdata/app.mn` is ~42µs (`BenchmarkAction`), so
+     a `Funcs` call is well under 1% of one. Generic adapters (below) aren't
+     worth it for now.
+5. ~~Example app with std mux and gin (`test/pages/embed/`?).~~ Done, w/
+   fiber v3 instead of gin: `examples/pages`, its own module (fiber stays out
+   of rest's go.mod; a
+   `replace` builds it against this checkout). A todo list w/ `pages.Funcs`
+   (struct results, Go errors shown via pcall), mounted under a prefix on
+   both routers; `todo/todotest` runs the same flow against each. Neither
+   binary links hcl / cty / cors / websocket.
+   - Found: submitting a form w/ Enter keeps the input's text (the focused
+     input is "being typed in", so its value is preserved). A fix would be in
+     midnight's client: don't preserve the active value for submit events.

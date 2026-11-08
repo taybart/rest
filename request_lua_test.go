@@ -58,10 +58,10 @@ request "login" {
 request "title" {
   skip  = true
   url   = "${locals.api}/item/${exports::try("id", 1)}"
-  after = [lib.expected, <<-ERDE
+  after = [lib.expected, <<-MIDNIGHT
     local item = rest.res:json()
     return item.title, { id = item.id, tags = { 'a', 'b' } }
-  ERDE
+  MIDNIGHT
   ]
   expect = 200
 }
@@ -84,16 +84,16 @@ server {
   LUA
 
   handler "GET" "/item/{id}" {
-    fn = <<-ERDE
+    fn = <<-MIDNIGHT
       local res = rest.request('item', { id = rest.req:path_value('id') })
       return { status = 200, body = res:json().title }
-    ERDE
+    MIDNIGHT
   }
   handler "GET" "/title/{id}" {
-    fn = <<-ERDE
+    fn = <<-MIDNIGHT
       local title, extra = rest.request('title', { id = rest.req:path_value('id') })
       return { status = 200, body = "{title} {extra.id} {table.concat(extra.tags, ',')}" }
-    ERDE
+    MIDNIGHT
   }
   handler "GET" "/first" {
     fn = <<LUA

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	lua "github.com/taybart/go-erde"
 	"github.com/taybart/log"
+	lua "github.com/taybart/midnight"
 	restlua "github.com/taybart/rest/lua"
 	"github.com/taybart/rest/pages"
 )

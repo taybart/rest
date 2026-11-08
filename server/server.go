@@ -14,8 +14,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/rs/cors"
-	lua "github.com/taybart/go-erde"
 	"github.com/taybart/log"
+	lua "github.com/taybart/midnight"
 	restlua "github.com/taybart/rest/lua"
 	"github.com/taybart/rest/pages"
 )

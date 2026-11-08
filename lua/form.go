@@ -3,7 +3,7 @@ package restlua
 import (
 	"net/url"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 )
 
 func registerFormModule(l *lua.LState) {

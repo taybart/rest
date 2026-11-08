@@ -1,9 +1,9 @@
-// Package pages serves erde markup pages (interactive, w/ actions that run on
+// Package pages serves midnight markup pages (interactive, w/ actions that run on
 // the server) as http.Handlers, for any router:
 //
 //	eng := pages.New(pages.Options{})
 //	defer eng.Close()
-//	mux.Handle("/app", eng.File("ui/app.erde", pages.Props(props)))
+//	mux.Handle("/app", eng.File("ui/app.mn", pages.Props(props)))
 //
 // A page handler renders on GET (and HEAD), and runs actions on POST, so it
 // has to be mounted for both (std mux patterns w/o a method, gin's Any,
@@ -18,8 +18,8 @@ import (
 	"path/filepath"
 	"time"
 
-	lua "github.com/taybart/go-erde"
 	"github.com/taybart/log"
+	lua "github.com/taybart/midnight"
 	restlua "github.com/taybart/rest/lua"
 )
 
@@ -32,7 +32,7 @@ type Options struct {
 	// StateTTL is how long unused page states are kept, DefaultStateTTL if 0.
 	StateTTL time.Duration
 	// Path is prepended to package.path (where `require` looks for modules),
-	// ex. "./ui/?.erde;./ui/?.lua". File pages also look in their own
+	// ex. "./ui/?.mn;./ui/?.midnight;./ui/?.lua". File pages also look in their own
 	// directory first.
 	Path string
 	// Requester runs request blocks for `rest.request(label [, exports])`,
@@ -71,7 +71,7 @@ type Option func(*handler)
 
 // Props sets the props of a page, by request. A page whose entry returns a
 // component (`return (props) -> <html>...</html>`) is rendered w/ them,
-// converted to lua (maps and structs become tables, see restlua.AnyToLValue).
+// converted to lua (ex. maps and structs become tables, see convert.go).
 func Props(fn func(r *http.Request) (any, error)) Option {
 	return func(h *handler) { h.props = fn }
 }
@@ -93,7 +93,7 @@ func Exports(fn func(r *http.Request) (map[string]any, error)) Option {
 }
 
 // LuaFuncs makes fns a module of the page, `require(module)`, a table of the
-// functions by name. They're plain gopher-lua functions (see go-erde): they
+// functions by name. They're plain gopher-lua functions (see midnight): they
 // get their args from the stack, push their results, and raise errors w/
 // l.RaiseError / l.ArgError (pcall-able in the page). Request(l) is the
 // request being handled (the page load's, or the action's).
@@ -136,14 +136,14 @@ func setRequest(l *lua.LState, r *http.Request) {
 	l.SetField(l.Get(lua.RegistryIndex), requestKey, v)
 }
 
-// File serves the page at path: an erde (or lua) file that returns a
+// File serves the page at path: a midnight (or lua) file that returns a
 // component, a markup element, or a response table (ex. a redirect).
 // Changes to it (and the modules it requires) show up on the next page load.
 func (e *Engine) File(path string, opts ...Option) http.Handler {
 	dir := filepath.Dir(path)
 	h := &handler{
 		engine: e,
-		path:   filepath.Join(dir, "?.erde") + ";" + filepath.Join(dir, "?.lua"),
+		path:   filepath.Join(dir, "?.mn") + ";" + filepath.Join(dir, "?.midnight") + ";" + filepath.Join(dir, "?.lua"),
 		load: func(l *lua.LState) error {
 			fn, err := l.LoadFile(path)
 			if err != nil {
@@ -156,13 +156,13 @@ func (e *Engine) File(path string, opts ...Option) http.Handler {
 	return h.with(opts)
 }
 
-// Source serves a page from erde source, which returns a component, a markup
+// Source serves a page from midnight source, which returns a component, a markup
 // element, or a response table (ex. a redirect).
 func (e *Engine) Source(src string, opts ...Option) http.Handler {
 	h := &handler{
 		engine: e,
 		load: func(l *lua.LState) error {
-			return restlua.Exec(l, src, restlua.LangErde)
+			return restlua.Exec(l, src, restlua.LangMidnight)
 		},
 	}
 	return h.with(opts)
@@ -290,7 +290,9 @@ func (h *handler) render(r *http.Request) (Response, error) {
 			if err != nil {
 				return Response{}, fmt.Errorf("props: %w", err)
 			}
-			props = restlua.AnyToLValue(l, p)
+			if props, err = toLuaValue(l, p); err != nil {
+				return Response{}, fmt.Errorf("props: %w", err)
+			}
 		}
 		if err := l.CallByParam(lua.P{Fn: fn, NRet: 1, Protect: true}, props); err != nil {
 			return Response{}, err

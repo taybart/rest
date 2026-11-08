@@ -498,11 +498,18 @@ request "admin" {
 
 func TestHeredocLangHints(t *testing.T) {
 	const scripts = `
-request "erde" {
+request "midnight" {
   url   = "http://localhost:18080"
-  after = <<ERDE
+  after = <<MIDNIGHT
     print("{rest.res.status}")
-  ERDE
+  MIDNIGHT
+}
+
+request "short" {
+  url   = "http://localhost:18080"
+  after = <<-MN
+    print("{rest.res.status}")
+  MN
 }
 
 request "indented_lua" {
@@ -525,42 +532,45 @@ request "list" {
   url   = "http://localhost:18080"
   after = [
     lib.dump,
-    <<ERDE
+    <<MIDNIGHT
       print("{rest.res.status}")
-    ERDE
+    MIDNIGHT
   ]
 }
 
 server {
   address = "localhost:18080"
-  setup = <<ERDE
+  setup = <<MIDNIGHT
     print("setup")
-  ERDE
+  MIDNIGHT
   middleware "auth" {
     fn = <<LUA
       print("auth")
     LUA
   }
   handler "GET" "/" {
-    fn = <<ERDE
+    fn = <<MIDNIGHT
       return { status = 200 }
-    ERDE
+    MIDNIGHT
   }
   handler "GET" "/plain" {
     fn = "return { status = 200 }"
   }
-  handler "GET" "/read_erde" {
-    fn = read("{{dir}}/script.erde")
+  handler "GET" "/read_midnight" {
+    fn = read("{{dir}}/script.mn")
   }
   handler "GET" "/read_lua" {
     fn = read("{{dir}}/script.lua")
   }
+  handler "GET" "/read_midnight_long" {
+    fn = read("{{dir}}/script.midnight")
+  }
 }
 
 cli {
-  fn = <<ERDE
+  fn = <<MIDNIGHT
     print("fn")
-  ERDE
+  MIDNIGHT
   loop = "print(input)"
 }
 `
@@ -576,15 +586,15 @@ cli {
 		{
 			name: "hints",
 			reqs: map[string]string{
-				"erde": "erde", "indented_lua": "lua", "plain": "lua", "none": "lua", "list": "erde",
+				"midnight": "midnight", "short": "midnight", "indented_lua": "lua", "plain": "lua", "none": "lua", "list": "midnight",
 			},
-			setup: "erde", mw: "lua", hdl: []string{"erde", "lua", "erde", "lua"}, fn: "erde", loop: "lua",
+			setup: "midnight", mw: "lua", hdl: []string{"midnight", "lua", "midnight", "lua", "midnight"}, fn: "midnight", loop: "lua",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			for name, src := range map[string]string{"script.erde": "return { status = 200 }", "script.lua": "return { status = 200 }"} {
+			for name, src := range map[string]string{"script.mn": "return { status = 200 }", "script.midnight": "return { status = 200 }", "script.lua": "return { status = 200 }"} {
 				if err := os.WriteFile(filepath.Join(dir, name), []byte(src), 0644); err != nil {
 					t.Fatal(err)
 				}

@@ -1,12 +1,12 @@
 # Pages
 
-rest's server can also serve HTML apps written in [erde](https://erde-lang.github.io)
-w/ go-erde's markup (HTML-like elements, components, and scoped styles):
+rest's server can also serve HTML apps written in [Midnight](https://github.com/taybart/midnight)
+w/ midnight's markup (HTML-like elements, components, and scoped styles):
 handlers that return HTML, interactive `page`s whose events run on the server,
 and data fetched w/ the file's own `request` blocks.
 
 See [SERVER.md](SERVER.md) for the server itself (handlers, middleware, `kv`,
-`setup`, ...), and go-erde's [markup docs](https://github.com/taybart/go-erde/blob/main/docs/MARKUP.md)
+`setup`, ...), and midnight's [markup docs](https://github.com/taybart/midnight/blob/main/docs/MARKUP.md)
 for the syntax and runtime.
 
 - [Returning HTML](#returning-html)
@@ -23,19 +23,19 @@ response table, to also set the status, headers, or cookies.
 
 ```hcl
 handler "GET" "/hello" {
-  fn = <<-ERDE
+  fn = <<-MIDNIGHT
     local name = rest.req:query('name') || 'stranger'
     return <html><body><h1>hello {name}</h1></body></html>
-  ERDE
+  MIDNIGHT
 }
 handler "GET" "/missing" {
-  fn = <<-ERDE
+  fn = <<-MIDNIGHT
     return { status = 404, body = <p>nothing here</p> }
-  ERDE
+  MIDNIGHT
 }
 ```
 
-See go-erde's [markup docs](https://github.com/taybart/go-erde/blob/main/docs/MARKUP.md)
+See midnight's [markup docs](https://github.com/taybart/midnight/blob/main/docs/MARKUP.md)
 for the syntax, components, `state`, and scoped styles (`css`).
 
 ## Pages (`page`)
@@ -48,16 +48,16 @@ keep focus).
 
 ```hcl
 handler "GET" "/{$}" {
-  page = <<-ERDE
-    local App = require('app')   -- ./app.erde
+  page = <<-MIDNIGHT
+    local App = require('app')   -- ./app.mn
     return <App name={rest.req:query('name')}/>
-  ERDE
+  MIDNIGHT
 }
 ```
 
-```erde
--- app.erde
-local { state, css } = require('erde.markup')
+```midnight
+-- app.mn
+local { state, css } = require('midnight.markup')
 
 local s = css({ count = { font_weight = 'bold' } })
 
@@ -89,7 +89,7 @@ return (props) -> <html>
 - Static files (css, images, ...) can be served next to pages w/ the
   server's `directory`: it serves whatever no handler matches (so use
   `"/{$}"` for a page at the root, `"/"` matches everything).
-- Changes to required `.erde` files show up on the next page load (the
+- Changes to required `.mn` files show up on the next page load (the
   `.rest` file itself needs a restart).
 
 ## Fetching data (`rest.request`)
@@ -106,10 +106,10 @@ returns is what `rest.request` returns.
 request "item" {
   url    = "https://api.hackerwebapp.com/item/${exports::try("id", 8863)}"
   expect = 200
-  after  = [lib.expected, <<-ERDE
+  after  = [lib.expected, <<-MIDNIGHT
     local item = rest.res:json()
     return { title = item.title, url = item.url || "/post/{item.id}" }
-  ERDE
+  MIDNIGHT
   ]
 }
 ```
@@ -124,11 +124,11 @@ config {
 
 server {
   handler "GET" "/post/{id}" {
-    page = <<-ERDE
+    page = <<-MIDNIGHT
       local Post = require('post')
       local item = assert(rest.request('hn::item', { id = rest.req:path_value('id') }))
       return <Post item={item}/>
-    ERDE
+    MIDNIGHT
   }
 }
 ```
@@ -158,7 +158,7 @@ served from memory, w/ `cache` on its handler:
 
 ```hcl
 handler "GET" "/hn/post/{id}" {
-  page  = read("src/pages/post.erde")
+  page  = read("src/pages/post.mn")
   cache = "1m"
 }
 ```

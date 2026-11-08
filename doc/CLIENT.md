@@ -254,9 +254,9 @@ request "my request" {
 
 Hooks are defined in the `after` field. They are lua functions that are executed after the response is received. They can be used to do fancy lua stuff.
 
-Scripts (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`/`page`) can also be written in [erde](https://erde-lang.github.io) by using an `<<ERDE` (or `<<-ERDE`) heredoc, or by reading a `.erde` file (`read("./hook.erde")`). Any other script is lua. Both run in the same runtime, so the globals below are the same. go-erde's experimental `match` statement (and `markup`, see [PAGES.md](PAGES.md)) is enabled:
+Scripts (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`/`page`) can also be written in [Midnight](https://github.com/taybart/midnight) by using a `<<MN` or `<<MIDNIGHT` heredoc (or `<<-MN` / `<<-MIDNIGHT`), or by reading a `.mn` (or `.midnight`) file (`read("./hook.mn")`). Any other script is lua. Both run in the same runtime, so the globals below are the same. midnight's experimental `match` statement (and `markup`, see [PAGES.md](PAGES.md)) is enabled:
 
-```erde
+```midnight
 match rest.res.status {
   200 | 201 => { print("ok") }
   _ if rest.res.status >= 500 => { fail("server error") }
@@ -267,10 +267,10 @@ match rest.res.status {
 ```hcl
 request "user" {
   url   = "http://localhost:8080/user"
-  after = <<ERDE
+  after = <<MIDNIGHT
     local { name } = json.decode(rest.res.body)
     print("hello {name}")
-  ERDE
+  MIDNIGHT
 }
 ```
 
@@ -419,18 +419,18 @@ request "item" {
   # runs on its own too (rest -f hn.rest -l item), w/ id 8863
   url    = "https://api.hackerwebapp.com/item/${exports::try("id", 8863)}"
   expect = 200
-  after  = [lib.expected, <<-ERDE
+  after  = [lib.expected, <<-MIDNIGHT
     local item = rest.res:json()
     return { title = item.title, url = item.url || "/post/{item.id}" }
-  ERDE
+  MIDNIGHT
   ]
 }
 
 cli {
-  fn = <<-ERDE
+  fn = <<-MIDNIGHT
     local item, err = rest.request('item', { id = cli.id })
     print(err || item.title)
-  ERDE
+  MIDNIGHT
 }
 ```
 

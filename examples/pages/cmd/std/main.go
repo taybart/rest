@@ -1,0 +1,33 @@
+// The todo example on net/http's ServeMux, mounted under /todos/ w/
+// http.StripPrefix (the page's actions POST to the url the browser sees, so
+// prefixes just work).
+package main
+
+import (
+	"flag"
+	"log"
+	"net/http"
+
+	"github.com/taybart/rest/examples/pages/todo"
+	"github.com/taybart/rest/pages"
+)
+
+func routes(eng *pages.Engine, store *todo.Store, uiDir string) http.Handler {
+	mux := http.NewServeMux()
+	// a pattern w/o a method: GET renders the page, POST runs its actions
+	mux.Handle("/todos/", http.StripPrefix("/todos", todo.Page(eng, store, uiDir, "net/http")))
+	mux.Handle("GET /todos/tb.css", todo.Styles(uiDir))
+	mux.Handle("/{$}", http.RedirectHandler("/todos/", http.StatusFound))
+	return mux
+}
+
+func main() {
+	addr := flag.String("addr", "localhost:8090", "address to listen on")
+	ui := flag.String("ui", "todo/ui", "directory of the page's .mn files")
+	flag.Parse()
+
+	eng := pages.New(pages.Options{})
+	defer eng.Close()
+	log.Printf("http://%s/todos/", *addr)
+	log.Fatal(http.ListenAndServe(*addr, routes(eng, todo.NewStore(), *ui)))
+}

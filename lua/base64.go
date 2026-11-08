@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"strings"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 )
 
 // Base64Options configures base64 encoding and decoding.

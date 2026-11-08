@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 )
 
 // JWTOptions configures JWT signing and verification.

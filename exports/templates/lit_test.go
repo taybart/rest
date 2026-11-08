@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	lua "github.com/taybart/go-erde"
+	lua "github.com/taybart/midnight"
 	"github.com/taybart/rest/exports/templates"
 )
 
