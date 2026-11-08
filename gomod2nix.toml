@@ -57,13 +57,13 @@ schema = 3
     version = 'v0.0.11'
     hash = 'sha256-sZzCT+UJ2PF5fQ90UyfnW0rWmDNgo+ZvCCMiwpMRS+U='
 
-  [mod.'github.com/taybart/midnight']
-    version = 'v0.0.0-20261029220904-1cf3a63e1723'
-    hash = 'sha256-5aNlS5shWrlC7S9NlpASZfykeJOV8v38HWUh9iDcfQY='
-
   [mod.'github.com/taybart/log']
     version = 'v1.6.8'
     hash = 'sha256-9UbNvz9QMrOF1JJKslXvQqZQZK5dPaOULIm+Hh+q6KI='
+
+  [mod.'github.com/taybart/midnight']
+    version = 'v0.0.0-20261108010512-82d3ae947c57'
+    hash = 'sha256-TnCd38v2F56eryEvkfxb2+DxIqJdDPGpwQzz5eq/hiw='
 
   [mod.'github.com/zclconf/go-cty']
     version = 'v1.19.0'

@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/taybart/rest/examples/pages/todo"
+	"github.com/taybart/rest/doc/examples/pages/todo"
 	"github.com/taybart/rest/pages"
 )
 
@@ -23,7 +23,7 @@ func routes(eng *pages.Engine, store *todo.Store, uiDir string) http.Handler {
 
 func main() {
 	addr := flag.String("addr", "localhost:8090", "address to listen on")
-	ui := flag.String("ui", "todo/ui", "directory of the page's .mn files")
+	ui := flag.String("ui", "", "serve the page's files from this directory (ex. todo/ui, to edit them live) instead of the embedded ones")
 	flag.Parse()
 
 	eng := pages.New(pages.Options{})

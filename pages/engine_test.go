@@ -264,3 +264,13 @@ return <App/>`
 		t.Errorf("action: %s", b)
 	}
 }
+
+// stateOf returns the state id in a page's client config.
+func stateOf(t *testing.T, html string) string {
+	t.Helper()
+	m := regexp.MustCompile(`["']` + pages.StateHeader + `["']:\s*["']([^"']+)`).FindStringSubmatch(html)
+	if m == nil {
+		t.Fatalf("no state in\n%s", html)
+	}
+	return m[1]
+}

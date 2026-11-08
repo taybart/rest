@@ -1,4 +1,4 @@
-module github.com/taybart/rest/examples/pages
+module github.com/taybart/rest/doc/examples/pages
 
 go 1.26.0
 
@@ -17,8 +17,8 @@ require (
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/molecule-man/go-brrr v1.3.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
-	github.com/taybart/midnight v0.0.0-20261107211437-60dc8ff73e33 // indirect
 	github.com/taybart/log v1.6.8 // indirect
+	github.com/taybart/midnight v0.0.0-20261108010512-82d3ae947c57 // indirect
 	github.com/tinylib/msgp v1.6.5 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.75.0 // indirect
@@ -29,4 +29,4 @@ require (
 )
 
 // the example builds against this checkout of rest
-replace github.com/taybart/rest => ../..
+replace github.com/taybart/rest => ../../..

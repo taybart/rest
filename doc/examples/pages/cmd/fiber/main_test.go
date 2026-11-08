@@ -5,14 +5,15 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/taybart/rest/examples/pages/todo"
-	"github.com/taybart/rest/examples/pages/todo/todotest"
+	"github.com/taybart/rest/doc/examples/pages/todo"
+	"github.com/taybart/rest/doc/examples/pages/todo/todotest"
 	"github.com/taybart/rest/pages"
 )
 
 func TestTodos(t *testing.T) {
 	eng := pages.New(pages.Options{})
 	defer eng.Close()
+	// the files on disk
 	// a fiber app isn't an http.Handler (no httptest.NewServer): serve it on
 	// a listener
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

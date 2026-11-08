@@ -24,10 +24,10 @@ github.com/shamaton/msgpack/v3 v3.2.3 h1:0r0aZtrXDFOPpwWJTEOpFq+Ih/JmMLm0pqLN5mS
 github.com/shamaton/msgpack/v3 v3.2.3/go.mod h1:sgBYvEiyz8JR1NC3yGRoPVME9xXovpnh3l/plW1nfRo=
 github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
-github.com/taybart/midnight v0.0.0-20261107211437-60dc8ff73e33 h1:z/yhaPMggz1+bJS5sskxc6IitCuakRxyho3pRZ3TpFU=
-github.com/taybart/midnight v0.0.0-20261107211437-60dc8ff73e33/go.mod h1:XbZ0t2wTWkE0aJNjABwGyVSA+UVmQsNN97MBlSc1YTk=
 github.com/taybart/log v1.6.8 h1:30rz86POQrAHWkEsXRGUvcvrb6Tqt1f9RI8CjDH5va0=
 github.com/taybart/log v1.6.8/go.mod h1:zG3tAVOXRh0zQfyxs0dTqarj1hTKFOUWk/oKeiugmZA=
+github.com/taybart/midnight v0.0.0-20261108010512-82d3ae947c57 h1:S2SAcP+CAKgTbc55m9SK9Y/l9uGoQ3mVrQob8C4nPt4=
+github.com/taybart/midnight v0.0.0-20261108010512-82d3ae947c57/go.mod h1:eVAs02G0EoPRuZ2yTV0EsfPXPi3iHTUFExqNTAaNBIk=
 github.com/tinylib/msgp v1.6.5 h1:iAH6XTP7BpzErjBZlujJQXxA+GmRi2YWs6M4KdLtNbE=
 github.com/tinylib/msgp v1.6.5/go.mod h1:RSp0LW9oSxFut3KzESt5Voq4GVWyS+PSulT77roAqEA=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=

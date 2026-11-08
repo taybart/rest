@@ -7,7 +7,7 @@
 //
 // A page handler renders on GET (and HEAD), and runs actions on POST, so it
 // has to be mounted for both (std mux patterns w/o a method, gin's Any,
-// fiber's All). See PAGE_SPLIT.md.
+// fiber's All). See doc/PAGES.md.
 package pages
 
 import (
@@ -172,12 +172,15 @@ type handler struct {
 	engine *Engine
 	// package.path of the page's own modules (before the engine's Path)
 	path string
+	// for FS pages: where require finds modules (instead of package.path)
+	fs *fsSource
 	// load runs the page's entry, leaving what it returned on the stack
 	load      func(l *lua.LState) error
 	props     func(r *http.Request) (any, error)
 	exports   func(r *http.Request) (map[string]any, error)
 	actionURL string // "" for the page's own url
 	modules   []luaModule
+	cache     *responseCache // nil w/o Cache
 }
 
 func (h *handler) with(opts []Option) *handler {
@@ -192,7 +195,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
-		res, err = h.render(r)
+		res, err = h.cachedRender(r)
 	case http.MethodPost:
 		res, err = h.action(r)
 	default:
@@ -237,6 +240,10 @@ func (h *handler) setup(l *lua.LState, r *http.Request, stateID string) error {
 		restlua.MapToLTable(l, own).ForEach(func(k, v lua.LValue) { exports.RawSet(k, v) })
 	}
 	l.SetField(rest, "exports", exports)
+	if h.fs != nil {
+		h.fs.install(l)
+		return nil
+	}
 	path := ""
 	for _, p := range []string{h.path, h.engine.opts.Path} {
 		if p != "" {
@@ -261,8 +268,26 @@ func request(l *lua.LState, r *http.Request, stateID string) error {
 	return nil
 }
 
-// render renders the page in a new state, which is kept if it has actions.
-func (h *handler) render(r *http.Request) (Response, error) {
+// cachedRender renders the page, or serves it from its cache (see Cache).
+func (h *handler) cachedRender(r *http.Request) (Response, error) {
+	if h.cache == nil {
+		res, _, err := h.render(r)
+		return res, err
+	}
+	key := h.cache.key(r)
+	if res, ok := h.cache.get(key); ok {
+		return res, nil
+	}
+	res, interactive, err := h.render(r)
+	if err == nil {
+		h.cache.store(r, key, &res, interactive)
+	}
+	return res, err
+}
+
+// render renders the page in a new state, which is kept if it's interactive
+// (has actions).
+func (h *handler) render(r *http.Request) (Response, bool, error) {
 	id, st := h.engine.states.New()
 	keep := false
 	l := st.L
@@ -276,11 +301,11 @@ func (h *handler) render(r *http.Request) (Response, error) {
 	}()
 
 	if err := h.setup(l, r, id); err != nil {
-		return Response{}, err
+		return Response{}, false, err
 	}
 	l.SetTop(0)
 	if err := h.load(l); err != nil {
-		return Response{}, err
+		return Response{}, false, err
 	}
 	page := l.Get(1)
 	if fn, ok := page.(*lua.LFunction); ok {
@@ -288,30 +313,30 @@ func (h *handler) render(r *http.Request) (Response, error) {
 		if h.props != nil {
 			p, err := h.props(r)
 			if err != nil {
-				return Response{}, fmt.Errorf("props: %w", err)
+				return Response{}, false, fmt.Errorf("props: %w", err)
 			}
 			if props, err = toLuaValue(l, p); err != nil {
-				return Response{}, fmt.Errorf("props: %w", err)
+				return Response{}, false, fmt.Errorf("props: %w", err)
 			}
 		}
 		if err := l.CallByParam(lua.P{Fn: fn, NRet: 1, Protect: true}, props); err != nil {
-			return Response{}, err
+			return Response{}, false, err
 		}
 		page = l.Get(-1)
 	}
 	if _, ok := page.(*lua.LTable); !ok {
-		return Response{}, fmt.Errorf("page must return a component, markup element, or response table%s", returnedHint(page))
+		return Response{}, false, fmt.Errorf("page must return a component, markup element, or response table%s", returnedHint(page))
 	}
 	mounted, err := Mount(l, page, h.actionURL, id)
 	if err != nil {
-		return Response{}, err
+		return Response{}, false, err
 	}
 	res, err := MapResult(l, mounted)
 	if err != nil {
-		return Response{}, err
+		return Response{}, false, err
 	}
 	keep, err = IsInteractive(l)
-	return res, err
+	return res, keep, err
 }
 
 // action runs an action in the page's kept state.

@@ -6,7 +6,7 @@ isn't a dependency of rest; it builds against this checkout (`replace` in
 go.mod).
 
 ```sh
-cd examples/pages
+cd doc/examples/pages
 go run ./cmd/std   # http://localhost:8090/todos/
 go run ./cmd/fiber # http://localhost:8091/todos/
 go test ./...
@@ -35,5 +35,7 @@ go test ./...
 - `todo/todotest`: drives the page like its client script does; both routers
   are tested w/ it.
 
-The `.mn` files are read from `-ui` (default `todo/ui`, so run from this
-directory). Changes to them show up on the next page load.
+The page's files (`todo/ui`) are embedded in the binary and served w/
+`eng.FS`: compiled once, nothing read from disk. To edit them while it runs,
+point `-ui` at them (`go run ./cmd/std -ui todo/ui`): that serves them w/
+`eng.File`, and changes show up on the next page load.

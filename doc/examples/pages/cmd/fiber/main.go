@@ -6,11 +6,10 @@ package main
 import (
 	"flag"
 	"log"
-	"path/filepath"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
-	"github.com/taybart/rest/examples/pages/todo"
+	"github.com/taybart/rest/doc/examples/pages/todo"
 	"github.com/taybart/rest/pages"
 )
 
@@ -22,14 +21,15 @@ func routes(eng *pages.Engine, store *todo.Store, uiDir string) *fiber.App {
 	todos.Get("/", page)
 	todos.Post("/", page)
 	// static files the fiber way (no adaptor needed)
-	todos.Get("/tb.css", func(c fiber.Ctx) error { return c.SendFile(filepath.Join(uiDir, "tb.css")) })
+	ui := todo.UI(uiDir)
+	todos.Get("/tb.css", func(c fiber.Ctx) error { return c.SendFile("tb.css", fiber.SendFile{FS: ui}) })
 	app.Get("/", func(c fiber.Ctx) error { return c.Redirect().To("/todos/") })
 	return app
 }
 
 func main() {
 	addr := flag.String("addr", "localhost:8091", "address to listen on")
-	ui := flag.String("ui", "todo/ui", "directory of the page's .mn files")
+	ui := flag.String("ui", "", "serve the page's files from this directory (ex. todo/ui, to edit them live) instead of the embedded ones")
 	flag.Parse()
 
 	eng := pages.New(pages.Options{})
