@@ -28,7 +28,7 @@ return () -> {
   local add = (e) -> {
     local ok, err = pcall(todos.add, e.form.title)
     -- Go errors are lua errors: "<where>: app.todos.add: <message>"
-    st.error = !ok && err:match('app%.todos%.add: (.*)') || nil
+    st.error = if ok { nil } else { err:match('app%.todos%.add: (.*)') }
   }
   local list = todos.list()
   local left = 0

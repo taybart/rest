@@ -1,11 +1,11 @@
 # Pages
 
 rest's server can also serve HTML apps written in [Midnight](https://github.com/taybart/midnight)
-w/ midnight's markup (HTML-like elements, components, and scoped styles):
+with midnight's markup (HTML-like elements, components, and scoped styles):
 handlers that return HTML, interactive `page`s whose events run on the server,
-and data fetched w/ the file's own `request` blocks.
+and data fetched with the file's own `request` blocks.
 
-The same pages can be served by any Go app, on any router, w/ the
+The same pages can be served by any Go app, on any router, with the
 [`pages`](#pages-in-go-apps-restpages) package.
 
 See [SERVER.md](SERVER.md) for the server itself (handlers, middleware, `kv`,
@@ -98,7 +98,7 @@ return (props) -> <html>
 - Each page load gets its own lua state, kept for its actions (see [Stateful handlers](#stateful-handlers)). Module level variables are per page, `state` is per component.
 - Pages w/o actions are static: no client script, and no state is kept.
 - A page can also return a response table (ex. a redirect).
-- Static files (css, images, ...) can be served next to pages w/ the
+- Static files (css, images, ...) can be served next to pages with the
   server's `directory`: it serves whatever no handler matches (so use
   `"/{$}"` for a page at the root, `"/"` matches everything).
 - Changes to required `.mn` files show up on the next page load (the
@@ -107,7 +107,7 @@ return (props) -> <html>
 ## Fetching data (`rest.request`)
 
 Pages get data by running the file's `request` blocks (including imported
-ones) w/ `rest.request(label [, exports])` (or a block index), so the requests
+ones) with `rest.request(label [, exports])` (or a block index), so the requests
 an app makes are defined, run, tested, and exported like any others (see
 [CLIENT.md](CLIENT.md#running-requests-from-lua-restrequest) for what it does
 and returns). A block's `after` hook can post process its response: what it
@@ -166,7 +166,7 @@ server {
 ## Caching pages (`cache`)
 
 A page (or `fn`) that's the same for every visitor can be rendered once and
-served from memory, w/ `cache` on its handler:
+served from memory, with `cache` on its handler:
 
 ```hcl
 handler "GET" "/hn/post/{id}" {
@@ -184,9 +184,9 @@ handler "GET" "/hn/post/{id}" {
 - Middleware still runs for cached responses (ex. auth).
 - Responses get `Cache-Control: public, max-age=<ttl>` (unless the handler
   sets its own), so a CDN or proxy in front of rest can cache them too.
-- It stacks w/ `cache` on request blocks: a page cached for 1m showing data
+- It stacks with `cache` on request blocks: a page cached for 1m showing data
   cached for 5m can be up to 6m old.
-- Only for `GET` handlers w/ `fn` or `page`, and not `stateful` ones.
+- Only for `GET` handlers with `fn` or `page`, and not `stateful` ones.
 
 ## Stateful handlers
 
@@ -239,7 +239,7 @@ local Items = () -> {
   local st = state({ error = nil })
   local add = (e) -> {
     local ok, err = pcall(db.add, e.form.name)
-    st.error = !ok && err || nil
+    st.error = if ok { nil } else { err }
   }
   return <div>
     <form onsubmit={add}><input type="text" name="name"/></form>
@@ -256,12 +256,12 @@ return (props) -> <html>
 </html>
 ```
 
-A page returns a component (called w/ the [props](#props)), a markup element,
+A page returns a component (called with the [props](#props)), a markup element,
 or a response table (ex. a redirect), like a `page` handler. The element it
 returns is rendered once: actions re-render components, so anything that
 changes (ex. `data-theme` on `<body>`) has to be in one.
 
-The [example](examples/pages) is a todo app on net/http and fiber, w/
+The [example](examples/pages) is a todo app on net/http and fiber, with
 embedded files, Go functions, and tests that drive the page like a browser.
 
 ### Mounting
@@ -321,7 +321,7 @@ mux.Handle("/app/", http.StripPrefix("/app", eng.FS(ui, "ui/app.mn")))
 - Paths are `fs.FS` paths (`ui/app.mn`, not `./ui/app.mn`). A bad path, a
   missing file, or a directory panics, so a typo fails at startup.
 
-To edit embedded files while the app runs, serve them w/ `File` in
+To edit embedded files while the app runs, serve them with `File` in
 development (the example's `-ui` flag does this):
 
 ```go
@@ -334,12 +334,12 @@ if dev {
 
 Static files next to a page (css, images, ...) are the router's: ex.
 `http.FileServerFS(ui)` / `http.ServeFileFS` for net/http, or `c.SendFile`
-w/ `fiber.SendFile{FS: ui}` on fiber.
+with `fiber.SendFile{FS: ui}` on fiber.
 
 ### Props
 
 `pages.Props(fn)` gives a page props, by the request that loads it. A page
-that returns a component (`return (props) -> <html>...</html>`) is called w/
+that returns a component (`return (props) -> <html>...</html>`) is called with
 them. They're converted to lua like `Funcs` results (structs become tables,
 see [the types](#types)).
 
@@ -355,6 +355,36 @@ pages.Props(func(r *http.Request) (any, error) {
 
 Props are only for the page load. Actions are later requests, so to get
 data then (or to change it), use Go functions.
+
+#### Data for the page's js (`pages.JSON`)
+
+`pages.JSON(v)` encodes `v` with `encoding/json` for the page's own js. In the
+page it's opaque (it can be rendered, not read): it goes from Go to the
+browser as is, w/o becoming lua tables, so its types are Go's (an empty map
+is `{}`, not `[]`) and big data costs the page nothing.
+
+```go
+pages.Props(func(r *http.Request) (any, error) {
+    return map[string]any{"repos": pages.JSON(repos)}, nil
+})
+```
+
+Render it in a JSON `<script>` (or `<Data/>`, the same thing), or declare it
+in a script with `define:vars`:
+
+```midnight
+<Data id="repos" value={props.repos}/>
+-- JSON.parse(document.getElementById('repos').textContent)
+
+<script define:vars={{ repos = props.repos }}>
+  const names = repos.map(r => r.name)
+</script>
+```
+
+The JSON never has a `<`, `>`, or `&`, so nothing in the data can close the
+`<script>`. An encoding error (ex. a channel in `v`) is the page's error (a
+500). Lua values work too: midnight's `json(v)` encodes them, and a JSON
+`<script>`'s children are encoded when it's rendered.
 
 ### Go functions (`Funcs`)
 
@@ -382,7 +412,7 @@ local ok, err = pcall(todos.add, title) -- Go errors are lua errors
   that runs in an action (so its context, cookies, auth headers, ...), not
   the page load's.
 - Results can be `()`, `(T)`, `(error)`, or `(T, error)`. A non-nil error is
-  raised as a lua error, `pcall`-able, w/ the module and function in the
+  raised as a lua error, `pcall`-able, with the module and function in the
   message: `app.todos.add: title is required`.
 - A missing arg is `nil` (an error for a non-pointer type), too many args
   is an error.
@@ -391,7 +421,7 @@ local ok, err = pcall(todos.add, title) -- Go errors are lua errors
 - Methods work (`store.List`), so do closures.
 
 The function's signature is checked when the handler is built: an
-unsupported one (ex. a `chan` param, or two non-error results) panics, w/ the
+unsupported one (ex. a `chan` param, or two non-error results) panics, with the
 module, function, and param, so it fails at startup, not on a click.
 
 All the reflection on a signature (and its types) happens then too. A call
@@ -415,14 +445,14 @@ rarely worth the difference.
 | `*T` | `nil` or `T` |
 
 Recursive types work. Channels, funcs, complex numbers, non-string map
-keys, and interfaces w/ methods aren't supported.
+keys, and interfaces with methods aren't supported.
 
 ### Raw lua functions (`LuaFuncs`)
 
 For full control, or a hot path, `pages.LuaFuncs(module, fns)` makes plain
 gopher-lua functions (`func(l *lua.LState) int`, `lua` being
 `github.com/taybart/midnight`) a module. They get their args from the stack,
-push their results, and raise errors w/ `l.RaiseError` / `l.ArgError`.
+push their results, and raise errors with `l.RaiseError` / `l.ArgError`.
 `pages.Request(l)` is the request being handled (the action's, in an
 action):
 

@@ -37,7 +37,7 @@ func Run(t *testing.T, url, router string) {
 	b, _ := io.ReadAll(res.Body)
 	res.Body.Close()
 	html := string(b)
-	if res.StatusCode != 200 || !strings.Contains(html, "served w/ "+router) || !strings.Contains(html, "nothing to do") || !strings.Contains(html, "<span>0 left</span>") {
+	if res.StatusCode != 200 || !strings.Contains(html, "served with "+router) || !strings.Contains(html, "nothing to do") || !strings.Contains(html, "<span>0 left</span>") {
 		t.Fatalf("page: %d\n%s", res.StatusCode, html)
 	}
 	// the page links its styles relatively, so they're next to it

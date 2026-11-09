@@ -19,6 +19,7 @@ func TestJSONProps(t *testing.T) {
 	return (p) -> <html><body>
 	  <Data id="a" value={p.repos}/>
 	  <script type="application/json" id="b">{p.repos}</script>
+	  <script define:vars={{ repos = p.repos }}>go(repos)</script>
 	  <p>{p.title}</p>
 	</body></html>`, Props(func(*http.Request) (any, error) {
 		return map[string]any{
@@ -37,6 +38,11 @@ func TestJSONProps(t *testing.T) {
 		if !strings.Contains(w.Body.String(), `id="`+id+`" type="application/json">`+want+`</script>`) {
 			t.Errorf("script %s missing in %s", id, w.Body.String())
 		}
+	}
+	// define:vars: the same JSON, in a js string
+	vars := "<script>const repos = JSON.parse('" + strings.ReplaceAll(want, `\`, `\\`) + "');\ngo(repos)</script>"
+	if !strings.Contains(w.Body.String(), vars) {
+		t.Errorf("define:vars script missing in %s", w.Body.String())
 	}
 }
 

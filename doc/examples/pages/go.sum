@@ -26,8 +26,8 @@ github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWD
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
 github.com/taybart/log v1.6.8 h1:30rz86POQrAHWkEsXRGUvcvrb6Tqt1f9RI8CjDH5va0=
 github.com/taybart/log v1.6.8/go.mod h1:zG3tAVOXRh0zQfyxs0dTqarj1hTKFOUWk/oKeiugmZA=
-github.com/taybart/midnight v0.0.0-20261108010512-82d3ae947c57 h1:S2SAcP+CAKgTbc55m9SK9Y/l9uGoQ3mVrQob8C4nPt4=
-github.com/taybart/midnight v0.0.0-20261108010512-82d3ae947c57/go.mod h1:eVAs02G0EoPRuZ2yTV0EsfPXPi3iHTUFExqNTAaNBIk=
+github.com/taybart/midnight v0.0.0-20261109011057-b508644ef7de h1:66uRMQWnGVgmf+9rSd7nE8jnEIVy1uoMMF3XT0i8+Ps=
+github.com/taybart/midnight v0.0.0-20261109011057-b508644ef7de/go.mod h1:eVAs02G0EoPRuZ2yTV0EsfPXPi3iHTUFExqNTAaNBIk=
 github.com/tinylib/msgp v1.6.5 h1:iAH6XTP7BpzErjBZlujJQXxA+GmRi2YWs6M4KdLtNbE=
 github.com/tinylib/msgp v1.6.5/go.mod h1:RSp0LW9oSxFut3KzESt5Voq4GVWyS+PSulT77roAqEA=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=

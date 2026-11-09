@@ -30,7 +30,11 @@ local s = css({
 })
 
 return (props) -> <li class={s.item}>
-  <input type="checkbox" checked={props.todo.done} onchange={() -> { todos.toggle(props.todo.id) }}/>
+  <input 
+    type="checkbox" 
+    checked={props.todo.done} 
+    onchange={() -> { todos.toggle(props.todo.id) }}
+  />
   <span class={{ s.title, [s.done] = props.todo.done }}>{props.todo.title}</span>
   <button onclick={() -> { todos.remove(props.todo.id) }}>remove</button>
 </li>

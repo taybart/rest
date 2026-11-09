@@ -21,7 +21,7 @@ local s = css({
 -- the theme is page state (tb.css themes by data-theme), so it's on <body>
 -- in a component: the page's root element itself doesn't re-render
 local theme = 'dark'
-local toggle = () -> { theme = theme == 'dark' && 'light' || 'dark' }
+local toggle = () -> { theme = if theme == 'dark' { 'light' } else { 'dark' } }
 
 local Body = (props) -> <body class={s.body} data-theme={theme}>
   <div class={s.app}>

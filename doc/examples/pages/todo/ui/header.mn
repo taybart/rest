@@ -23,9 +23,9 @@ local s = css({
 return (props) -> <header class={s.header}>
   <div>
     <h1>todos</h1>
-    <span class={s.sub}>served w/ {props.router}</span>
+    <span class={s.sub}>served with {props.router}</span>
   </div>
   <button class={s.toggle} title="toggle theme" onclick={props.on_toggle}>
-    {props.theme == 'dark' && '☀' || '☾'}
+    {if props.theme == 'dark' { '☀' } else { '☾' }}
   </button>
 </header>
