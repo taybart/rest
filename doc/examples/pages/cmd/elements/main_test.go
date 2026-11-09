@@ -36,8 +36,7 @@ func TestTodos(t *testing.T) {
 		"served with net/http + custom elements",
 		`<script type="module">import * as m from './elements.js'`,
 		"r('todo-list', 'TodoList');",
-		`<todo-list data-midnight="`,
-		`api="api/todos" done-class="done-`,
+		`<todo-list api="api/todos" done-class="done-`,
 		"<template><li ",
 		"<span data-left>0</span>",
 	} {
@@ -45,7 +44,8 @@ func TestTodos(t *testing.T) {
 			t.Fatalf("page (%d) has no %q:\n%s", status, want, html)
 		}
 	}
-	if strings.Contains(html, "midnight.rpc") || strings.Contains(html, pages.StateHeader) {
+	// (and so no marks for updates either)
+	if strings.Contains(html, "midnight.rpc") || strings.Contains(html, pages.StateHeader) || strings.Contains(html, "data-midnight=") {
 		t.Errorf("page has actions:\n%s", html)
 	}
 
