@@ -110,6 +110,9 @@ func goConverterLocked(t reflect.Type) (toGo, error) {
 }
 
 func makeGoConverter(t reflect.Type) (toGo, error) {
+	if t == jsonValueType { // it's only rendered, it can't come back from lua
+		return nil, errNotSup(t)
+	}
 	switch t.Kind() {
 	case reflect.String:
 		return func(_ *lua.LState, v lua.LValue) (reflect.Value, error) {
@@ -335,6 +338,9 @@ func luaConverterLocked(t reflect.Type) (toLua, error) {
 }
 
 func makeLuaConverter(t reflect.Type) (toLua, error) {
+	if t == jsonValueType {
+		return jsonToLua, nil
+	}
 	switch t.Kind() {
 	case reflect.String:
 		return func(_ *lua.LState, v reflect.Value) (lua.LValue, error) { return lua.LString(v.String()), nil }, nil
@@ -452,6 +458,8 @@ func toLuaValue(l *lua.LState, v any) (lua.LValue, error) {
 		return lua.LNumber(v), nil
 	case lua.LValue:
 		return v, nil
+	case JSONValue:
+		return jsonToLua(l, reflect.ValueOf(v))
 	}
 	c, err := luaConverter(reflect.TypeOf(v))
 	if err != nil {
