@@ -31,6 +31,11 @@ type Item struct {
 // run runs lua code w/ fns as globals, returning its results as strings.
 func run(t *testing.T, fns map[string]any, code string) ([]string, error) {
 	t.Helper()
+	return runLang(t, fns, code, restlua.LangLua)
+}
+
+func runLang(t *testing.T, fns map[string]any, code, lang string) ([]string, error) {
+	t.Helper()
 	l := restlua.NewState()
 	defer l.Close()
 	if err := restlua.RegisterModules(l); err != nil {
@@ -44,7 +49,7 @@ func run(t *testing.T, fns map[string]any, code string) ([]string, error) {
 		l.SetGlobal(name, l.NewFunction(f))
 	}
 	l.SetTop(0)
-	if err := restlua.Exec(l, code, restlua.LangLua); err != nil {
+	if err := restlua.Exec(l, code, lang); err != nil {
 		return nil, err
 	}
 	var out []string
@@ -105,11 +110,60 @@ local it = echo({
 })
 return it.id, it.name, table.concat(it.tags, ','), it.qty, it.Meta.n, it.Meta.list[2],
   it.when, it.next.name, tostring(it.next.next), tostring(it.Secret), tostring(it.internal),
-  tostring(it.Base), #echo({}).tags`)
+  tostring(it.Base), tostring(echo({}).tags)`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"7", "apples!", "a,b", "3", "1", "2", when.Format(time.RFC3339Nano), "pears", "nil", "nil", "nil", "nil", "0"}
+	want := []string{"7", "apples!", "a,b", "3", "1", "2", when.Format(time.RFC3339Nano), "pears", "nil", "nil", "nil", "nil", "nil"}
+	if strings.Join(out, "|") != strings.Join(want, "|") {
+		t.Errorf("got  %v\nwant %v", out, want)
+	}
+}
+
+type zeroer struct{ n int }
+
+func (z zeroer) IsZero() bool { return z.n < 0 } // (only negatives are "zero")
+
+type ptrZeroer struct{ n int }
+
+func (z *ptrZeroer) IsZero() bool { return z.n == 7 }
+
+type Omit struct {
+	S     string          `json:"s,omitempty"`
+	N     int             `json:"n,omitempty"`
+	B     bool            `json:"b,omitempty"`
+	P     *int            `json:"p,omitempty"`
+	L     []int           `json:"l,omitempty"`
+	M     map[string]int  `json:"m,omitempty"`
+	When  time.Time       `json:"when,omitzero"`
+	Inner struct{ A int } `json:"inner,omitzero"`
+	Z     zeroer          `json:"z,omitzero"`
+	PZ    ptrZeroer       `json:"pz,omitzero"`
+	Both  string          `json:"both,omitempty,omitzero"`
+	Kept  string          `json:"kept"`
+}
+
+// omitempty / omitzero fields are left out (nil), so lua defaults apply.
+func TestFuncsOmit(t *testing.T) {
+	one := 1
+	empty := func() Omit { return Omit{Z: zeroer{-1}, PZ: ptrZeroer{7}} }
+	full := func() Omit {
+		return Omit{S: "s", N: 1, B: true, P: &one, L: []int{1}, M: map[string]int{"a": 1},
+			When: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Inner: struct{ A int }{1}, Z: zeroer{0}, PZ: ptrZeroer{1}, Both: "x"}
+	}
+	out, err := runLang(t, map[string]any{"empty": empty, "full": full}, `
+local names = { 's', 'n', 'b', 'p', 'l', 'm', 'when', 'inner', 'z', 'pz', 'both', 'kept' }
+local function present(t) {
+  local out = {}
+  for _, k in ipairs(names) { if t[k] != nil { out[#out + 1] = k } }
+  return table.concat(out, ',')
+}
+local { s = 'default', kept = 'no' } = empty()
+return present(empty()), present(full()), s, kept`, restlua.LangMidnight)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"kept", "s,n,b,p,l,m,when,inner,z,pz,both,kept", "default", ""}
 	if strings.Join(out, "|") != strings.Join(want, "|") {
 		t.Errorf("got  %v\nwant %v", out, want)
 	}

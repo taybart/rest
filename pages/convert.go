@@ -25,7 +25,9 @@ import (
 //	map[string]T                table (nil maps are {})
 //	struct, *struct             table by field name, or its json tag
 //	                            (`json:"-"` and unexported fields skipped,
-//	                            embedded structs flattened)
+//	                            embedded structs flattened, `omitempty` /
+//	                            `omitzero` fields left out (nil) like
+//	                            encoding/json, so lua defaults apply)
 //	time.Time                   string (RFC 3339)
 //	any                         by the value's type (to Go: string, float64,
 //	                            bool, []any, map[string]any, or nil)
@@ -412,7 +414,11 @@ func makeLuaConverter(t reflect.Type) (toLua, error) {
 		return func(l *lua.LState, v reflect.Value) (lua.LValue, error) {
 			tbl := l.CreateTable(0, len(fields))
 			for i, f := range fields {
-				e, err := convs[i](l, v.FieldByIndex(f.index))
+				fv := v.FieldByIndex(f.index)
+				if f.omit != nil && f.omit(fv) {
+					continue
+				}
+				e, err := convs[i](l, fv)
 				if err != nil {
 					return nil, at("."+f.name, err)
 				}
@@ -472,6 +478,7 @@ type structField struct {
 	name  string
 	index []int
 	typ   reflect.Type
+	omit  func(reflect.Value) bool // `omitempty` / `omitzero`: whether to leave it out
 }
 
 // structFields returns t's fields like encoding/json names them: by their
@@ -489,7 +496,7 @@ func structFields(t reflect.Type) ([]structField, error) {
 			if tag == "-" {
 				continue
 			}
-			name, _, _ := strings.Cut(tag, ",")
+			name, opts, _ := strings.Cut(tag, ",")
 			// (embedded pointers aren't flattened: setting their fields would
 			// need allocating them)
 			if f.Anonymous && name == "" && f.Type.Kind() == reflect.Struct && f.Type != timeType {
@@ -506,7 +513,7 @@ func structFields(t reflect.Type) ([]structField, error) {
 				continue
 			}
 			seen[name] = len(idx)
-			fields = append(fields, structField{name: name, index: idx, typ: f.Type})
+			fields = append(fields, structField{name: name, index: idx, typ: f.Type, omit: omitFunc(f.Type, opts)})
 		}
 	}
 	walk(t, nil)
@@ -518,4 +525,63 @@ func structFields(t reflect.Type) ([]structField, error) {
 		}
 	}
 	return out, nil
+}
+
+var isZeroerType = reflect.TypeFor[interface{ IsZero() bool }]()
+
+// omitFunc returns whether to leave out a field w/ these json tag options,
+// like encoding/json: `omitempty` (false, 0, "", nil, and empty slices / maps
+// / arrays) and `omitzero` (the zero value, or IsZero() if it has one). nil if
+// neither.
+func omitFunc(t reflect.Type, opts string) func(reflect.Value) bool {
+	var empty, zero bool
+	for opts != "" {
+		var opt string
+		opt, opts, _ = strings.Cut(opts, ",")
+		empty = empty || opt == "omitempty"
+		zero = zero || opt == "omitzero"
+	}
+	var isZero func(reflect.Value) bool
+	if zero {
+		isZero = reflect.Value.IsZero
+		if t.Implements(isZeroerType) {
+			isZero = func(v reflect.Value) bool {
+				if (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) && v.IsNil() {
+					return true
+				}
+				return v.Interface().(interface{ IsZero() bool }).IsZero()
+			}
+		} else if reflect.PointerTo(t).Implements(isZeroerType) {
+			isZero = func(v reflect.Value) bool {
+				if !v.CanAddr() { // (a copy, so it can call the method)
+					p := reflect.New(t)
+					p.Elem().Set(v)
+					v = p.Elem()
+				}
+				return v.Addr().Interface().(interface{ IsZero() bool }).IsZero()
+			}
+		}
+	}
+	switch {
+	case empty && zero:
+		return func(v reflect.Value) bool { return isEmpty(v) || isZero(v) }
+	case empty:
+		return isEmpty
+	case zero:
+		return isZero
+	}
+	return nil
+}
+
+// isEmpty is encoding/json's empty value, for `omitempty`.
+func isEmpty(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
+		return v.Len() == 0
+	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64, reflect.Interface, reflect.Pointer:
+		return v.IsZero()
+	}
+	return false
 }

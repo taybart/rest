@@ -439,13 +439,18 @@ rarely worth the difference.
 | ints, uints, floats | number (into an int: only integers in range) |
 | `[]T` | array table (a nil slice is `{}`) |
 | `map[string]T` | table (a nil map is `{}`) |
-| `struct`, `*struct` | table by field name, or its `json` tag (`json:"-"` and unexported fields skipped, embedded structs flattened) |
+| `struct`, `*struct` | table by field name, or its `json` tag (`json:"-"` and unexported fields skipped, embedded structs flattened, `omitempty` / `omitzero` fields left out when empty, like `encoding/json`) |
 | `time.Time` | string (RFC 3339) |
 | `any` | by the value's type (into Go: `string`, `float64`, `bool`, `[]any`, `map[string]any`, or `nil`) |
 | `*T` | `nil` or `T` |
 
 Recursive types work. Channels, funcs, complex numbers, non-string map
 keys, and interfaces with methods aren't supported.
+
+Midnight's defaults (`local { q = '?' } = props`) only apply to `nil`, and a
+Go zero value (`""`, `0`, `false`) isn't one. Tag a field whose zero value
+means "not set" `omitempty` (or `omitzero`), and it's `nil` in lua when it's
+empty, so the default applies.
 
 ### Raw lua functions (`LuaFuncs`)
 
