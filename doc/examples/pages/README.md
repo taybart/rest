@@ -1,14 +1,15 @@
 # pages example: todos
 
 A todo list served by `github.com/taybart/rest/pages` on two routers: net/http's
-`ServeMux` (`cmd/std`) and fiber v3 (`cmd/fiber`). It's its own module, so fiber
-isn't a dependency of rest; it builds against this checkout (`replace` in
-go.mod).
+`ServeMux` (`cmd/std`) and fiber v3 (`cmd/fiber`), and done client side w/
+custom elements (`cmd/elements`). It's its own module, so fiber isn't a
+dependency of rest; it builds against this checkout (`replace` in go.mod).
 
 ```sh
 cd doc/examples/pages
 go run ./cmd/std   # http://localhost:8090/todos/
 go run ./cmd/fiber # http://localhost:8091/todos/
+go run ./cmd/elements # http://localhost:8092/todos/
 go test ./...
 ```
 
@@ -34,6 +35,35 @@ go test ./...
   Its app isn't an `http.Handler` either: its test serves it on a listener.
 - `todo/todotest`: drives the page like its client script does; both routers
   are tested w/ it.
+
+## Client side, w/ custom elements (`cmd/elements`)
+
+The same app, w/ the behavior in the browser: the server renders the page
+once (w/ the todos at the time), and plain js [custom
+elements](https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_custom_elements)
+take it from there.
+
+- `todo/ui/client.mn`: the page. It has no actions (no functions in `on*`
+  attributes), so the server keeps no state for it and sends no client
+  script. It reuses `header.mn` (w/o `on_toggle`, its button is plain), and
+  renders the list's markup inside `<TodoList>`, w/ a `<template>` of one
+  todo for the ones added in the browser.
+- `todo/ui/elements.mn`: midnight's `elements('./elements.js', { TodoList =
+  'todo-list', ThemeToggle = 'theme-toggle' })`: components for the
+  elements, by their exported names. A page that uses one gets a module
+  script in its `<head>` that imports `elements.js` and registers them.
+- `todo/ui/elements.js`, `todo/ui/elements/*.js`: the elements. They wire
+  up the markup the server rendered (event delegation on `<todo-list>`, the
+  header's button in `<theme-toggle>`). Scoped class names are hashed, so
+  the one `<todo-list>` toggles is an attribute (`done-class={s.done}`).
+- `todo/api.go`: the store as a JSON api, which `<todo-list>` calls; each
+  change responds w/ the whole list, and the element rebuilds it from the
+  template. `todo.Scripts` serves the `.js` files next to the page (and
+  nothing else in `todo/ui`).
+
+Compared to `cmd/std`: no round trip to re-render, and no server state per
+page, but the item markup lives twice (in `client.mn` and, as a clone of its
+template, in the js) and the js has to keep the counts in sync itself.
 
 The page's files (`todo/ui`) are embedded in the binary and served w/
 `eng.FS`: compiled once, nothing read from disk. To edit them while it runs,

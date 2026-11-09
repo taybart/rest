@@ -5,7 +5,9 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/taybart/rest/pages"
 )
@@ -33,6 +35,37 @@ func Styles(uiDir string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFileFS(w, r, ui, "tb.css")
 	})
+}
+
+// Scripts serves the custom elements' js (elements.js, elements/*.js, next
+// to the page in UI(uiDir)) for the client side page. Only .js: not the
+// page's sources.
+func Scripts(uiDir string) http.Handler {
+	ui := UI(uiDir)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(r.URL.Path, "/")
+		if path.Ext(name) != ".js" || !fs.ValidPath(name) {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFileFS(w, r, ui, name)
+	})
+}
+
+// ClientPage is the todo page done client side (client.mn): rendered once,
+// w/ custom elements that use the JSON api (see API) in the browser.
+func ClientPage(eng *pages.Engine, store *Store, uiDir, router string) http.Handler {
+	opts := []pages.Option{
+		pages.Props(func(r *http.Request) (any, error) {
+			return map[string]any{"router": router}, nil
+		}),
+		// only for the first render: changes go through the api
+		pages.Funcs("app.todos", map[string]any{"list": store.List}),
+	}
+	if uiDir != "" {
+		return eng.File(filepath.Join(uiDir, "client.mn"), opts...)
+	}
+	return eng.FS(UI(""), "client.mn", opts...)
 }
 
 // Page is the todo page (app.mn), w/ the store's methods as the `app.todos`

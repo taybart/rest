@@ -18,7 +18,7 @@ require (
 	github.com/molecule-man/go-brrr v1.3.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/taybart/log v1.6.8 // indirect
-	github.com/taybart/midnight v0.0.0-20261109011057-b508644ef7de // indirect
+	github.com/taybart/midnight v0.0.0-20261109040832-7be54bc8176b // indirect
 	github.com/tinylib/msgp v1.6.5 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.75.0 // indirect
