@@ -21,9 +21,6 @@ func (s *Server) Routes(server *http.Server) {
 	if err := s.initKV(); err != nil {
 		log.Error(err)
 	}
-	// w/ methods, so it's more specific than any handler pattern (a method-less
-	// "/__quit__" conflicts w/ ex. "GET /" in ServeMux, since neither is more
-	// specific than the other)
 	var ttl time.Duration
 	if s.Config.StateTTL != "" {
 		var err error
@@ -32,9 +29,6 @@ func (s *Server) Routes(server *http.Server) {
 		}
 	}
 	s.states = pages.NewStateStore(s.Config.MaxStates, ttl)
-	quit := s.HandleQuit(server)
-	s.Router.HandleFunc("GET /__quit__", quit)
-	s.Router.HandleFunc("POST /__quit__", quit)
 
 	// a directory (or else a server-level proxy) serves anything the handlers
 	// don't match
@@ -52,6 +46,10 @@ func (s *Server) Routes(server *http.Server) {
 		s.Router.HandleFunc("/", fallback)
 		return
 	}
+	// The built in routes are only for a bare (mock) server: a server w/
+	// handlers, a directory, or a proxy is a real site, and anyone could stop
+	// it w/ __quit__. (POST only, so a link preview or a prefetch can't.)
+	s.Router.HandleFunc("POST /__quit__", s.HandleQuit(server))
 	s.Router.HandleFunc("/__ws__", s.HandleWSEcho("*"))
 	s.Router.HandleFunc("/__echo__", s.logged(gzipHandler(s.HandleEcho())))
 	s.Router.HandleFunc("/", s.logged(gzipHandler(s.HandleRoot())))

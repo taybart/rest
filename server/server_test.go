@@ -158,6 +158,56 @@ func TestEcho(t *testing.T) {
 	checkResponse(t, req, Response{StatusCode: http.StatusOK, Body: `{"data": "hello"}`})
 }
 
+// __quit__ stops the server, so it's only on a bare (mock) server, and only
+// for POST: a real site (handlers, a directory, or a proxy) never has it.
+func TestQuitRoute(t *testing.T) {
+	cases := []struct {
+		name   string
+		config server.Config
+		method string
+		want   int
+	}{
+		{"bare POST", server.Config{Quiet: true}, "POST", http.StatusOK},
+		// (falls through to the mock's catch all, which doesn't quit)
+		{"bare GET", server.Config{Quiet: true}, "GET", http.StatusOK},
+		{"handlers", server.Config{Quiet: true, Handlers: []*server.Handler{
+			{Method: "GET", Path: "/x", Fn: `return { status = 200 }`},
+		}}, "POST", http.StatusNotFound},
+		{"handler on /", server.Config{Quiet: true, Handlers: []*server.Handler{
+			{Method: "*", Path: "/", Fn: `return { status = 200, body = 'root' }`},
+		}}, "POST", http.StatusOK},
+		{"directory", server.Config{Quiet: true, Dir: t.TempDir()}, "POST", http.StatusNotFound},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			quit := false
+			s := server.Server{Router: http.NewServeMux(), Config: c.config}
+			srv := &http.Server{}
+			srv.RegisterOnShutdown(func() { quit = true })
+			s.Routes(srv)
+			ts := httptest.NewServer(s.Router)
+			defer ts.Close()
+
+			req, err := http.NewRequest(c.method, ts.URL+"/__quit__", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			res.Body.Close()
+			if res.StatusCode != c.want {
+				t.Errorf("status %d, want %d", res.StatusCode, c.want)
+			}
+			time.Sleep(700 * time.Millisecond) // (it shuts down after 500ms)
+			if wantQuit := c.name == "bare POST"; quit != wantQuit {
+				t.Errorf("quit = %v, want %v", quit, wantQuit)
+			}
+		})
+	}
+}
+
 // Handlers on "/" w/ a method (ex. "GET /") used to conflict w/ the built in
 // "/__quit__" route, which panicked on startup.
 func TestRootHandlerWithMethod(t *testing.T) {

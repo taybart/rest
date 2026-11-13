@@ -44,13 +44,15 @@
 
 ### Routes
 
-There are some build in routes to help with testing and development:
+There are some built in routes to help with testing and development:
 
 - `/__echo__` - returns the request headers (only ones that begin with `x-`) and body
 - `/__ws__` - echo websocket messages back
-- `/__quit__` - exit the server process
+- `POST /__quit__` - exit the server process
 
-NOTE: these routes will be overridden if you provide a custom handler
+NOTE: these routes are only on a bare mock server (ex. `rest -s`). A server with
+handlers, a `directory`, or a `proxy` doesn't have them, so nobody can stop your
+site with `/__quit__`.
 
 
 ### Examples
