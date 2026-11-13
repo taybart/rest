@@ -48,6 +48,8 @@ github.com/taybart/midnight v0.0.0-20261109052248-0fc43594b717 h1:OHyPbG/sLkFX46
 github.com/taybart/midnight v0.0.0-20261109052248-0fc43594b717/go.mod h1:eVAs02G0EoPRuZ2yTV0EsfPXPi3iHTUFExqNTAaNBIk=
 github.com/taybart/midnight v0.0.0-20261109172334-f697c48f2746 h1:L1ldyEL1koyKzo8vdUcgvaLs+EGKnJPgs8a1L2yQKZ4=
 github.com/taybart/midnight v0.0.0-20261109172334-f697c48f2746/go.mod h1:eVAs02G0EoPRuZ2yTV0EsfPXPi3iHTUFExqNTAaNBIk=
+github.com/taybart/midnight v0.0.0-20261113061331-e2ecff644c30 h1:Nd1EseM3D/T9ELs6LR/Ik2R6+Fgoh9pX2GdvTmuRXvM=
+github.com/taybart/midnight v0.0.0-20261113061331-e2ecff644c30/go.mod h1:eVAs02G0EoPRuZ2yTV0EsfPXPi3iHTUFExqNTAaNBIk=
 github.com/zclconf/go-cty v1.19.0 h1:IV8WdqYZc2c5rLX9bEoLNXKojBAp0MZPBHMIrCoa/s4=
 github.com/zclconf/go-cty v1.19.0/go.mod h1:12W89jGn3JCOIQi7infWr9m80rOkb5RNYJqXMZcN4c8=
 github.com/zclconf/go-cty-debug v0.0.0-20240509010212-0d6042c53940 h1:4r45xpDWB6ZMSMNJFMOjqrGHynW3DIBuR2H9j0ug+Mo=
