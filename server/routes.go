@@ -183,7 +183,8 @@ func (s *Server) HandleDir() http.HandlerFunc {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fs := http.FileServer(http.Dir(d))
+	root := http.Dir(d)
+	fs := http.FileServer(root)
 	return func(w http.ResponseWriter, r *http.Request) {
 		// file downloads can take arbitrarily long, drop the server-wide write deadline
 		_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
@@ -191,6 +192,10 @@ func (s *Server) HandleDir() http.HandlerFunc {
 			for k, v := range s.Config.Response.Headers {
 				w.Header().Add(k, v)
 			}
+		}
+		// x.br / x.gz, compressed ahead of time, in place of x (see precompressed.go)
+		if servePrecompressed(w, r, root) {
+			return
 		}
 		if s.Config.SPA {
 			if _, err := os.Stat(fmt.Sprintf("%s%s", d, r.URL)); os.IsNotExist(err) {

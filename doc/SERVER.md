@@ -88,6 +88,8 @@ server {
     cors = true
     # serve a directory, this will override response if provided (except headers).
     # w/ handlers, it serves what they don't match (ex. css, images next to pages)
+    # (files compressed ahead of time, ex. app.js.br, are sent in their place:
+    # see Precompressed files below)
     directory = "./test"
     # should this be treated as a single page application (ie frontend routing) by returning index.html instead of 404 (default false)
     spa = true
@@ -140,6 +142,37 @@ server {
     }
 }
 ```
+
+### Precompressed files
+
+A `directory` can have files compressed ahead of time next to the originals:
+`app.js.br` (brotli) or `app.js.gz` (gzip) next to `app.js`. A request for
+`app.js` gets the compressed file instead, if the client accepts that encoding
+(brotli first). Everything else is sent as is, and compressed as it's sent
+when that's worth it (gzip, quickly).
+
+Compressing ahead of time can go as far as you like, which is too slow to do
+per request. For a big file the difference adds up, ex. a 6.4MB wasm file:
+
+| | size |
+|---|---|
+| gzip, as it's sent (fastest level) | 2.05MB |
+| `gzip -9`, ahead of time | 1.70MB |
+| `brotli -q 11`, ahead of time | 1.25MB |
+
+```sh
+brotli -q 11 -k public/app.wasm   # app.wasm.br, keeping app.wasm
+gzip -9 -k public/app.wasm        # app.wasm.gz, for clients w/o brotli
+```
+
+- The original has to be there too: it's what's sent to a client that accepts
+  neither (and the compressed file is only ever an alternative to it).
+- A compressed file older than its original (by more than a minute) is
+  ignored, so if you forget to compress again after a change, the current file
+  is sent instead of an old one.
+- Browsers only ask for brotli over https (and localhost), so elsewhere on
+  plain http they get the `.gz`.
+- Range requests (ex. resuming a download) get the original.
 
 ### Handler functions
 

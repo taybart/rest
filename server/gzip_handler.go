@@ -89,7 +89,7 @@ func (w *gzipResponseWriter) decide() {
 		// default level: see cache.go)
 		w.gz, _ = gzip.NewWriterLevel(w.ResponseWriter, gzip.BestSpeed)
 	}
-	if isCompressible(h.Get("Content-Type")) {
+	if isCompressible(h.Get("Content-Type")) && !varies(h, "Accept-Encoding") {
 		h.Add("Vary", "Accept-Encoding")
 	}
 	w.ResponseWriter.WriteHeader(w.status)
@@ -132,6 +132,18 @@ func isCompressible(contentType string) bool {
 		"application/xml", "application/wasm", "application/x-ndjson",
 		"image/svg+xml", "font/ttf", "font/otf", "application/vnd.ms-fontobject":
 		return true
+	}
+	return false
+}
+
+// varies is whether h's Vary already names header (ex. a precompressed file's)
+func varies(h http.Header, header string) bool {
+	for _, v := range h.Values("Vary") {
+		for _, name := range strings.Split(v, ",") {
+			if strings.EqualFold(strings.TrimSpace(name), header) {
+				return true
+			}
+		}
 	}
 	return false
 }
