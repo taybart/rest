@@ -770,11 +770,17 @@ func (p *Parser) marshalBody(bodyHCL hcl.Expression) (string, error) {
 	return "", nil
 }
 
-// scriptLang picks the lang for a script from its heredoc marker (<<MN or <<MIDNIGHT),
-// anything else is lua
+// scriptLang picks the lang for a script from its heredoc marker (<<MN or
+// <<MIDNIGHT) or a read("./x.mn") extension, then config.default_language,
+// then lua.
 func (p *Parser) scriptLang(expr hcl.Expression) string {
 	if lang := p.heredocLang(expr); lang != "" {
 		return lang
+	}
+	if p.Config.DefaultLanguage != "" {
+		if lang := restlua.LangFromName(p.Config.DefaultLanguage); lang != "" {
+			return lang
+		}
 	}
 	return restlua.LangLua
 }

@@ -9,6 +9,7 @@ type Config struct {
 	SkipImported        bool   `hcl:"skip_imported,optional"`
 	NoFlags             bool   `hcl:"no_flags,optional"`
 	DefaultContentType  bool   `hcl:"default_content_type,optional"`
+	DefaultLanguage     string `hcl:"default_language,optional"`
 }
 
 func DefaultConfig() Config {

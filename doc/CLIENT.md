@@ -72,6 +72,8 @@ config {
   no_flags = false
   # automatically set Content-Type = "application/json" when body is JSON and no Content-Type header is specified
   default_content_type = true
+  # override default parser lua|midnight
+  default_language = "lua"
 }
 ```
 
