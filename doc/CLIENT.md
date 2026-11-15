@@ -519,6 +519,7 @@ go
 js
 postman
 openapi
+systemd
 $ rest -f api.rest -e curl -l login
 # login
 curl -X POST 'http://localhost:8080/login' \
@@ -526,7 +527,7 @@ curl -X POST 'http://localhost:8080/login' \
   --data-raw '{"user":"me"}'
 ```
 
-To go the other way, `rest -i spec.json` scaffolds requests (and a test server) from an OpenAPI spec, see [SERVER.md](SERVER.md#importing-an-openapi-spec).
+To go the other way, `rest -i spec.json` scaffolds requests (and a test server) from an OpenAPI spec, see [SERVER.md](SERVER.md#importing-an-openapi-spec). `systemd` writes a unit that runs the `server` block as a service, see [SERVER.md](SERVER.md#running-as-a-service).
 
 `postman` writes the requests as a Postman v2.1 collection, and `expect` blocks become tests in each request's Tests tab:
 

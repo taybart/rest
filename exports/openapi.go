@@ -31,10 +31,14 @@ func ToOpenAPI(w io.Writer, filename string, cfg server.Config, named map[string
 	components := newComponentSet(named, func(def string) map[string]any {
 		return map[string]any{"$ref": "#/components/schemas/" + def}
 	})
+	title := cfg.Name
+	if title == "" {
+		title = strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
+	}
 	spec := map[string]any{
 		"openapi": "3.1.0",
 		"info": map[string]any{
-			"title":   strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename)),
+			"title":   title,
 			"version": "0.0.0",
 		},
 	}

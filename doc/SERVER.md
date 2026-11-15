@@ -76,6 +76,9 @@ rest -s -r response.json
 
 ```hcl
 server {
+    # the site's name (optional): the default for -e systemd, the title of
+    # -e openapi, and a prefix on the server's log lines
+    name    = "example.com"
     address = "localhost:18080"
     # TLS path name to be used for tls key/cert (defaults to no TLS)
     # ex: './keys/site.com' where the files ./keys/site.com.{key,crt} exist
@@ -285,7 +288,7 @@ GET /users/abc                   ->  400 {"error":"path.id: expected integer, go
 
 ### Exporting an OpenAPI spec
 
-`rest -f api.rest -e openapi` writes the `server` block as an OpenAPI 3.1 spec (JSON). Each `handler` becomes an operation:
+`rest -f api.rest -e openapi` writes the `server` block as an OpenAPI 3.1 spec (JSON), titled with the server's `name` (or the file name). Each `handler` becomes an operation:
 
 - `expect.path`, `expect.query` and `expect.headers` become parameters, `expect.body` becomes the request body schema. Every path `{wildcard}` is declared, typed by `expect.path` when it's listed. `Content-Type`, `Accept` and `Authorization` aren't parameters in OpenAPI, an exact `Content-Type` in `expect.headers` picks the request body's media type instead.
 - Matchers become JSON Schema: `is.int` -> `integer`, `is.uuid` -> `format: uuid`, `is("regex:...")` -> `pattern`, `is::array_of(x)` -> an array of `x`, `is::optional(x)` leaves the field out of `required`, literal values become `const`, and a literal list is an exact length tuple. Bodies get `additionalProperties: false` unless `additional = true`.
@@ -316,6 +319,26 @@ Some things can't be expressed and are approximated or left out, with a comment 
 - Only JSON request bodies are validated/sent, other content types get a comment.
 - Routes go's router can't hold (a parameter inside a segment like `/{id}.json`, or two patterns that overlap without either being more specific) are skipped in the server with the reason, and their requests say so.
 - Path parameter names that aren't valid go identifiers are renamed (`{pet-id}` -> `{pet_id}`).
+
+### Running as a service
+
+`rest -f site.com.rest -e systemd` writes a systemd unit, `rest-site.com.service`, that runs the file's `server` block. It runs one process per site: one unit per rest file. The export only checks that the file has a `server` block; it doesn't read or copy anything else.
+
+The unit runs `/usr/local/bin/rest -f site.com.rest -s` from `/var/www/site.com`. Imports are relative to the rest file, but `read()`, `directory` and `require()` are relative to the working directory, so the whole site folder goes there. The site name is `--name`, then the `server` block's `name`, then the file name without `.rest`. Edit the output if your paths differ.
+
+```sh
+# build for the server and install the binary there as /usr/local/bin/rest
+make linux-amd64
+
+# copy the site folder to the server's /var/www/site.com, then install the unit
+rest -f site.com.rest -e systemd > rest-site.com.service
+sudo cp rest-site.com.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now rest-site.com
+
+journalctl -u rest-site.com -f # logs
+```
+
+The unit runs as a `DynamicUser`, so files under `/var/www/site.com` need to be world readable. It restarts on failure. Deploying is copying the folder and running `systemctl restart rest-site.com`. Compressing `directory` files ahead of time (see [Precompressed files](#precompressed-files)) before copying means they aren't compressed per request.
 
 ### Proxying
 

@@ -50,6 +50,9 @@ rest -f api.rest -S ping
 # Export requests to another format (curl, go, js, postman; use `ls` to list)
 rest -f api.rest -e curl
 rest -f api.rest -l "login" -e curl
+
+# systemd unit that runs the server block from /var/www/<name> (see references/SERVER.md#running-as-a-service)
+rest -f site.com.rest -e systemd [--name site.com]  # name defaults to server { name = ... }, then the file name
 ```
 
 ### Server

@@ -95,6 +95,9 @@ type Server struct {
 }
 
 type Config struct {
+	// the site's name: used for exports (systemd unit, openapi title) and
+	// log lines
+	Name     string         `json:"name,omitempty" hcl:"name,optional"`
 	Addr     string         `hcl:"address"`
 	Dir      string         `hcl:"directory,optional"`
 	ProxyHCL hcl.Expression `json:"-" hcl:"proxy,optional"`
@@ -152,13 +155,22 @@ func New(c Config) *Server {
 	s.Server = server
 	return s
 }
+
+// logPrefix is "<name>: " for named servers
+func (s *Server) logPrefix() string {
+	if s.Config.Name == "" {
+		return ""
+	}
+	return s.Config.Name + ": "
+}
+
 func (s *Server) Serve() error {
 
 	if s.Config.Tailscale {
 		return s.serveTailscale()
 	}
 	if !s.Config.Quiet {
-		log.Infof("listening to %s...\n", s.Config.Addr)
+		log.Infof("%slistening to %s...\n", s.logPrefix(), s.Config.Addr)
 	}
 	if s.Config.TLS != "" {
 		crt := fmt.Sprintf("%s.crt", s.Config.TLS)
@@ -191,10 +203,10 @@ func (s *Server) serveTailscale() error {
 		return err
 	}
 	if ip := net.ParseIP(host); host == "localhost" || (ip != nil && ip.IsLoopback()) {
-		log.Warnf("listening on %s, other tailnet devices can't reach it (use -a :%s)\n", host, port)
+		log.Warnf("%slistening on %s, other tailnet devices can't reach it (use -a :%s)\n", s.logPrefix(), host, port)
 	}
 	if !s.Config.Quiet {
-		log.Infof("listening to https://%s:%s...\n", ts.Domain, port)
+		log.Infof("%slistening to https://%s:%s...\n", s.logPrefix(), ts.Domain, port)
 	}
 	s.Server.TLSConfig = &tls.Config{GetCertificate: ts.GetCertificate}
 	if err := s.Server.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {

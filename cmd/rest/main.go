@@ -27,7 +27,7 @@ func usage(u args.Usage) {
 	}
 	client := []string{
 		"file", "block", "label",
-		"socket", "export", "import", "side", "verbose",
+		"socket", "export", "name", "import", "side", "verbose",
 	}
 
 	var usage strings.Builder
@@ -128,7 +128,10 @@ var (
 			},
 			"export": {
 				Short: "e",
-				Help:  "Export file to specified language",
+				Help:  "Export file to specified language (use ls to list)",
+			},
+			"name": {
+				Help: "Site name for -e systemd (defaults to server.name, then the file name w/o .rest)",
 			},
 			"import": {
 				Short: "i",
@@ -177,6 +180,7 @@ var (
 		List       bool   `arg:"list"`
 		Socket     string `arg:"socket"`
 		Export     string `arg:"export"`
+		Name       string `arg:"name"`
 		Import     string `arg:"import"`
 		Side       string `arg:"side"`
 		IgnoreFail bool   `arg:"ignore-fail"`
@@ -409,6 +413,9 @@ func run() error {
 
 	if c.Export != "" {
 		log.Debugf("exporting file %s to %s\n", c.File, c.Export)
+		if c.Export == "systemd" {
+			return f.ExportSystemd(os.Stdout, c.Name)
+		}
 		return f.Export(c.Export, c.Label, c.Block)
 	}
 

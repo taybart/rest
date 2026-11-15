@@ -252,6 +252,22 @@ func (rest *Rest) Export(export, label string, block int) error {
 	return rest.ExportTo(os.Stdout, export, label, block)
 }
 
+// ExportSystemd writes a systemd unit that serves the file's server block,
+// name defaults to the server block's name, then the file's name w/o .rest
+func (rest *Rest) ExportSystemd(w io.Writer, name string) error {
+	if rest.filename == "-" {
+		return errors.New("systemd: needs a file, not stdin")
+	}
+	cfg, err := rest.Parser.Server()
+	if err != nil {
+		return err
+	}
+	if cfg.Addr == "" {
+		return errors.New("systemd: missing required server block")
+	}
+	return exports.ToSystemd(w, rest.filename, cfg.Name, name)
+}
+
 // ExportTo renders requests as snippets using a built-in template (curl, go,
 // js), a template file path, or postman. With no label or block (-1) every
 // request is exported in file order.
@@ -262,7 +278,11 @@ func (rest *Rest) ExportTo(w io.Writer, export, label string, block int) error {
 		}
 		fmt.Fprintln(w, "postman")
 		fmt.Fprintln(w, "openapi")
+		fmt.Fprintln(w, "systemd")
 		return nil
+	}
+	if export == "systemd" {
+		return rest.ExportSystemd(w, "")
 	}
 	// openapi describes the server block, not requests
 	if export == "openapi" {
