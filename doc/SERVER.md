@@ -2,6 +2,10 @@
 
 ## CLI
 
+These flags are for a quick server without a file (`rest -s -d ./public`). With
+`-f`, the file's `server` block has a setting for each (`address`, `directory`,
+`cors`, ...), and passing one of these flags is an error.
+
 ```sh
     --addr, -a:
 	Address to listen on
@@ -76,8 +80,8 @@ rest -s -r response.json
 
 ```hcl
 server {
-    # the site's name (optional): the default for -e systemd, the title of
-    # -e openapi, and a prefix on the server's log lines
+    # the site's name (optional): the title of -e openapi, the install
+    # comment of -e systemd, and a prefix on the server's log lines
     name    = "example.com"
     address = "localhost:18080"
     # TLS path name to be used for tls key/cert (defaults to no TLS)
@@ -115,6 +119,9 @@ server {
         # the vary headers (see PAGES.md)
         # cache = "1m"
         # vary = ["Accept-Language"]
+        # how long browsers keep it (the Cache-Control max-age, default: cache),
+        # "0s" makes them check every time (ex. a long cache, cleared on restart)
+        # browser_cache = "0s"
         # or serve an interactive page, written w/ midnight markup (see PAGES.md)
         # page = <<-MIDNIGHT
         #   return <App/>
@@ -322,23 +329,26 @@ Some things can't be expressed and are approximated or left out, with a comment 
 
 ### Running as a service
 
-`rest -f site.com.rest -e systemd` writes a systemd unit, `rest-site.com.service`, that runs the file's `server` block. It runs one process per site: one unit per rest file. The export only checks that the file has a `server` block; it doesn't read or copy anything else.
+`-f` can be a folder: `rest -s -f /var/www/site.com` serves the one `.rest` file directly in it that has a `server` block. Files in subfolders (ex. imports) don't count, and zero or several matches is an error.
 
-The unit runs `/usr/local/bin/rest -f site.com.rest -s` from `/var/www/site.com`. Imports are relative to the rest file, but `read()`, `directory` and `require()` are relative to the working directory, so the whole site folder goes there. The site name is `--name`, then the `server` block's `name`, then the file name without `.rest`. Edit the output if your paths differ.
+`rest -e systemd` writes `rest@.service`, a systemd template unit that works for every site, so it doesn't need a file. With `-f site.com.rest` it also checks that the file has a `server` block and names the site in the install comment. It runs one process per site. `rest@<site>` runs `/usr/local/bin/rest -s -f .` from `/var/www/<site>`. Imports are relative to the rest file, but `read()`, `directory` and `require()` are relative to the working directory, so the whole site folder goes there, named after the site. The export never reads or copies anything else; the install comment uses the `server` block's `name`, or the folder's name. Edit the output if your paths differ.
 
 ```sh
 # build for the server and install the binary there as /usr/local/bin/rest
 make linux-amd64
 
-# copy the site folder to the server's /var/www/site.com, then install the unit
-rest -f site.com.rest -e systemd > rest-site.com.service
-sudo cp rest-site.com.service /etc/systemd/system/
-sudo systemctl daemon-reload && sudo systemctl enable --now rest-site.com
+# once: install the template unit
+rest -e systemd > rest@.service
+sudo cp rest@.service /etc/systemd/system/
+sudo systemctl daemon-reload
 
-journalctl -u rest-site.com -f # logs
+# per site: copy the site folder to /var/www/site.com, then
+sudo systemctl enable --now rest@site.com
+
+journalctl -u rest@site.com -f # logs
 ```
 
-The unit runs as a `DynamicUser`, so files under `/var/www/site.com` need to be world readable. It restarts on failure. Deploying is copying the folder and running `systemctl restart rest-site.com`. Compressing `directory` files ahead of time (see [Precompressed files](#precompressed-files)) before copying means they aren't compressed per request.
+The unit runs as a `DynamicUser` with `ProtectHome=yes`, so the binary can't be in a home folder (ex. `/root/go/bin`) and files under `/var/www/site.com` need to be world readable. It restarts on failure. Deploying is copying the folder and running `systemctl restart rest@site.com`. Compressing `directory` files ahead of time (see [Precompressed files](#precompressed-files)) before copying means they aren't compressed per request.
 
 ### Proxying
 

@@ -184,6 +184,11 @@ handler "GET" "/hn/post/{id}" {
 - Middleware still runs for cached responses (ex. auth).
 - Responses get `Cache-Control: public, max-age=<ttl>` (unless the handler
   sets its own), so a CDN or proxy in front of rest can cache them too.
+  `browser_cache = "5m"` sends a different max-age, and `"0s"` sends
+  `no-cache`. Browsers can't be told to forget a page, so for a long `cache`
+  (the server's is cleared on restart, ex. a deploy) keep `browser_cache`
+  short.
+- Durations go up to hours (`"2400h"` for 100 days), there's no `d`.
 - It stacks with `cache` on request blocks: a page cached for 1m showing data
   cached for 5m can be up to 6m old.
 - Only for `GET` handlers with `fn` or `page`, and not `stateful` ones.

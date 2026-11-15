@@ -112,7 +112,11 @@ func (c *responseCache) store(h *Handler, key string, res *Response, interactive
 		if res.Headers == nil {
 			res.Headers = map[string]string{}
 		}
-		res.Headers["Cache-Control"] = fmt.Sprintf("public, max-age=%d", int(c.ttl.Seconds()))
+		cc := h.CacheControl
+		if cc == "" {
+			cc = fmt.Sprintf("public, max-age=%d", int(c.ttl.Seconds()))
+		}
+		res.Headers["Cache-Control"] = cc
 	}
 
 	stored := cachedResponse{res: *res}

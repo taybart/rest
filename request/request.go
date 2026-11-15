@@ -48,9 +48,6 @@ type Request struct {
 	// request is run from lua (rest.request), see client.Cache
 	Cache string `hcl:"cache,optional"`
 
-	// ...rest
-	Remain hcl.Expression `hcl:"remain,optional"`
-
 	// parsed values
 	CacheTTL  time.Duration
 	UserAgent string

@@ -792,6 +792,7 @@ func TestHandlerCache(t *testing.T) {
 	}, Handlers: []*server.Handler{
 		{Method: "GET", Path: "/fn/{id}", CacheTTL: time.Minute, Vary: []string{"Accept-Language"},
 			Fn: counter + `; return { status = 200, body = rest.req:path_value('id') .. ' ' .. n }`},
+		{Method: "GET", Path: "/browser", CacheTTL: time.Hour, CacheControl: "no-cache", Fn: `return { status = 200, body = 'b' }`},
 		{Method: "GET", Path: "/short", CacheTTL: 50 * time.Millisecond, Fn: counter + `; return { status = 200, body = tostring(n) }`},
 		{Method: "GET", Path: "/missing", CacheTTL: time.Minute, Fn: counter + `; return { status = 404, body = tostring(n) }`},
 		{Method: "GET", Path: "/cookie", CacheTTL: time.Minute, Fn: counter + `; return { status = 200, cookies = { a = 'b' }, body = tostring(n) }`},
@@ -844,6 +845,12 @@ func TestHandlerCache(t *testing.T) {
 
 	if _, h := get("/fn/a"); h.Get("Cache-Control") != "public, max-age=60" {
 		t.Errorf("Cache-Control: %q", h.Get("Cache-Control"))
+	}
+	// browser_cache sets its own, for fresh and cached responses
+	for range 2 {
+		if _, h := get("/browser"); h.Get("Cache-Control") != "no-cache" {
+			t.Errorf("browser_cache Cache-Control: %q", h.Get("Cache-Control"))
+		}
 	}
 
 	// a static page is cached, an interactive one isn't

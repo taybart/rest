@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/taybart/args"
 	"github.com/taybart/log"
 	"github.com/taybart/rest"
+	"github.com/taybart/rest/exports"
 	"github.com/taybart/rest/file"
 	"github.com/taybart/rest/imports"
 	"github.com/taybart/rest/server"
@@ -27,7 +30,7 @@ func usage(u args.Usage) {
 	}
 	client := []string{
 		"file", "block", "label",
-		"socket", "export", "name", "import", "side", "verbose",
+		"socket", "export", "import", "side", "verbose",
 	}
 
 	var usage strings.Builder
@@ -106,7 +109,6 @@ var (
 				Help:    "Serve https using this machine's tailscale cert (needs the tailscale cli and HTTPS enabled on the tailnet)\n\tlistens on :8080 unless --addr is set so other tailnet devices can connect",
 				Default: false,
 			},
-			// TODO: add to server block
 			"spa": {
 				Help:    "Serve index.html in directory instead of 404",
 				Default: false,
@@ -115,7 +117,7 @@ var (
 			/*** client ***/
 			"file": {
 				Short: "f",
-				Help:  "File to run",
+				Help:  "File to run, or a folder w/ one .rest file w/ a server block (ex. -s -f /var/www/site.com)",
 			},
 			"block": {
 				Short:   "b",
@@ -129,9 +131,6 @@ var (
 			"export": {
 				Short: "e",
 				Help:  "Export file to specified language (use ls to list)",
-			},
-			"name": {
-				Help: "Site name for -e systemd (defaults to server.name, then the file name w/o .rest)",
 			},
 			"import": {
 				Short: "i",
@@ -180,7 +179,6 @@ var (
 		List       bool   `arg:"list"`
 		Socket     string `arg:"socket"`
 		Export     string `arg:"export"`
-		Name       string `arg:"name"`
 		Import     string `arg:"import"`
 		Side       string `arg:"side"`
 		IgnoreFail bool   `arg:"ignore-fail"`
@@ -192,6 +190,30 @@ func main() {
 		log.Error(err)
 		os.Exit(1)
 	}
+}
+
+// serverFlags configure the ad-hoc server (-s w/o -f), a file's server block
+// has its own settings for each
+var serverFlags = map[string]string{
+	"addr":      "address",
+	"dir":       "directory",
+	"cors":      "cors",
+	"spa":       "spa",
+	"tls":       "tls",
+	"tailscale": "tailscale",
+	"quiet":     "quiet",
+	"response":  "response",
+}
+
+// checkServerFlags errors for server flags given w/ -f, which would be
+// ignored (the server block is used as is)
+func checkServerFlags() error {
+	for _, flag := range slices.Sorted(maps.Keys(serverFlags)) {
+		if a.UserSet(flag) {
+			return fmt.Errorf("--%s doesn't apply to a file's server, set %s in its server block", flag, serverFlags[flag])
+		}
+	}
+	return nil
 }
 
 func detectShebang() string {
@@ -356,6 +378,9 @@ func run() error {
 	 **********/
 	if c.Serve {
 		if a.UserSet("file") {
+			if err := checkServerFlags(); err != nil {
+				return err
+			}
 			f := preloaded
 			if f == nil {
 				var err error
@@ -392,6 +417,11 @@ func run() error {
 	/**********
 	 * CLIENT *
 	 **********/
+	// the systemd unit is the same for every site, w/ -f it checks the file
+	// and names the site in the install comment
+	if c.Export == "systemd" && !a.UserSet("file") {
+		return exports.ToSystemd(os.Stdout, "")
+	}
 	if !a.UserSet("file") {
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
 			c.File = "-"
@@ -413,9 +443,6 @@ func run() error {
 
 	if c.Export != "" {
 		log.Debugf("exporting file %s to %s\n", c.File, c.Export)
-		if c.Export == "systemd" {
-			return f.ExportSystemd(os.Stdout, c.Name)
-		}
 		return f.Export(c.Export, c.Label, c.Block)
 	}
 

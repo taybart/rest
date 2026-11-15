@@ -25,9 +25,7 @@ const (
 )
 
 type Response struct {
-	Status int `json:"status" hcl:"status"`
-	// Path    string          `json:"path" hcl:"path,optional"`
-	// Method  string          `json:"method" hcl:"method,optional"`
+	Status  int               `json:"status" hcl:"status"`
 	Headers map[string]string `json:"headers" hcl:"headers,optional"`
 	Cookies []*http.Cookie    `json:"-"`
 	Body    json.RawMessage   `json:"body"`
@@ -57,10 +55,15 @@ type Handler struct {
 	// Cache keeps the handler's responses for this long (ex. "1m"), see
 	// cache.go. Vary lists request headers that are part of the cache key
 	// (besides the path and query).
-	Cache    string        `json:"cache,omitempty" hcl:"cache,optional"`
-	Vary     []string      `json:"vary,omitempty" hcl:"vary,optional"`
-	CacheTTL time.Duration `json:"-"`
-	cache    *responseCache
+	// BrowserCache is the Cache-Control max-age sent w/ cached responses
+	// (default: Cache), "0s" sends no-cache. CacheControl is that header,
+	// set by the parser.
+	Cache        string        `json:"cache,omitempty" hcl:"cache,optional"`
+	Vary         []string      `json:"vary,omitempty" hcl:"vary,optional"`
+	BrowserCache string        `json:"browser_cache,omitempty" hcl:"browser_cache,optional"`
+	CacheTTL     time.Duration `json:"-"`
+	CacheControl string        `json:"-"`
+	cache        *responseCache
 	// set on the POST handler rest adds for a page's actions
 	pageActions bool
 	Response    *Response `hcl:"response,block"`
@@ -109,7 +112,6 @@ type Config struct {
 	MaxStates int       `json:"max_states,omitempty" hcl:"max_states,optional"`
 	StateTTL  string    `json:"state_ttl,omitempty" hcl:"state_ttl,optional"`
 	Response  *Response `hcl:"response,block"`
-	Origins   []string  `hcl:"origins,optional"`
 	Cors      bool      `hcl:"cors,optional"`
 	TLS       string    `hcl:"tls,optional"`
 	// serve https with this machine's tailscale cert (needs the tailscale cli)

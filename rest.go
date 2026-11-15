@@ -28,7 +28,13 @@ type Rest struct {
 	filename string
 }
 
+// NewFile parses filename, or for a directory the one .rest file directly in
+// it w/ a server block (see file.Resolve)
 func NewFile(filename string) (*Rest, error) {
+	filename, err := file.Resolve(filename)
+	if err != nil {
+		return nil, err
+	}
 	parser, err := file.NewParser(filename)
 	if err != nil {
 		return nil, err
@@ -252,9 +258,11 @@ func (rest *Rest) Export(export, label string, block int) error {
 	return rest.ExportTo(os.Stdout, export, label, block)
 }
 
-// ExportSystemd writes a systemd unit that serves the file's server block,
-// name defaults to the server block's name, then the file's name w/o .rest
-func (rest *Rest) ExportSystemd(w io.Writer, name string) error {
+// ExportSystemd writes the rest@.service template unit (see
+// exports.ToSystemd, which doesn't need a file), after checking the file has
+// a server block. Its install comment uses the server's name, or the file's
+// folder name.
+func (rest *Rest) ExportSystemd(w io.Writer) error {
 	if rest.filename == "-" {
 		return errors.New("systemd: needs a file, not stdin")
 	}
@@ -265,7 +273,11 @@ func (rest *Rest) ExportSystemd(w io.Writer, name string) error {
 	if cfg.Addr == "" {
 		return errors.New("systemd: missing required server block")
 	}
-	return exports.ToSystemd(w, rest.filename, cfg.Name, name)
+	site := cfg.Name
+	if site == "" {
+		site = exports.SiteName(rest.filename)
+	}
+	return exports.ToSystemd(w, site)
 }
 
 // ExportTo renders requests as snippets using a built-in template (curl, go,
@@ -282,7 +294,7 @@ func (rest *Rest) ExportTo(w io.Writer, export, label string, block int) error {
 		return nil
 	}
 	if export == "systemd" {
-		return rest.ExportSystemd(w, "")
+		return rest.ExportSystemd(w)
 	}
 	// openapi describes the server block, not requests
 	if export == "openapi" {

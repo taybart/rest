@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/taybart/args"
@@ -398,5 +399,35 @@ cli {
 	}
 	if string(got) != "missing,first,frankie:200" {
 		t.Fatalf("expected missing,first,frankie:200, got %q", string(got))
+	}
+}
+
+// server flags w/ -f would be ignored (the server block is used), so they're
+// an error instead of serving w/ settings the user didn't ask for
+func TestRunServerFlagsWithFile(t *testing.T) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	tmpDir := t.TempDir()
+	f := filepath.Join(tmpDir, "server.rest")
+	if err := os.WriteFile(f, []byte(`server { address = "localhost:0" }`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		flags []string
+		want  string
+	}{
+		{[]string{"-a", ":9000"}, "--addr doesn't apply to a file's server, set address in its server block"},
+		{[]string{"--cors"}, "--cors"},
+		{[]string{"--spa"}, "--spa"},
+		{[]string{"-d", tmpDir}, "--dir"},
+	} {
+		t.Run(tc.flags[0], func(t *testing.T) {
+			restoreArgs(t)
+			os.Args = append([]string{"rest", "-s", "-f", f}, tc.flags...)
+			if err := run(); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("got %v, want %q", err, tc.want)
+			}
+		})
 	}
 }

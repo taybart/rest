@@ -12,6 +12,7 @@ import (
 // way of doing it), shown in a warning.
 var deprecatedFuncs = map[string]string{
 	"try_exports": `use exports::try("key", default)`,
+	"jwt_enc":     `use jwt_sign(...), it's the same function`,
 }
 
 // deprecations returns a warning for each use of something deprecated in

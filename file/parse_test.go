@@ -934,6 +934,74 @@ request "b" {
 	}
 }
 
+func TestJWTEncDeprecated(t *testing.T) {
+	src := `
+request "a" {
+  url = "http://localhost"
+  bearer_token = jwt_enc({sub = "1"}, "secret")
+}
+`
+	var out bytes.Buffer
+	if _, err := file.NewParserFromSource("jwt.rest", []byte(src), &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "Warning: jwt_enc is deprecated") {
+		t.Errorf("expected a jwt_enc warning, got:\n%s", out.String())
+	}
+}
+
+// attributes that used to be accepted but did nothing are errors now
+func TestRemovedAttributes(t *testing.T) {
+	for _, src := range []string{
+		`server {
+  address = "localhost:0"
+  origins = ["https://example.com"]
+}`,
+		`request "a" {
+  url    = "http://localhost"
+  remain = 1
+}`,
+		`exports = ["a"]`,
+	} {
+		p, err := file.NewParserFromSource("removed.rest", []byte(src), &bytes.Buffer{})
+		if err == nil && p.Root.Server != nil {
+			_, err = p.Server()
+		}
+		if err == nil && len(p.Root.Requests) > 0 {
+			_, err = p.Request(p.Root.Requests[0])
+		}
+		if err == nil {
+			t.Errorf("expected an error for:\n%s", src)
+		}
+	}
+}
+
+func TestHandlerBrowserCache(t *testing.T) {
+	for browser, want := range map[string]string{
+		"":   "",
+		"5m": "public, max-age=300",
+		"0s": "no-cache",
+		"0":  "no-cache",
+	} {
+		attr := ""
+		if browser != "" {
+			attr = "\n    browser_cache = \"" + browser + "\""
+		}
+		src := "server {\n  address = \"localhost:0\"\n  handler \"GET\" \"/\" {\n    cache = \"2400h\"" + attr + "\n    fn = \"return {}\"\n  }\n}\n"
+		p, err := file.NewParserFromSource("cache.rest", []byte(src), &bytes.Buffer{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := p.Server()
+		if err != nil {
+			t.Fatalf("%q: %v", browser, err)
+		}
+		if got := cfg.Handlers[0].CacheControl; got != want {
+			t.Errorf("browser_cache %q: CacheControl %q, want %q", browser, got, want)
+		}
+	}
+}
+
 func TestHandlerCacheValidation(t *testing.T) {
 	cases := []struct{ handler, want string }{
 		{`handler "GET" "/" { cache = "soon"; fn = "return {}" }`, "cache must be a duration"},
@@ -941,6 +1009,8 @@ func TestHandlerCacheValidation(t *testing.T) {
 		{`handler "GET" "/" { cache = "1m"; response { status = 200 } }`, "needs fn or page"},
 		{`handler "GET" "/" { cache = "1m"; stateful = true; fn = "return {}" }`, "stateful"},
 		{`handler "GET" "/" { vary = ["Accept"]; fn = "return {}" }`, "vary needs cache"},
+		{`handler "GET" "/" { browser_cache = "1m"; fn = "return {}" }`, "browser_cache needs cache"},
+		{`handler "GET" "/" { cache = "1m"; browser_cache = "1d"; fn = "return {}" }`, "browser_cache must be a duration"},
 		{`handler "GET" "/" { cache = "90s"; vary = ["Accept"]; fn = "return {}" }`, ""},
 	}
 	for _, c := range cases {

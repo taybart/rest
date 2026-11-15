@@ -54,7 +54,6 @@ type Root struct {
 	filename string
 
 	Imports *[]string `hcl:"imports"`
-	Exports *[]string `hcl:"exports"`
 
 	// TODO: allow for read() in this context
 	CLI *CLI `hcl:"cli,block"`
@@ -380,6 +379,8 @@ func (p *Parser) Server() (server.Config, error) {
 				}
 			} else if len(handler.Vary) > 0 {
 				return serv, fmt.Errorf("handler %s %s: vary needs cache", handler.Method, handler.Path)
+			} else if handler.BrowserCache != "" {
+				return serv, fmt.Errorf("handler %s %s: browser_cache needs cache", handler.Method, handler.Path)
 			}
 			if serv.Handlers[k].Proxy, err = p.parseProxy(handler.ProxyHCL, handler.Proxy); err != nil {
 				return serv, fmt.Errorf("handler %s %s: proxy: %w", handler.Method, handler.Path, err)
@@ -412,7 +413,8 @@ func (p *Parser) Server() (server.Config, error) {
 }
 
 // parseHandlerCache checks a handler's `cache`, which only works for GET
-// handlers that run lua (fn or page), and not stateful ones.
+// handlers that run lua (fn or page), and not stateful ones, and its
+// `browser_cache` (the Cache-Control sent w/ them).
 func parseHandlerCache(h *server.Handler) error {
 	ttl, err := time.ParseDuration(h.Cache)
 	switch {
@@ -426,6 +428,17 @@ func parseHandlerCache(h *server.Handler) error {
 		return fmt.Errorf("handler %s %s: cache doesn't work w/ stateful (each visitor has their own state)", h.Method, h.Path)
 	}
 	h.CacheTTL = ttl
+	if h.BrowserCache != "" {
+		bttl, err := time.ParseDuration(h.BrowserCache)
+		if err != nil || bttl < 0 {
+			return fmt.Errorf("handler %s %s: browser_cache must be a duration (ex. \"1m\", \"0s\" for no-cache), got %q", h.Method, h.Path, h.BrowserCache)
+		}
+		if bttl == 0 {
+			h.CacheControl = "no-cache"
+		} else {
+			h.CacheControl = fmt.Sprintf("public, max-age=%d", int(bttl.Seconds()))
+		}
+	}
 	return nil
 }
 
@@ -646,7 +659,7 @@ func (p *Parser) makeContext() {
 			"json_dec":         makeJSONDecodeFunc(),
 			"json_enc":         makeJSONEncodeFunc(),
 			"jwt_dec":          makeJWTDecodeFunc(),
-			"jwt_enc":          makeJWTSignFunc(),
+			"jwt_enc":          makeJWTSignFunc(), // deprecated: jwt_sign
 			"jwt_sign":         makeJWTSignFunc(),
 			"lib::copy_res":    makeLuaHookFunc("tools.copy_res"),
 			"lib::export_res":  makeLuaHookFunc("tools.export_res"),

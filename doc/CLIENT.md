@@ -213,7 +213,7 @@ There are a few functions that can be used in a rest file:
 - `read("./filepath")` - read a file into the rest file, this will just be read into a string so it can be used anywhere (ex. request body,
 - `json_enc({key = "value"})` - turn an HCL table into a string value, useful for templates
 - `json_dec("{\"string\": \"json\"}")` - turn an string into a table value
-- `jwt_sign({sub = "123", role = "admin"}, "secret", {alg = "HS256", expires_in = 3600})` (or `jwt_enc(...)`) - sign a JWT token (supports `HS256`/`384`/`512`, `RS256`/`384`/`512`, `ES256`/`384`/`512`, `EdDSA`)
+- `jwt_sign({sub = "123", role = "admin"}, "secret", {alg = "HS256", expires_in = 3600})` - sign a JWT token (supports `HS256`/`384`/`512`, `RS256`/`384`/`512`, `ES256`/`384`/`512`, `EdDSA`)
 - `jwt_dec(token)` - decode a JWT's claims into an HCL object without verifying the signature
 - `form({key = "value"}")` - turn map value into a url-encoded form string
 - `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
@@ -527,7 +527,7 @@ curl -X POST 'http://localhost:8080/login' \
   --data-raw '{"user":"me"}'
 ```
 
-To go the other way, `rest -i spec.json` scaffolds requests (and a test server) from an OpenAPI spec, see [SERVER.md](SERVER.md#importing-an-openapi-spec). `systemd` writes a unit that runs the `server` block as a service, see [SERVER.md](SERVER.md#running-as-a-service).
+To go the other way, `rest -i spec.json` scaffolds requests (and a test server) from an OpenAPI spec, see [SERVER.md](SERVER.md#importing-an-openapi-spec). `systemd` writes a template unit that runs `server` blocks as services, see [SERVER.md](SERVER.md#running-as-a-service).
 
 `postman` writes the requests as a Postman v2.1 collection, and `expect` blocks become tests in each request's Tests tab:
 
