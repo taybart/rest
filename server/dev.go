@@ -211,7 +211,8 @@ func (d *devMode) inject(res Response) Response {
 // morphed in (keeping scroll, focus, and inputs), interactive ones (w/ the
 // midnight client) reload, since their lua state is per page load. "css
 // <path>" swaps that stylesheet. When rest comes back after a restart, the
-// event stream reconnects, and the page reloads.
+// event stream reconnects, and the page reloads the same way (so a read()
+// page's edit, which restarts rest, is morphed in too).
 var devScript = `<script data-rest-dev>(() => {
   let connected = false
   const morphLib = () => window.Idiomorph ? Promise.resolve() : new Promise((ok, fail) => {
@@ -221,18 +222,32 @@ var devScript = `<script data-rest-dev>(() => {
     s.onerror = fail
     document.head.append(s)
   })
+  // full reloads say why (in the console)
+  const hard = (why) => {
+    console.info('rest dev: full reload,', why)
+    location.reload()
+  }
   const reload = async () => {
     try {
-      if (window.midnight) return location.reload()
+      // (the midnight client: window.midnight alone can be an element w/
+      // id="midnight", browsers put those on window)
+      if (typeof window.midnight?.rpc === 'function') return hard('interactive page (its lua state is per page load)')
       const res = await fetch(location.href)
-      if (!res.ok) return location.reload()
+      if (!res.ok) return hard('the page is a ' + res.status)
       const next = new DOMParser().parseFromString(await res.text(), 'text/html')
       await morphLib()
       document.title = next.title
-      Idiomorph.morph(document.body, next.body, { ignoreActiveValue: true })
+      // keeps what's typed / checked in every form field, not just the
+      // focused one (the markup's defaults usually didn't change)
+      const typed = (attr, el) => !(['value', 'checked', 'selected'].includes(attr) &&
+        el.matches('input, textarea, select, option'))
+      Idiomorph.morph(document.body, next.body, {
+        ignoreActiveValue: true,
+        callbacks: { beforeAttributeUpdated: typed },
+      })
     } catch (e) {
       console.error('rest dev:', e)
-      location.reload()
+      hard('morphing failed')
     }
   }
   const css = (path) => {
@@ -245,7 +260,10 @@ var devScript = `<script data-rest-dev>(() => {
   }
   const events = new EventSource('` + DevEventsPath + `')
   events.onopen = () => {
-    if (connected) location.reload() // (rest restarted)
+    if (connected) { // (rest restarted, ex. a read() page changed)
+      console.info('rest dev: rest restarted, reloading')
+      reload()
+    }
     connected = true
   }
   events.addEventListener('reload', reload)

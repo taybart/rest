@@ -336,7 +336,7 @@ Some things can't be expressed and are approximated or left out, with a comment 
 - handler `cache` is off (no response cache or `Cache-Control`), `cache` on
   request blocks still works (so outside APIs aren't hit on every reload)
 - html rest renders gets a small script (before `</body>`) that reloads the
-  page when rest comes back after a restart
+  page when rest comes back after a restart (morphed in, like below)
 
 Under [run](https://github.com/taybart/run) w/ `-w`, rest handles file changes
 itself instead of being restarted for every one:
@@ -347,7 +347,7 @@ run -w rest,mn,md,css rest -s -f . --dev
 
 | change | what happens |
 |---|---|
-| the rest file, an import, or a file `read()` read | rest restarts (they're read when the file is parsed) |
+| the rest file, an import, or a file `read()` read | rest restarts (they're read when the file is parsed), then the page reloads like below |
 | a `.css` file under `directory` | the page swaps that stylesheet, w/o reloading |
 | anything else (pages and their modules, markdown, js, ...) | the page is re-rendered and morphed in (w/ idiomorph), so scroll, focus, and what's typed stay. Interactive pages (w/ actions) reload instead, their lua state is per page load |
 
