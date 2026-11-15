@@ -60,6 +60,9 @@ rest -e systemd  # -f site.rest also checks the file has a server block
 ```sh
 # Run the `server {}` block in a .rest file
 rest -s -f server.rest
+# dev mode: __REST_DEV=1, no handler cache, pages reload/morph on file changes under `run -w`
+# (see references/SERVER.md#dev-mode---dev)
+run -w rest,mn,md,css rest -s -f . --dev
 
 # Quick ad-hoc server without a .rest file (default localhost:8080)
 rest -s -a localhost:18080 -d ./dist --spa --cors

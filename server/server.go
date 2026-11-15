@@ -95,6 +95,8 @@ type Server struct {
 	setupExports map[string]any
 	// lua states of stateful handlers (set up by Routes)
 	states *pages.StateStore
+	// dev mode (see dev.go), nil w/o it
+	dev *devMode
 }
 
 type Config struct {
@@ -122,6 +124,10 @@ type Config struct {
 	Middlewares []*Middleware  `hcl:"middleware,block"`
 	Handlers    []*Handler     `hcl:"handler,block"`
 	SPA         bool           `hcl:"spa,optional"`
+	// Dev is dev mode (see dev.go), DevSources the files a change to
+	// restarts it (the rest file, imports, read()'s)
+	Dev        bool     `json:"-"`
+	DevSources []string `json:"-"`
 	// set by the parser
 	SetupLang string
 	// runs the file's request blocks (rest.request in lua)
@@ -138,6 +144,11 @@ func New(c Config) *Server {
 	s := &Server{
 		Router: http.NewServeMux(),
 		Config: c,
+	}
+	if c.Dev {
+		// (a reload right after a save has to see it)
+		lua.StatCacheTTL = 0
+		s.dev = newDevMode(c)
 	}
 
 	server := &http.Server{
@@ -168,6 +179,9 @@ func (s *Server) logPrefix() string {
 
 func (s *Server) Serve() error {
 
+	if s.dev != nil {
+		go s.dev.listen()
+	}
 	if s.Config.Tailscale {
 		return s.serveTailscale()
 	}

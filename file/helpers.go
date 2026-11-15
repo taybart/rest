@@ -47,7 +47,8 @@ func resolveImport(importer, imp string) string {
 
 /*** Functions ***/
 
-func makeFileReadFunc() function.Function {
+// makeFileReadFunc is read(path), each path read is passed to seen
+func makeFileReadFunc(seen func(string)) function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
 			{
@@ -59,7 +60,9 @@ func makeFileReadFunc() function.Function {
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			pathArg, _ := args[0].Unmark()
-			val, err := os.ReadFile(expandHome(pathArg.AsString()))
+			path := expandHome(pathArg.AsString())
+			seen(path)
+			val, err := os.ReadFile(path)
 			if err != nil {
 				return cty.StringVal(""), err
 			}

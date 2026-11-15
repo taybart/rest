@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -180,10 +181,10 @@ func TestQuitRoute(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			quit := false
+			var quit atomic.Bool // (set by the shutdown goroutine)
 			s := server.Server{Router: http.NewServeMux(), Config: c.config}
 			srv := &http.Server{}
-			srv.RegisterOnShutdown(func() { quit = true })
+			srv.RegisterOnShutdown(func() { quit.Store(true) })
 			s.Routes(srv)
 			ts := httptest.NewServer(s.Router)
 			defer ts.Close()
@@ -201,8 +202,8 @@ func TestQuitRoute(t *testing.T) {
 				t.Errorf("status %d, want %d", res.StatusCode, c.want)
 			}
 			time.Sleep(700 * time.Millisecond) // (it shuts down after 500ms)
-			if wantQuit := c.name == "bare POST"; quit != wantQuit {
-				t.Errorf("quit = %v, want %v", quit, wantQuit)
+			if wantQuit := c.name == "bare POST"; quit.Load() != wantQuit {
+				t.Errorf("quit = %v, want %v", quit.Load(), wantQuit)
 			}
 		})
 	}

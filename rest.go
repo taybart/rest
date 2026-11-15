@@ -25,6 +25,8 @@ import (
 type Rest struct {
 	Parser   *file.Parser
 	Requests map[string]*file.HCLRequest
+	// Dev serves in dev mode (see server/dev.go)
+	Dev      bool
 	filename string
 }
 
@@ -251,6 +253,11 @@ func (rest *Rest) Server() (*server.Server, error) {
 		return nil, err
 	}
 	config.Requester = rest.Requester(c)
+	if rest.Dev {
+		config.Dev = true
+		// (after Server(), which evaluated the block's read()s)
+		config.DevSources = rest.Parser.Sources()
+	}
 	return server.New(config), nil
 }
 

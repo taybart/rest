@@ -25,7 +25,7 @@ func usage(u args.Usage) {
 		"no-color", "list", "flags",
 	}
 	server := []string{
-		"addr", "serve", "dir", "spa", "file",
+		"addr", "serve", "dir", "spa", "file", "dev",
 		"cors", "response", "tls", "tailscale", "quiet",
 	}
 	client := []string{
@@ -109,6 +109,10 @@ var (
 				Help:    "Serve https using this machine's tailscale cert (needs the tailscale cli and HTTPS enabled on the tailnet)\n\tlistens on :8080 unless --addr is set so other tailnet devices can connect",
 				Default: false,
 			},
+			"dev": {
+				Help:    "Serve a file in dev mode: sets __REST_DEV=1, no handler cache, and pages reload when\n\tfiles change (under `run -w`) or rest restarts",
+				Default: false,
+			},
 			"spa": {
 				Help:    "Serve index.html in directory instead of 404",
 				Default: false,
@@ -171,6 +175,7 @@ var (
 		TLS       string `arg:"tls"`
 		Tailscale bool   `arg:"tailscale"`
 		SPA       bool   `arg:"spa"`
+		Dev       bool   `arg:"dev"`
 
 		// client
 		File       string `arg:"file"`
@@ -382,6 +387,11 @@ func run() error {
 				return err
 			}
 			f := preloaded
+			if c.Dev {
+				// set before parsing, so env("__REST_DEV") sees it
+				os.Setenv("__REST_DEV", "1")
+				f = nil
+			}
 			if f == nil {
 				var err error
 				f, err = rest.NewFile(c.File)
@@ -389,7 +399,11 @@ func run() error {
 					return err
 				}
 			}
+			f.Dev = c.Dev
 			return f.RunServer()
+		}
+		if c.Dev {
+			return errors.New("--dev serves a file, use it w/ -f")
 		}
 		// FIXME: idk if this works the same as before
 		res, err := parseServerResponse(c.Response)

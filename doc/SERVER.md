@@ -327,6 +327,34 @@ Some things can't be expressed and are approximated or left out, with a comment 
 - Routes go's router can't hold (a parameter inside a segment like `/{id}.json`, or two patterns that overlap without either being more specific) are skipped in the server with the reason, and their requests say so.
 - Path parameter names that aren't valid go identifiers are renamed (`{pet-id}` -> `{pet_id}`).
 
+### Dev mode (`--dev`)
+
+`rest -s -f site.rest --dev` is for working on a site:
+
+- `__REST_DEV=1` is set before the file is parsed, so `env("__REST_DEV")` in
+  the file (and `os.getenv` in pages) can tell
+- handler `cache` is off (no response cache or `Cache-Control`), `cache` on
+  request blocks still works (so outside APIs aren't hit on every reload)
+- html rest renders gets a small script (before `</body>`) that reloads the
+  page when rest comes back after a restart
+
+Under [run](https://github.com/taybart/run) w/ `-w`, rest handles file changes
+itself instead of being restarted for every one:
+
+```sh
+run -w rest,mn,md,css rest -s -f . --dev
+```
+
+| change | what happens |
+|---|---|
+| the rest file, an import, or a file `read()` read | rest restarts (they're read when the file is parsed) |
+| a `.css` file under `directory` | the page swaps that stylesheet, w/o reloading |
+| anything else (pages and their modules, markdown, js, ...) | the page is re-rendered and morphed in (w/ idiomorph), so scroll, focus, and what's typed stay. Interactive pages (w/ actions) reload instead, their lua state is per page load |
+
+The page listens on `/_rest/dev` (server sent events) and loads idiomorph from
+`/_rest/idiomorph.js` when it doesn't have it. Neither exists w/o `--dev`, and
+w/o it no script is added.
+
 ### Running as a service
 
 `-f` can be a folder: `rest -s -f /var/www/site.com` serves the one `.rest` file directly in it that has a `server` block. Files in subfolders (ex. imports) don't count, and zero or several matches is an error.

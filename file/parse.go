@@ -112,6 +112,8 @@ type Parser struct {
 	Config     request.Config
 	// DiagOut receives hcl diagnostics, defaults to stdout
 	DiagOut io.Writer
+	// the files read (see Sources), shared w/ copies (WithExports)
+	sources *sources
 }
 
 func NewParser(filename string) (*Parser, error) {
@@ -131,6 +133,7 @@ func newParser(filename string, src []byte, diagOut io.Writer) (*Parser, error) 
 			filename: filename,
 		},
 		Config:     request.DefaultConfig(),
+		sources:    &sources{},
 		Files:      map[string]*hcl.File{},
 		Locals:     map[string]cty.Value{},
 		Schemas:    map[string]cty.Value{},
@@ -668,7 +671,7 @@ func (p *Parser) makeContext() {
 			"lib::inspect_res": makeLuaHookFunc("tools.inspect_res"),
 			"nanoid":           makeNanoIDFunc(),
 			"raw":              makeRawFunc(),
-			"read":             makeFileReadFunc(),
+			"read":             makeFileReadFunc(p.sources.add),
 			"tmpl":             makeGoTemplateFunc(),
 			"try_exports":      makeTryExportsFunc(p.Exports), // deprecated: exports::try
 			"exports::try":     makeTryExportsFunc(p.Exports),

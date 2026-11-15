@@ -29,6 +29,9 @@ func (s *Server) Routes(server *http.Server) {
 		}
 	}
 	s.states = pages.NewStateStore(s.Config.MaxStates, ttl)
+	if s.dev != nil {
+		s.dev.routes(s.Router)
+	}
 
 	// a directory (or else a server-level proxy) serves anything the handlers
 	// don't match
@@ -78,7 +81,7 @@ func (s *Server) registerHandlerFns(fallback http.HandlerFunc) {
 	}
 	rootRegistered := false
 	for _, handler := range s.Config.Handlers {
-		if handler.CacheTTL > 0 {
+		if handler.CacheTTL > 0 && s.dev == nil { // (dev mode doesn't cache)
 			handler.cache = newResponseCache(handler.CacheTTL)
 		}
 		pattern := handlerPattern(handler)
@@ -131,6 +134,9 @@ func (s *Server) CustomHandlerFn(handler *Handler) http.HandlerFunc {
 				return
 			}
 			if handled {
+				if s.dev != nil {
+					res = s.dev.inject(res)
+				}
 				writeHandlerResponse(w, res)
 				return
 			}
