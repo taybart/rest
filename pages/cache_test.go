@@ -12,7 +12,7 @@ import (
 	"github.com/taybart/rest/pages"
 )
 
-// counted serves src w/ Cache, w/ `renders.inc()` counting how many times the
+// counted serves src with Cache, with `renders.inc()` counting how many times the
 // page really ran.
 func counted(t *testing.T, src string, opts ...pages.Option) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
@@ -83,7 +83,7 @@ func TestCacheExpires(t *testing.T) {
 }
 
 // What isn't cached: interactive pages (each visitor needs their own state),
-// non-200s, and responses w/ cookies. A page's own Cache-Control is kept.
+// non-200s, and responses with cookies. A page's own Cache-Control is kept.
 func TestCacheSkips(t *testing.T) {
 	for name, c := range map[string]struct {
 		src     string

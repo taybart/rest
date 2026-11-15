@@ -21,7 +21,7 @@ type Client struct {
 	Config request.Config
 	// Out is where after hooks print, defaults to stdout
 	Out io.Writer
-	// Cache keeps responses of requests w/ `cache` (in Run), nil disables it
+	// Cache keeps responses of requests with `cache` (in Run), nil disables it
 	Cache *Cache
 }
 
@@ -88,7 +88,7 @@ func (c *Client) Do(r request.Request) (string, map[string]any, error) {
 	return dumped, nil, err
 }
 
-// Run sends a request like Do (w/ its expect and after hook), but instead of
+// Run sends a request like Do (with its expect and after hook), but instead of
 // a dump, returns the response, and what the after hook exported and
 // returned. It's safe to use concurrently.
 func (c *Client) Run(r request.Request) (*restlua.RequestResult, error) {

@@ -189,7 +189,7 @@ func TestServerRequests(t *testing.T) {
 
 	cases := []struct{ path, want string }{
 		{"/item/7", "item 7"},
-		{"/first", "item 1"}, // by index, w/ exports::try's default
+		{"/first", "item 1"}, // by index, with exports::try's default
 		{"/token", "tok"},    // setup's exports
 		{"/token", "tok"},    // not changed by the last request
 		{"/item/8", "item 8"},

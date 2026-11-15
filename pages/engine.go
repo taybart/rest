@@ -1,4 +1,4 @@
-// Package pages serves midnight markup pages (interactive, w/ actions that run on
+// Package pages serves midnight markup pages (interactive, with actions that run on
 // the server) as http.Handlers, for any router:
 //
 //	eng := pages.New(pages.Options{})
@@ -6,7 +6,7 @@
 //	mux.Handle("/app", eng.File("ui/app.mn", pages.Props(props)))
 //
 // A page handler renders on GET (and HEAD), and runs actions on POST, so it
-// has to be mounted for both (std mux patterns w/o a method, gin's Any,
+// has to be mounted for both (std mux patterns without a method, gin's Any,
 // fiber's All). See doc/PAGES.md.
 package pages
 
@@ -37,12 +37,12 @@ type Options struct {
 	Path string
 	// Requester runs request blocks for `rest.request(label [, exports])`,
 	// ex. from a .rest file: rest.NewFile("api.rest") then .Requester(client).
-	// W/o one, rest.request raises an error.
+	// Without one, rest.request raises an error.
 	Requester restlua.Requester
 	// Exports are where every page's rest.exports start (what request blocks
 	// see as `exports`), before the page's own (see the Exports option).
 	Exports map[string]any
-	// OnError is called w/ errors from page scripts (the response is a 500).
+	// OnError is called with errors from page scripts (the response is a 500).
 	// The default logs them.
 	OnError func(r *http.Request, err error)
 }
@@ -70,7 +70,7 @@ func (e *Engine) Close() { e.states.Close() }
 type Option func(*handler)
 
 // Props sets the props of a page, by request. A page whose entry returns a
-// component (`return (props) -> <html>...</html>`) is rendered w/ them,
+// component (`return (props) -> <html>...</html>`) is rendered with them,
 // converted to lua (ex. maps and structs become tables, see convert.go).
 func Props(fn func(r *http.Request) (any, error)) Option {
 	return func(h *handler) { h.props = fn }
@@ -86,7 +86,7 @@ func ActionURL(url string) Option {
 }
 
 // Exports adds to a page's rest.exports (on top of the engine's Exports),
-// by the request that loads the page. They're kept, w/ what rest.request
+// by the request that loads the page. They're kept, with what rest.request
 // adds, for the page's actions (it isn't called again for them).
 func Exports(fn func(r *http.Request) (map[string]any, error)) Option {
 	return func(h *handler) { h.exports = fn }
@@ -94,7 +94,7 @@ func Exports(fn func(r *http.Request) (map[string]any, error)) Option {
 
 // LuaFuncs makes fns a module of the page, `require(module)`, a table of the
 // functions by name. They're plain gopher-lua functions (see midnight): they
-// get their args from the stack, push their results, and raise errors w/
+// get their args from the stack, push their results, and raise errors with
 // l.RaiseError / l.ArgError (pcall-able in the page). Request(l) is the
 // request being handled (the page load's, or the action's).
 func LuaFuncs(module string, fns map[string]lua.LGFunction) Option {
@@ -180,7 +180,7 @@ type handler struct {
 	exports   func(r *http.Request) (map[string]any, error)
 	actionURL string // "" for the page's own url
 	modules   []luaModule
-	cache     *responseCache // nil w/o Cache
+	cache     *responseCache // nil without Cache
 }
 
 func (h *handler) with(opts []Option) *handler {
@@ -258,7 +258,7 @@ func (h *handler) setup(l *lua.LState, r *http.Request, stateID string) error {
 }
 
 // request sets the `rest` global for a request (a kept state keeps its rest
-// table, w/ its exports and rest.request), and the request for Request.
+// table, with its exports and rest.request), and the request for Request.
 func request(l *lua.LState, r *http.Request, stateID string) error {
 	setRequest(l, r)
 	if err := restlua.SetRestGlobal(l, r); err != nil {

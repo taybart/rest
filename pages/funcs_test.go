@@ -28,7 +28,7 @@ type Item struct {
 	internal string
 }
 
-// run runs lua code w/ fns as globals, returning its results as strings.
+// run runs lua code with fns as globals, returning its results as strings.
 func run(t *testing.T, fns map[string]any, code string) ([]string, error) {
 	t.Helper()
 	return runLang(t, fns, code, restlua.LangLua)
@@ -59,7 +59,7 @@ func runLang(t *testing.T, fns map[string]any, code, lang string) ([]string, err
 	return out, nil
 }
 
-// Unsupported signatures are errors when adapting (Funcs panics w/ them).
+// Unsupported signatures are errors when adapting (Funcs panics with them).
 func TestAdaptErrors(t *testing.T) {
 	for _, c := range []struct {
 		fn   any
@@ -169,7 +169,7 @@ return present(empty()), present(full()), s, kept`, restlua.LangMidnight)
 	}
 }
 
-// Bad args are lua errors (pcall-able), w/ the path to what's wrong.
+// Bad args are lua errors (pcall-able), with the path to what's wrong.
 func TestFuncsArgErrors(t *testing.T) {
 	fns := map[string]any{
 		"items": func([]Item) {},

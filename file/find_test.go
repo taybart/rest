@@ -21,7 +21,7 @@ func TestResolve(t *testing.T) {
 	client := `request "a" { url = "http://localhost" }`
 
 	t.Run("one server file", func(t *testing.T) {
-		// a folder named like a .rest file, w/ client files and a server
+		// a folder named like a .rest file, with client files and a server
 		// file in a subfolder that shouldn't count
 		dir := filepath.Join(t.TempDir(), "midnight-lang.rest")
 		write(t, filepath.Join(dir, "midnight-lang.rest"), "#!/usr/bin/env rest\n"+server)

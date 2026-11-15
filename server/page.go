@@ -8,7 +8,7 @@ import (
 	"github.com/taybart/rest/pages"
 )
 
-// Pages are handlers w/ `page` (instead of `fn`): a script that returns a markup
+// Pages are handlers with `page` (instead of `fn`): a script that returns a markup
 // element, served as an interactive page (see the pages package). Its actions
 // are POSTs to the page's own path, handled by a POST handler rest adds.
 //
@@ -33,8 +33,8 @@ func pageActionsHandler(page *Handler) *Handler {
 	}
 }
 
-// checkPages returns an error for page handlers that can't work: w/ `fn` too,
-// or w/ a POST handler of their own on the same path (where actions go).
+// checkPages returns an error for page handlers that can't work: with `fn` too,
+// or with a POST handler of their own on the same path (where actions go).
 func checkPages(handlers []*Handler) error {
 	posts := map[string]bool{}
 	for _, h := range handlers {

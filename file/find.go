@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
-// Resolve turns a directory into the one .rest file directly in it w/ a server
+// Resolve turns a directory into the one .rest file directly in it with a server
 // block (ex. `rest -s -f /var/www/site.com`). Files in subdirectories (ex.
 // imports) aren't considered. Anything that isn't a directory is returned
 // as is.
@@ -42,18 +42,18 @@ func Resolve(path string) (string, error) {
 	case 1:
 		return found[0], nil
 	case 0:
-		return "", fmt.Errorf("no .rest file w/ a server block in %s", path)
+		return "", fmt.Errorf("no .rest file with a server block in %s", path)
 	default:
 		names := make([]string, len(found))
 		for i, f := range found {
 			names[i] = filepath.Base(f)
 		}
-		return "", fmt.Errorf("more than one .rest file w/ a server block in %s (%s), pick one w/ -f",
+		return "", fmt.Errorf("more than one .rest file with a server block in %s (%s), pick one with -f",
 			path, strings.Join(names, ", "))
 	}
 }
 
-// hasServerBlock checks for a top level server block w/o evaluating anything,
+// hasServerBlock checks for a top level server block without evaluating anything,
 // a file that doesn't parse doesn't have one
 func hasServerBlock(fp string) bool {
 	src, err := os.ReadFile(fp)

@@ -1,6 +1,6 @@
 -- The page: the <html> shell, and the body's layout and theme. The parts are
 -- next to it (require finds them: file pages look in their own directory),
--- each w/ its own styles.
+-- each with its own styles.
 --
 -- tb.css (served next to the page) is the base: theme colors, buttons,
 -- inputs, lists. The `css` in each file is that part's own (scoped) styles.

@@ -7,7 +7,7 @@ import (
 // Pages are midnight scripts that return a markup element (ex.
 // `return <App/>`), served as interactive pages. Functions in
 // `on*` attributes of its elements become actions: clicking (etc.) POSTs to
-// the page's rpc url, which runs the function and responds w/ the components
+// the page's rpc url, which runs the function and responds with the components
 // that changed (see midnight.markup's mount / dispatch).
 //
 // A page's lua state is kept for its actions (see StateStore): the page sends
@@ -28,7 +28,7 @@ return require('midnight.markup').mount(function() return root end, {
 const DispatchScript = `
 local ok, body = pcall(json.decode, rest.req.body)
 if not ok or type(body) ~= 'table' or type(body.id) ~= 'string' then
-  return { status = 400, body = '{"error": "expected a json body w/ an action id"}' }
+  return { status = 400, body = '{"error": "expected a json body with an action id"}' }
 end
 return require('midnight.markup').dispatch(body.id, body.data)
 `
@@ -36,7 +36,7 @@ return require('midnight.markup').dispatch(body.id, body.data)
 // MarkupElement returns the markup runtime if v is a markup element (built by
 // midnight.markup, ex. `<App/>` in a midnight script).
 func MarkupElement(l *lua.LState, v lua.LValue) (lua.LValue, bool, error) {
-	// only tables w/ a metatable can be elements, so plain responses don't
+	// only tables with a metatable can be elements, so plain responses don't
 	// load the runtime
 	if _, ok := v.(*lua.LTable); !ok || l.GetMetatable(v) == lua.LNil {
 		return nil, false, nil
@@ -70,7 +70,7 @@ func RenderDocument(l *lua.LState, v lua.LValue) (string, bool, error) {
 }
 
 // Mount mounts what a page script returned, if it's an element, so it renders
-// w/ the client side of its actions, which POST to rpc w/ the state id. W/ an
+// with the client side of its actions, which POST to rpc with the state id. With an
 // empty rpc, they POST to the page's own url (as the browser sees it). A page
 // may also return a response table (ex. a redirect), which is returned as is.
 func Mount(l *lua.LState, v lua.LValue, rpc, stateID string) (lua.LValue, error) {
@@ -94,7 +94,7 @@ func Mount(l *lua.LState, v lua.LValue, rpc, stateID string) (lua.LValue, error)
 }
 
 // IsInteractive returns whether the page that was just rendered has actions.
-// Pages w/o any never call back, so their state doesn't need keeping.
+// Pages without any never call back, so their state doesn't need keeping.
 func IsInteractive(l *lua.LState) (bool, error) {
 	if l.GetField(l.GetField(l.GetGlobal("package"), "loaded"), lua.MarkupLibName) == lua.LNil {
 		return false, nil // not a markup page (ex. a redirect)

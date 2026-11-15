@@ -14,7 +14,7 @@ import (
 	"github.com/taybart/log"
 )
 
-// Handlers w/ `cache = "<ttl>"` (fn or page handlers for GET) keep their
+// Handlers with `cache = "<ttl>"` (fn or page handlers for GET) keep their
 // responses for that long, keyed by path, query, and the `vary` headers. It's
 // the handler's promise that its response only depends on those: rest can't
 // tell (a script can read cookies, kv, the time, ...). So only plain 200s are
@@ -62,7 +62,7 @@ func responseCacheKey(h *Handler, req *http.Request) string {
 	return b.String()
 }
 
-// get returns a cached response: gzipped (w/ Content-Encoding) if it's
+// get returns a cached response: gzipped (with Content-Encoding) if it's
 // stored that way and the client accepts it.
 func (c *responseCache) get(key string, acceptGzip bool) (Response, bool) {
 	c.mu.Lock()

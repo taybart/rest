@@ -14,7 +14,7 @@ type JSONValue struct {
 	err  error
 }
 
-// JSON encodes v w/ encoding/json, for a page to hand to its js in a JSON
+// JSON encodes v with encoding/json, for a page to hand to its js in a JSON
 // <script> (`<Data id="x" value={props.x}/>`, or `<script
 // type="application/json">{props.x}</script>`):
 //
@@ -23,7 +23,7 @@ type JSONValue struct {
 //	})
 //
 // In a page it's opaque (it can be rendered, not read): the data goes from
-// Go to the browser as is, w/o becoming lua tables, so its types are Go's
+// Go to the browser as is, without becoming lua tables, so its types are Go's
 // (an empty map is {}, not [] as a lua table would be), and big data costs
 // the page nothing. encoding/json escapes <, >, and &, so nothing in the
 // data can close the <script>.

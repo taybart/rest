@@ -43,7 +43,7 @@ func post(t *testing.T, url, state, body string) (*http.Response, string) {
 	return res, string(b)
 }
 
-// A file page w/ props, a required module, and an action, on a std mux.
+// A file page with props, a required module, and an action, on a std mux.
 func TestFilePage(t *testing.T) {
 	eng := pages.New(pages.Options{OnError: func(_ *http.Request, err error) { t.Error(err) }})
 	defer eng.Close()
@@ -75,7 +75,7 @@ func TestFilePage(t *testing.T) {
 	}
 
 	if res, _ := post(t, ts.URL+"/app", "", `{}`); res.StatusCode != http.StatusBadRequest {
-		t.Errorf("w/o a state: %d", res.StatusCode)
+		t.Errorf("without a state: %d", res.StatusCode)
 	}
 	if res, _ := post(t, ts.URL+"/app", "nope", `{"id":"x"}`); res.StatusCode != http.StatusGone {
 		t.Errorf("unknown state: %d", res.StatusCode)
@@ -110,8 +110,8 @@ func TestSourcePage(t *testing.T) {
 	}
 }
 
-// rest.request runs the engine's Requester w/ rest.exports, which start from
-// the engine's and page's Exports, and are kept (w/ what requests export) for
+// rest.request runs the engine's Requester with rest.exports, which start from
+// the engine's and page's Exports, and are kept (with what requests export) for
 // the page's actions.
 func TestExports(t *testing.T) {
 	var seen []map[string]any
@@ -162,7 +162,7 @@ return <App/>`
 	}
 }
 
-// W/o a Requester, rest.request is an error.
+// Without a Requester, rest.request is an error.
 func TestNoRequester(t *testing.T) {
 	var errs []error
 	eng := pages.New(pages.Options{OnError: func(_ *http.Request, err error) { errs = append(errs, err) }})

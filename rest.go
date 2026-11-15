@@ -31,7 +31,7 @@ type Rest struct {
 }
 
 // NewFile parses filename, or for a directory the one .rest file directly in
-// it w/ a server block (see file.Resolve)
+// it with a server block (see file.Resolve)
 func NewFile(filename string) (*Rest, error) {
 	filename, err := file.Resolve(filename)
 	if err != nil {
@@ -90,8 +90,8 @@ func (rest *Rest) Request(label string) (request.Request, error) {
 	return rest.Parser.Request(req)
 }
 
-// Requester runs the file's request blocks w/ c, for rest.request in lua (see
-// restlua.Requester). Each request is evaluated w/ its own exports, so it's
+// Requester runs the file's request blocks with c, for rest.request in lua (see
+// restlua.Requester). Each request is evaluated with its own exports, so it's
 // safe to use concurrently. Unlike running a file, skipped requests (ex.
 // imported ones) can be run.
 func (rest *Rest) Requester(c *client.Client) restlua.Requester {

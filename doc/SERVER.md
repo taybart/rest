@@ -94,7 +94,7 @@ server {
     # add cors headers (default false)
     cors = true
     # serve a directory, this will override response if provided (except headers).
-    # w/ handlers, it serves what they don't match (ex. css, images next to pages)
+    # with handlers, it serves what they don't match (ex. css, images next to pages)
     # (files compressed ahead of time, ex. app.js.br, are sent in their place:
     # see Precompressed files below)
     directory = "./test"
@@ -122,7 +122,7 @@ server {
         # how long browsers keep it (the Cache-Control max-age, default: cache),
         # "0s" makes them check every time (ex. a long cache, cleared on restart)
         # browser_cache = "0s"
-        # or serve an interactive page, written w/ midnight markup (see PAGES.md)
+        # or serve an interactive page, written with midnight markup (see PAGES.md)
         # page = <<-MIDNIGHT
         #   return <App/>
         # MIDNIGHT
@@ -172,7 +172,7 @@ per request. For a big file the difference adds up, ex. a 6.4MB wasm file:
 
 ```sh
 brotli -q 11 -k public/app.wasm   # app.wasm.br, keeping app.wasm
-gzip -9 -k public/app.wasm        # app.wasm.gz, for clients w/o brotli
+gzip -9 -k public/app.wasm        # app.wasm.gz, for clients without brotli
 ```
 
 - The original has to be there too: it's what's sent to a client that accepts
@@ -224,7 +224,7 @@ rest.req = {
 ### Midnight scripts
 
 Scripts (`fn`, `page`, `setup`, middleware) can be written in
-[Midnight](https://github.com/taybart/midnight) instead of lua, w/ a `<<MN` or `<<MIDNIGHT` (or
+[Midnight](https://github.com/taybart/midnight) instead of lua, with a `<<MN` or `<<MIDNIGHT` (or
 `<<-MN` / `<<-MIDNIGHT`) heredoc, or by reading a `.mn` (or `.midnight`) file (`fn = read("./handler.mn")`).
 Anything else is lua. midnight's `match` and markup work too.
 
@@ -234,14 +234,14 @@ they're cheap to use from every request.
 
 ### Pages, HTML, and stateful handlers
 
-Handlers can return HTML (w/ midnight's markup), serve interactive `page`s, and
+Handlers can return HTML (with midnight's markup), serve interactive `page`s, and
 keep their lua state between requests (`stateful = true`): see
 [PAGES.md](PAGES.md).
 
 ### Requests (`rest.request`)
 
 Scripts (handlers, pages, middleware, and `setup`) can run the file's `request`
-blocks (including imported ones) w/ `rest.request(label [, exports])` (or a
+blocks (including imported ones) with `rest.request(label [, exports])` (or a
 block index), see [CLIENT.md](CLIENT.md#running-requests-from-lua-restrequest).
 `rest.exports` is what request blocks see as `exports`: each request has its
 own, starting from what `setup` exported, and a `stateful` handler's are kept
@@ -338,7 +338,7 @@ Some things can't be expressed and are approximated or left out, with a comment 
 - html rest renders gets a small script (before `</body>`) that reloads the
   page when rest comes back after a restart (morphed in, like below)
 
-Under [run](https://github.com/taybart/run) w/ `-w`, rest handles file changes
+Under [run](https://github.com/taybart/run) with `-w`, rest handles file changes
 itself instead of being restarted for every one:
 
 ```sh
@@ -348,12 +348,12 @@ run -w rest,mn,md,css rest -s -f . --dev
 | change | what happens |
 |---|---|
 | the rest file, an import, or a file `read()` read | rest restarts (they're read when the file is parsed), then the page reloads like below |
-| a `.css` file under `directory` | the page swaps that stylesheet, w/o reloading |
-| anything else (pages and their modules, markdown, js, ...) | the page is re-rendered and morphed in (w/ idiomorph), so scroll, focus, and what's typed stay. Interactive pages (w/ actions) reload instead, their lua state is per page load |
+| a `.css` file under `directory` | the page swaps that stylesheet, without reloading |
+| anything else (pages and their modules, markdown, js, ...) | the page is re-rendered and morphed in (with idiomorph), so scroll, focus, and what's typed stay. Interactive pages (with actions) reload instead, their lua state is per page load |
 
 The page listens on `/_rest/dev` (server sent events) and loads idiomorph from
-`/_rest/idiomorph.js` when it doesn't have it. Neither exists w/o `--dev`, and
-w/o it no script is added.
+`/_rest/idiomorph.js` when it doesn't have it. Neither exists without `--dev`, and
+without it no script is added.
 
 ### Running as a service
 

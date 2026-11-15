@@ -18,7 +18,7 @@ import (
 // (pages can't tell: a page can read cookies, Go functions, the time, ...).
 //
 //   - Only 200s are kept, and not ones that set cookies.
-//   - Interactive pages (w/ actions) are never kept: their html has the id of
+//   - Interactive pages (with actions) are never kept: their html has the id of
 //     the visitor's own state. (A warning is logged, once.)
 //   - Responses get Cache-Control: public, max-age=<ttl> (unless the page
 //     sets its own), so a CDN or proxy can cache them too.

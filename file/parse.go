@@ -112,7 +112,7 @@ type Parser struct {
 	Config     request.Config
 	// DiagOut receives hcl diagnostics, defaults to stdout
 	DiagOut io.Writer
-	// the files read (see Sources), shared w/ copies (WithExports)
+	// the files read (see Sources), shared with copies (WithExports)
 	sources *sources
 }
 
@@ -417,7 +417,7 @@ func (p *Parser) Server() (server.Config, error) {
 
 // parseHandlerCache checks a handler's `cache`, which only works for GET
 // handlers that run lua (fn or page), and not stateful ones, and its
-// `browser_cache` (the Cache-Control sent w/ them).
+// `browser_cache` (the Cache-Control sent with them).
 func parseHandlerCache(h *server.Handler) error {
 	ttl, err := time.ParseDuration(h.Cache)
 	switch {
@@ -428,7 +428,7 @@ func parseHandlerCache(h *server.Handler) error {
 	case h.Fn == "" && h.Page == "":
 		return fmt.Errorf("handler %s %s: cache needs fn or page", h.Method, h.Path)
 	case h.Stateful:
-		return fmt.Errorf("handler %s %s: cache doesn't work w/ stateful (each visitor has their own state)", h.Method, h.Path)
+		return fmt.Errorf("handler %s %s: cache doesn't work with stateful (each visitor has their own state)", h.Method, h.Path)
 	}
 	h.CacheTTL = ttl
 	if h.BrowserCache != "" {
@@ -624,7 +624,7 @@ func (p *Parser) AddExportsCtx(exports map[string]any) {
 
 // WithExports returns a copy of the parser whose context has the parser's
 // exports and `exports` (which win). The copy has its own exports, so
-// requests decoded w/ it (ex. by concurrent server handlers) don't affect
+// requests decoded with it (ex. by concurrent server handlers) don't affect
 // the parser or each other.
 func (p *Parser) WithExports(exports map[string]any) *Parser {
 	c := *p

@@ -14,7 +14,7 @@ import (
 //
 //	func (db *DB) AddItem(ctx context.Context, item Item) (int, error)
 //
-// called from midnight w/ `db.add_item({ name = 'apples' })`:
+// called from midnight with `db.add_item({ name = 'apples' })`:
 //
 //   - A first param of context.Context or *http.Request gets the request
 //     being handled (the page load's, or the action's), not an argument.

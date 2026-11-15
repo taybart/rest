@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// a dev server w/ a page handler (w/ a cache, which dev mode ignores), a
+// a dev server with a page handler (with a cache, which dev mode ignores), a
 // json one, and a directory
 func newDevServer(t *testing.T, sources ...string) (*Server, *httptest.Server) {
 	t.Helper()
@@ -74,10 +74,10 @@ func TestDevNotOnByDefault(t *testing.T) {
 	ts := httptest.NewServer(s.Server.Handler)
 	defer ts.Close()
 	if body, _ := get(t, ts.URL+"/page"); strings.Contains(body, "data-rest-dev") {
-		t.Error("dev script w/o dev mode")
+		t.Error("dev script without dev mode")
 	}
 	if res, _ := http.Get(ts.URL + DevEventsPath); res.StatusCode == http.StatusOK {
-		t.Error("dev events w/o dev mode")
+		t.Error("dev events without dev mode")
 	}
 }
 

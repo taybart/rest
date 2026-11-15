@@ -1,7 +1,7 @@
 // <todo-list api="..." done-class="...">: the todo list, in the browser. The
 // server renders its markup (the form, the todos, a <template> of one todo,
 // the counts) and this wires it up: changes go to the JSON api, which
-// responds w/ the whole list, and the list is rebuilt from the template.
+// responds with the whole list, and the list is rebuilt from the template.
 //
 // Attributes: api (the api's url, relative to the page), done-class (the
 // scoped class of a done todo's title).
@@ -43,7 +43,7 @@ export default class TodoList extends HTMLElement {
     }
   }
 
-  // call calls the api, and shows the list it responds w/ (or its error).
+  // call calls the api, and shows the list it responds with (or its error).
   // It returns whether it worked.
   async call(method, path, body) {
     let res, data

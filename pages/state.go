@@ -13,7 +13,7 @@ import (
 
 // A StateStore keeps lua states between requests (for pages, and rest's
 // `stateful = true` handlers), so globals, required modules, and closures
-// survive. A request w/o a state id gets a new state; requests that send its id
+// survive. A request without a state id gets a new state; requests that send its id
 // back in the StateHeader reuse it (one request at a time).
 //
 // States cost memory (roughly 0.5-2MB each, depending on what's loaded), so
@@ -105,7 +105,7 @@ func (st *StateStore) expire(now time.Time) {
 	}
 }
 
-// Get returns the state w/ this id, locked until Release, or ErrStateGone.
+// Get returns the state with this id, locked until Release, or ErrStateGone.
 func (st *StateStore) Get(id string) (*State, error) {
 	st.mu.Lock()
 	now := time.Now()
@@ -162,7 +162,7 @@ func (st *StateStore) Discard(id string, s *State) {
 	s.discarded = true
 }
 
-// Release unlocks a state acquired w/ Acquire (closing it if discarded).
+// Release unlocks a state acquired with Acquire (closing it if discarded).
 func (st *StateStore) Release(s *State) {
 	if s.discarded {
 		s.L.Close()

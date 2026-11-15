@@ -34,7 +34,7 @@ import (
 // It panics if name isn't a file in fsys, so a typo fails at startup.
 func (e *Engine) FS(fsys fs.FS, name string, opts ...Option) http.Handler {
 	if !fs.ValidPath(name) {
-		panic(fmt.Sprintf("pages: FS: invalid path %q (paths in an fs.FS are like \"ui/app.mn\": unrooted, w/ slashes)", name))
+		panic(fmt.Sprintf("pages: FS: invalid path %q (paths in an fs.FS are like \"ui/app.mn\": unrooted, with slashes)", name))
 	}
 	if info, err := fs.Stat(fsys, name); err != nil {
 		panic("pages: FS: " + err.Error())

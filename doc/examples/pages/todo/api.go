@@ -7,7 +7,7 @@ import (
 )
 
 // API is the store as a JSON api, for the client side page (client.mn, its
-// <todo-list> element). Each change responds w/ the whole list; errors are
+// <todo-list> element). Each change responds with the whole list; errors are
 // {"error": "..."}.
 //
 //	GET    /api/todos             the list

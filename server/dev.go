@@ -21,7 +21,7 @@ import (
 //   - handler `cache` is off (request block caches stay on)
 //   - html rest renders gets a script that reloads the page when rest says
 //     so (over /_rest/dev), and after rest restarts
-//   - under `run -w` (w/ RUN_EVENTS_FD), rest handles file changes itself:
+//   - under `run -w` (with RUN_EVENTS_FD), rest handles file changes itself:
 //     a change to the rest file, an import, or a file read() read needs a
 //     new parse, so rest asks run to restart it. A .css file under
 //     `directory` is swapped in place, and anything else (pages, markdown,
@@ -208,7 +208,7 @@ func (d *devMode) inject(res Response) Response {
 }
 
 // devScript reloads the page on "reload": static pages are re-fetched and
-// morphed in (keeping scroll, focus, and inputs), interactive ones (w/ the
+// morphed in (keeping scroll, focus, and inputs), interactive ones (with the
 // midnight client) reload, since their lua state is per page load. "css
 // <path>" swaps that stylesheet. When rest comes back after a restart, the
 // event stream reconnects, and the page reloads the same way (so a read()
@@ -229,7 +229,7 @@ var devScript = `<script data-rest-dev>(() => {
   }
   const reload = async () => {
     try {
-      // (the midnight client: window.midnight alone can be an element w/
+      // (the midnight client: window.midnight alone can be an element with
       // id="midnight", browsers put those on window)
       if (typeof window.midnight?.rpc === 'function') return hard('interactive page (its lua state is per page load)')
       const res = await fetch(location.href)

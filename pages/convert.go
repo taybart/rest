@@ -33,7 +33,7 @@ import (
 //	                            bool, []any, map[string]any, or nil)
 //
 // Pointers are nil or their value. Other types (channels, funcs, complex,
-// non-string map keys, interfaces w/ methods) aren't supported.
+// non-string map keys, interfaces with methods) aren't supported.
 
 // toGo converts a lua value to t (the type it was built for).
 type toGo func(l *lua.LState, v lua.LValue) (reflect.Value, error)
@@ -41,7 +41,7 @@ type toGo func(l *lua.LState, v lua.LValue) (reflect.Value, error)
 // toLua converts a Go value of the type it was built for.
 type toLua func(l *lua.LState, v reflect.Value) (lua.LValue, error)
 
-// convError is a conversion error, w/ the path to where it failed (ex.
+// convError is a conversion error, with the path to where it failed (ex.
 // "[2].name"), built on the way back up (so it's only built on failure).
 type convError struct {
 	path string
@@ -55,7 +55,7 @@ func (e *convError) Error() string {
 	return strings.TrimPrefix(e.path, ".") + ": " + e.msg
 }
 
-// at prefixes err's path w/ a segment (ex. "[2]" or ".name").
+// at prefixes err's path with a segment (ex. "[2]" or ".name").
 func at(segment string, err error) error {
 	if ce, ok := err.(*convError); ok {
 		return &convError{path: segment + ce.path, msg: ce.msg}
@@ -71,7 +71,7 @@ var (
 	timeType = reflect.TypeFor[time.Time]()
 )
 
-// The converter caches. A type's converter is built (under convMu) w/ a
+// The converter caches. A type's converter is built (under convMu) with a
 // placeholder in the cache first, so recursive types (ex. a tree) work.
 var (
 	convMu    sync.Mutex
@@ -451,7 +451,7 @@ func makeLuaConverter(t reflect.Type) (toLua, error) {
 // toLuaValue converts any supported Go value (by its type, see the table at
 // the top) to lua.
 func toLuaValue(l *lua.LState, v any) (lua.LValue, error) {
-	switch v := v.(type) { // common ones, w/o reflection
+	switch v := v.(type) { // common ones, without reflection
 	case nil:
 		return lua.LNil, nil
 	case string:
@@ -482,7 +482,7 @@ type structField struct {
 }
 
 // structFields returns t's fields like encoding/json names them: by their
-// json tag, or name, w/o `json:"-"` or unexported ones, w/ embedded structs'
+// json tag, or name, without `json:"-"` or unexported ones, with embedded structs'
 // fields flattened (shallower fields win, the first of the same depth).
 func structFields(t reflect.Type) ([]structField, error) {
 	var fields []structField
@@ -517,7 +517,7 @@ func structFields(t reflect.Type) ([]structField, error) {
 		}
 	}
 	walk(t, nil)
-	// a shallower field may have replaced a deeper one w/ the same name
+	// a shallower field may have replaced a deeper one with the same name
 	out := fields[:0]
 	for _, f := range fields {
 		if seen[f.name] == len(f.index) {
@@ -529,7 +529,7 @@ func structFields(t reflect.Type) ([]structField, error) {
 
 var isZeroerType = reflect.TypeFor[interface{ IsZero() bool }]()
 
-// omitFunc returns whether to leave out a field w/ these json tag options,
+// omitFunc returns whether to leave out a field with these json tag options,
 // like encoding/json: `omitempty` (false, 0, "", nil, and empty slices / maps
 // / arrays) and `omitzero` (the zero value, or IsZero() if it has one). nil if
 // neither.

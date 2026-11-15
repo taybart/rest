@@ -12,7 +12,7 @@ import (
 	"github.com/taybart/rest/server"
 )
 
-// precompressedDir makes a directory w/ app.js, app.js.br and app.js.gz (the
+// precompressedDir makes a directory with app.js, app.js.br and app.js.gz (the
 // "compressed" files are marked, not compressed: the server never reads them)
 func precompressedDir(t *testing.T) string {
 	t.Helper()
@@ -23,7 +23,7 @@ func precompressedDir(t *testing.T) string {
 		"app.js.gz":       "GZIP",
 		"index.html":      "<p>raw</p>",
 		"index.html.br":   "BROTLI INDEX",
-		"only.css.br":     "BROTLI W/O A RAW FILE",
+		"only.css.br":     "BROTLI WITHOUT A RAW FILE",
 		"page.unknownext": "raw",
 	}
 	now := time.Now()
@@ -39,7 +39,7 @@ func precompressedDir(t *testing.T) string {
 	return dir
 }
 
-// fetch requests path w/ headers, w/o the client's own decompression
+// fetch requests path with headers, without the client's own decompression
 func fetch(t *testing.T, method, url string, headers map[string]string) (*http.Response, string) {
 	t.Helper()
 	req, err := http.NewRequest(method, url, nil)

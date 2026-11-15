@@ -1,4 +1,4 @@
--- The same todos, client side: the server renders the page once (w/ the
+-- The same todos, client side: the server renders the page once (with the
 -- todos at the time), and custom elements (plain js, see elements.mn) do
 -- the rest in the browser, through the JSON api (todo/api.go). Nothing here
 -- is an action (no functions in on* attributes), so the server keeps no
@@ -82,7 +82,7 @@ return (props) -> {
     </head>
     <body class={s.body} data-theme="dark">
       <div class={s.app}>
-        {--[[ the header's button, w/o an on_toggle, is plain: the element
+        {--[[ the header's button, without an on_toggle, is plain: the element
           wires it up ]]}
         <ThemeToggle><Header router="{props.router} + custom elements" theme="dark"/></ThemeToggle>
         {--[[ class names are scoped (hashed), so the element gets the one it

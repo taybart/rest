@@ -364,7 +364,7 @@ func SetResponseMetatable(l *lua.LState, resTbl *lua.LTable, res *http.Response)
 // SetRestGlobal sets the `rest` global for a server side request:
 // rest.req (url, method, query, headers, body, and methods, see
 // SetRequestMetatable), rest.path, and an empty rest.ctx. The request's body
-// is read (and replaced w/ a reader of what was read).
+// is read (and replaced with a reader of what was read).
 //
 // An existing `rest` table is kept (only req, path, and ctx are replaced), so
 // in a state that's kept between requests, what's on it (ex. rest.exports)

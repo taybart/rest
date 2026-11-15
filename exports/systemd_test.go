@@ -83,7 +83,7 @@ func TestSystemdExportNoServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := r.ExportSystemd(&bytes.Buffer{}); err == nil {
-		t.Error("expected an error for a file w/o a server block")
+		t.Error("expected an error for a file without a server block")
 	}
 }
 

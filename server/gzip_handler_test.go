@@ -164,7 +164,7 @@ func TestHandlerGzip(t *testing.T) {
 			t.Fatalf("%s %d: body %.60q", from, i, got)
 		}
 	}
-	// the cached one for a client w/o gzip
+	// the cached one for a client without gzip
 	res, body := plain("/page")
 	if res.Header.Get("Content-Encoding") != "" || !strings.Contains(body, "<p>1 hello world") {
 		t.Fatalf("plain cached page: headers %v, body %.60q", res.Header, body)

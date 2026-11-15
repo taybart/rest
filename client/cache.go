@@ -18,7 +18,7 @@ import (
 // to expiring are dropped first).
 const DefaultCacheEntries = 1000
 
-// Cache keeps the responses of requests w/ `cache = "<ttl>"` (when run w/
+// Cache keeps the responses of requests with `cache = "<ttl>"` (when run with
 // Client.Run, ex. by rest.request). Entries are keyed by everything that's
 // sent (method, url, headers, cookies, and body), only successful (2xx)
 // responses are kept, and concurrent requests for the same missing entry

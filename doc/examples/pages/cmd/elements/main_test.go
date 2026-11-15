@@ -30,7 +30,7 @@ func TestTodos(t *testing.T) {
 		return res.StatusCode, res.Header.Get("Content-Type"), string(b)
 	}
 
-	// the page: rendered once, w/ the elements' module and no actions
+	// the page: rendered once, with the elements' module and no actions
 	status, _, html := get("")
 	for _, want := range []string{
 		"served with net/http + custom elements",

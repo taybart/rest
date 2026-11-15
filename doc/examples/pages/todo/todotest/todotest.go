@@ -26,7 +26,7 @@ func action(t *testing.T, html, event string) string {
 }
 
 // Run loads the page at url (the router's mount point, ex.
-// http://host/todos/) and adds, toggles, and removes a todo, w/ its actions
+// http://host/todos/) and adds, toggles, and removes a todo, with its actions
 // POSTed to the same url (what the client does).
 func Run(t *testing.T, url, router string) {
 	t.Helper()

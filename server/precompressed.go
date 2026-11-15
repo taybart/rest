@@ -73,8 +73,8 @@ func servePrecompressed(w http.ResponseWriter, r *http.Request, dir http.Dir) bo
 		h.Set("Content-Type", ctype)
 		h.Set("Content-Encoding", p.encoding)
 		h.Add("Vary", "Accept-Encoding")
-		// (ServeContent leaves the length out w/ a Content-Encoding, but this is
-		// the whole file: w/ it, a browser can show a big download's progress)
+		// (ServeContent leaves the length out with a Content-Encoding, but this is
+		// the whole file: with it, a browser can show a big download's progress)
 		h.Set("Content-Length", strconv.FormatInt(info.Size(), 10))
 		http.ServeContent(w, r, name, info.ModTime(), f)
 		f.Close()
@@ -84,7 +84,7 @@ func servePrecompressed(w http.ResponseWriter, r *http.Request, dir http.Dir) bo
 }
 
 // acceptsEncoding is whether r's Accept-Encoding allows encoding (ex. "br"):
-// it's named (or "*" is), w/o q=0.
+// it's named (or "*" is), without q=0.
 func acceptsEncoding(r *http.Request, encoding string) bool {
 	accepted := false
 	for _, part := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {

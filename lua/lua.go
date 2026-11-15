@@ -67,7 +67,7 @@ func loadModule(l *lua.LState, name, filename string) (lua.LValue, error) {
 }
 
 // registerLazyModules makes the lazy modules globals that load on first use
-// (w/ an __index on the globals table).
+// (with an __index on the globals table).
 func registerLazyModules(l *lua.LState) {
 	globals := l.Get(lua.GlobalsIndex).(*lua.LTable)
 	mt := l.NewTable()
@@ -227,7 +227,7 @@ func AnyToLValue(state *lua.LState, value any) lua.LValue {
 		return lua.LBool(v)
 	case []any:
 		// sized exactly: NewTable preallocates room for 32 items and 32
-		// keys (~2KB), a lot for a decoded json object w/ a few fields
+		// keys (~2KB), a lot for a decoded json object with a few fields
 		tbl := state.CreateTable(len(v), 0)
 		for i, item := range v {
 			tbl.RawSetInt(i+1, AnyToLValue(state, item))

@@ -209,7 +209,7 @@ func TestQuitRoute(t *testing.T) {
 	}
 }
 
-// Handlers on "/" w/ a method (ex. "GET /") used to conflict w/ the built in
+// Handlers on "/" with a method (ex. "GET /") used to conflict with the built in
 // "/__quit__" route, which panicked on startup.
 func TestRootHandlerWithMethod(t *testing.T) {
 	for _, method := range []string{"GET", "POST", "*"} {
@@ -643,7 +643,7 @@ func TestStatefulHandlers(t *testing.T) {
 	checkResponse(t, req, Response{StatusCode: 200, Body: "nil nil"})
 }
 
-// Page handlers serve an interactive markup page, w/ its actions as POSTs to the
+// Page handlers serve an interactive markup page, with its actions as POSTs to the
 // same path.
 func TestPageHandlers(t *testing.T) {
 	ts := newServer(server.Config{
@@ -679,7 +679,7 @@ func TestPageHandlers(t *testing.T) {
 	if res.StatusCode != 200 || res.Header.Get("Content-Type") != "text/html; charset=utf-8" {
 		t.Fatalf("page: %d %s\n%s", res.StatusCode, res.Header.Get("Content-Type"), page)
 	}
-	// the client posts to the page's own url (rpc: null), w/ its state
+	// the client posts to the page's own url (rpc: null), with its state
 	cfg := regexp.MustCompile(`rpc: null, headers: \{ 'X-Rest-State': '([^']*)' \}`).FindStringSubmatch(string(page))
 	action := regexp.MustCompile(`midnight\.rpc\('([^']+)'`).FindStringSubmatch(string(page))
 	if cfg == nil || action == nil || !strings.Contains(string(page), ">5</button>") {
@@ -706,7 +706,7 @@ func TestPageHandlers(t *testing.T) {
 	post(state, "", click, Response{StatusCode: 200, Body: button("7")})
 	post("", "", click, Response{StatusCode: 400, Body: `{"error": "missing X-Rest-State header"}`})
 	post("bogus", "", click, Response{StatusCode: 410, Body: `{"error":"state bogus is gone"}`})
-	post(state, "", `nope`, Response{StatusCode: 400, Body: `{"error": "expected a json body w/ an action id"}`})
+	post(state, "", `nope`, Response{StatusCode: 400, Body: `{"error": "expected a json body with an action id"}`})
 	post(state, "?blocked=1", click, Response{StatusCode: 403}) // page middleware runs for actions too
 
 	// a page can also return a response table
@@ -721,10 +721,10 @@ func TestPageHandlers(t *testing.T) {
 	}
 }
 
-// A script that doesn't return a response is a 500, w/ a hint in the log.
+// A script that doesn't return a response is a 500, with a hint in the log.
 func TestBadHandlerReturns(t *testing.T) {
 	cases := []struct{ script, hint string }{
-		{"return function() end", "render it w/ `return <App/>`"},
+		{"return function() end", "render it with `return <App/>`"},
 		{"local x = 1", "is the return missing?"},
 		{"return 'hi'", "got a string"},
 	}
@@ -770,7 +770,7 @@ func TestPageHandlerConflicts(t *testing.T) {
 	}
 }
 
-// Pages w/o actions are static: no client script, and no state is kept.
+// Pages without actions are static: no client script, and no state is kept.
 func TestStaticPage(t *testing.T) {
 	ts := newServer(server.Config{
 		Quiet: true,
@@ -784,7 +784,7 @@ func TestStaticPage(t *testing.T) {
 	checkResponse(t, req, Response{StatusCode: 200, Body: "<!DOCTYPE html><p>hi 1</p>"})
 }
 
-// Handlers w/ cache keep their responses (see cache.go).
+// Handlers with cache keep their responses (see cache.go).
 func TestHandlerCache(t *testing.T) {
 	counter := `local n = (kv.get('n') or 0) + 1; kv.set('n', n)`
 	midnightCounter := `local n = (kv.get('n') || 0) + 1; kv.set('n', n)`

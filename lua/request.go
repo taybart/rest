@@ -7,7 +7,7 @@ import (
 	lua "github.com/taybart/midnight"
 )
 
-// Requester runs one of the file's request blocks (w/ its expect and after
+// Requester runs one of the file's request blocks (with its expect and after
 // hook): target is its label (string) or block index (int), and exports are
 // what the block's hcl sees as `exports`.
 type Requester func(target any, exports map[string]any) (*RequestResult, error)
@@ -27,7 +27,7 @@ type RequestResult struct {
 
 // SetRequester sets `rest.request(label | index [, exports])` on restTbl.
 //
-// The exports are set in rest.exports, and the request block is evaluated w/
+// The exports are set in rest.exports, and the request block is evaluated with
 // rest.exports. The after hook's exports are merged back into rest.exports.
 // It returns what the after hook returned, if it returned anything, or else
 // the response (like rest.res in after hooks). Or nil and an error (a network

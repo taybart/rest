@@ -1,6 +1,6 @@
 // The todo example done client side, on net/http's ServeMux: the page
 // (client.mn) is rendered once, and custom elements (todo/ui/elements) use
-// the store's JSON api (todo.API) in the browser. Compare w/ cmd/std, where
+// the store's JSON api (todo.API) in the browser. Compare with cmd/std, where
 // the same page's actions run on the server.
 package main
 

@@ -56,7 +56,7 @@ const (
 	LangMidnight = "midnight"
 )
 
-// LangFromName maps a heredoc marker or file extension (case insensitive, w/o
+// LangFromName maps a heredoc marker or file extension (case insensitive, without
 // the dot) to a lang: "lua", or "mn"/"midnight" for midnight. "" if neither.
 func LangFromName(name string) string {
 	switch strings.ToLower(name) {

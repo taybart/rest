@@ -63,7 +63,7 @@ func TestCache(t *testing.T) {
 		t.Errorf("query / headers not in the key: %d requests", hits.Load())
 	}
 
-	// w/o cache, every request is sent
+	// without cache, every request is sent
 	run(request.Request{Label: "r", Method: "GET", URL: ts.URL + "/a"})
 	if hits.Load() != 4 {
 		t.Errorf("uncached request: %d requests", hits.Load())

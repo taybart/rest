@@ -163,7 +163,7 @@ func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.Resp
 	if handler.pageActions && req.Header.Get(StateHeader) == "" {
 		return Response{Status: http.StatusBadRequest, Body: json.RawMessage(`{"error": "missing ` + StateHeader + ` header"}`)}, true, nil
 	}
-	// cached responses (see cache.go): w/o middleware, before any lua runs
+	// cached responses (see cache.go): without middleware, before any lua runs
 	cache, cacheKey := handler.cache, ""
 	if cache != nil && (req.Method == http.MethodGet || req.Method == http.MethodHead) {
 		cacheKey = responseCacheKey(handler, req)
@@ -244,7 +244,7 @@ func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.Resp
 		log.Warnf("%s %s: %v\n", req.Method, req.URL.Path, err)
 		return validationResponse(err), true, nil
 	}
-	// w/ middleware, it's run first (ex. auth), even for cached responses
+	// with middleware, it's run first (ex. auth), even for cached responses
 	if cache != nil && len(handler.Middleware) > 0 {
 		if cached, ok := cache.get(cacheKey, acceptsGzip(req)); ok {
 			return cached, true, nil
@@ -298,7 +298,7 @@ func returnedHint(v lua.LValue) string {
 	case lua.LTNil:
 		return " (got nothing, is the return missing?)"
 	case lua.LTFunction:
-		return " (got a function: if it's a component, render it w/ `return <App/>`)"
+		return " (got a function: if it's a component, render it with `return <App/>`)"
 	default:
 		return fmt.Sprintf(" (got a %s)", v.Type())
 	}

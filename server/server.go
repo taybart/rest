@@ -55,7 +55,7 @@ type Handler struct {
 	// Cache keeps the handler's responses for this long (ex. "1m"), see
 	// cache.go. Vary lists request headers that are part of the cache key
 	// (besides the path and query).
-	// BrowserCache is the Cache-Control max-age sent w/ cached responses
+	// BrowserCache is the Cache-Control max-age sent with cached responses
 	// (default: Cache), "0s" sends no-cache. CacheControl is that header,
 	// set by the parser.
 	Cache        string        `json:"cache,omitempty" hcl:"cache,optional"`
@@ -95,7 +95,7 @@ type Server struct {
 	setupExports map[string]any
 	// lua states of stateful handlers (set up by Routes)
 	states *pages.StateStore
-	// dev mode (see dev.go), nil w/o it
+	// dev mode (see dev.go), nil without it
 	dev *devMode
 }
 
@@ -155,7 +155,7 @@ func New(c Config) *Server {
 		Addr:         c.Addr,
 		WriteTimeout: httpTimeout,
 		ReadTimeout:  httpTimeout,
-		// keep-alive connections (w/o it, the read timeout): longer than a
+		// keep-alive connections (without it, the read timeout): longer than a
 		// proxy's (ex. nginx's 60s), so it never reuses one rest just closed
 		IdleTimeout: 75 * time.Second,
 	}

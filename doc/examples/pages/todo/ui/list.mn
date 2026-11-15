@@ -1,4 +1,4 @@
--- The todo list: a form to add one (w/ its error), the todos, and counts.
+-- The todo list: a form to add one (with its error), the todos, and counts.
 local { state, map, css } = require('midnight.markup')
 local todos = require('app.todos') -- Go functions (see todo/page.go)
 local Item = require('item')

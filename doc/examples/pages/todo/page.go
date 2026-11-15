@@ -17,7 +17,7 @@ import (
 //go:embed ui
 var embedded embed.FS
 
-// UI returns the page's files: the embedded ones, or w/ a uiDir, the ones in
+// UI returns the page's files: the embedded ones, or with a uiDir, the ones in
 // that directory (for editing them while it runs).
 func UI(uiDir string) fs.FS {
 	if uiDir != "" {
@@ -53,7 +53,7 @@ func Scripts(uiDir string) http.Handler {
 }
 
 // ClientPage is the todo page done client side (client.mn): rendered once,
-// w/ custom elements that use the JSON api (see API) in the browser.
+// with custom elements that use the JSON api (see API) in the browser.
 func ClientPage(eng *pages.Engine, store *Store, uiDir, router string) http.Handler {
 	opts := []pages.Option{
 		pages.Props(func(r *http.Request) (any, error) {
@@ -68,11 +68,11 @@ func ClientPage(eng *pages.Engine, store *Store, uiDir, router string) http.Hand
 	return eng.FS(UI(""), "client.mn", opts...)
 }
 
-// Page is the todo page (app.mn), w/ the store's methods as the `app.todos`
+// Page is the todo page (app.mn), with the store's methods as the `app.todos`
 // module. router is shown on the page.
 //
-// W/o a uiDir, it's served from the embedded files (eng.FS: compiled once,
-// nothing read from disk). W/ one, from that directory (eng.File: changes
+// Without a uiDir, it's served from the embedded files (eng.FS: compiled once,
+// nothing read from disk). With one, from that directory (eng.File: changes
 // show up on the next page load).
 func Page(eng *pages.Engine, store *Store, uiDir, router string) http.Handler {
 	opts := []pages.Option{

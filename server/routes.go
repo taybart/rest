@@ -49,9 +49,9 @@ func (s *Server) Routes(server *http.Server) {
 		s.Router.HandleFunc("/", fallback)
 		return
 	}
-	// The built in routes are only for a bare (mock) server: a server w/
+	// The built in routes are only for a bare (mock) server: a server with
 	// handlers, a directory, or a proxy is a real site, and anyone could stop
-	// it w/ __quit__. (POST only, so a link preview or a prefetch can't.)
+	// it with __quit__. (POST only, so a link preview or a prefetch can't.)
 	s.Router.HandleFunc("POST /__quit__", s.HandleQuit(server))
 	s.Router.HandleFunc("/__ws__", s.HandleWSEcho("*"))
 	s.Router.HandleFunc("/__echo__", s.logged(gzipHandler(s.HandleEcho())))
@@ -164,7 +164,7 @@ func writeHandlerResponse(w http.ResponseWriter, res Response) {
 	for _, c := range res.Cookies {
 		http.SetCookie(w, c)
 	}
-	// (the body's complete: w/ its length, gzipHandler skips small ones)
+	// (the body's complete: with its length, gzipHandler skips small ones)
 	if w.Header().Get("Content-Length") == "" && w.Header().Get("Content-Encoding") == "" {
 		w.Header().Set("Content-Length", strconv.Itoa(len(res.Body)))
 	}

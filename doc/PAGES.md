@@ -96,7 +96,7 @@ return (props) -> <html>
   middleware too.
 - An action gets a summary of the event: `{ type, value, checked, key, form }`.
 - Each page load gets its own lua state, kept for its actions (see [Stateful handlers](#stateful-handlers)). Module level variables are per page, `state` is per component.
-- Pages w/o actions are static: no client script, and no state is kept.
+- Pages without actions are static: no client script, and no state is kept.
 - A page can also return a response table (ex. a redirect).
 - Static files (css, images, ...) can be served next to pages with the
   server's `directory`: it serves whatever no handler matches (so use
@@ -196,7 +196,7 @@ handler "GET" "/hn/post/{id}" {
 ## Stateful handlers
 
 `stateful = true` keeps a handler's lua state between requests (globals,
-required modules, closures). A request w/o a state id gets a new state, whose
+required modules, closures). A request without a state id gets a new state, whose
 id is `rest.state`; requests that send it back in the `X-Rest-State` header
 reuse it (one request at a time). Pages are stateful automatically.
 
@@ -295,7 +295,7 @@ app.All("/app", adaptor.HTTPHandler(h))            // fiber (github.com/gofiber/
   source in it), and are passed to `Options.OnError` (logged by default).
 - Like `page` handlers, each interactive page load gets its own lua state,
   kept for its actions, and a `410` for a closed one makes the page reload
-  (see [Stateful handlers](#stateful-handlers)). Pages w/o actions are
+  (see [Stateful handlers](#stateful-handlers)). Pages without actions are
   static: no client script, and no state is kept.
 
 ### Where pages come from
@@ -365,7 +365,7 @@ data then (or to change it), use Go functions.
 
 `pages.JSON(v)` encodes `v` with `encoding/json` for the page's own js. In the
 page it's opaque (it can be rendered, not read): it goes from Go to the
-browser as is, w/o becoming lua tables, so its types are Go's (an empty map
+browser as is, without becoming lua tables, so its types are Go's (an empty map
 is `{}`, not `[]`) and big data costs the page nothing.
 
 ```go
@@ -503,7 +503,7 @@ eng := pages.New(pages.Options{
 })
 ```
 
-W/o a `Requester`, `rest.request` raises an error. There's no `kv` or
+Without a `Requester`, `rest.request` raises an error. There's no `kv` or
 `setup`: apps use Go functions for their data.
 
 ### Caching (`Cache`)
