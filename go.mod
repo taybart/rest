@@ -11,7 +11,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/taybart/args v0.0.11
 	github.com/taybart/log v1.6.8
-	github.com/taybart/midnight v0.0.0-20261116023316-510f1548fee4
+	github.com/taybart/midnight v0.0.0-20261116042306-f95522e116ff
 	github.com/zclconf/go-cty v1.19.0
 	golang.org/x/term v0.47.0
 )
