@@ -199,6 +199,12 @@ func (s *Server) HandleDir() http.HandlerFunc {
 				w.Header().Add(k, v)
 			}
 		}
+		// in dev mode, browsers check (w/ the Last-Modified) before using a
+		// cached file, so an edited css / js file is never stale. Otherwise
+		// they guess how long to keep it, and can keep using an old one.
+		if s.Config.Dev && w.Header().Get("Cache-Control") == "" {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
 		// x.br / x.gz, compressed ahead of time, in place of x (see precompressed.go)
 		if servePrecompressed(w, r, root) {
 			return

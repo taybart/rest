@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	gonanoid "github.com/matoous/go-nanoid/v2"
+	"github.com/taybart/midnight/luagen"
 	restlua "github.com/taybart/rest/lua"
 	"github.com/taybart/rest/request"
 	"github.com/zclconf/go-cty/cty"
@@ -98,8 +99,7 @@ func makeBase64DecodeFunc() function.Function {
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			arg, _ := args[0].Unmark()
-			var decoded []byte
-			_, err := base64.StdEncoding.Decode(decoded, []byte(arg.AsString()))
+			decoded, err := base64.StdEncoding.DecodeString(arg.AsString())
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -431,10 +431,15 @@ func makeGoTemplateFunc() function.Function {
 			valuesArg := args[1]
 
 			if valuesArg.Type().IsMapType() || valuesArg.Type().IsObjectType() {
-				valuesMap := valuesArg.AsValueMap()
-				values := make(map[string]any)
-				for k, v := range valuesMap {
-					values[k] = v.AsString()
+				// (any values: strings, numbers, lists, and objects, ex.
+				// `{{.page.title}}`, or `{{lua .pages}}` for a lua literal)
+				converted, err := ctyToGo(valuesArg)
+				if err != nil {
+					return cty.StringVal(""), fmt.Errorf("tmpl values: %w", err)
+				}
+				values, _ := converted.(map[string]any)
+				if values == nil {
+					values = map[string]any{}
 				}
 
 				t, err := template.New("tmpl").
@@ -448,6 +453,8 @@ func makeGoTemplateFunc() function.Function {
 						"uuid": func() string {
 							return uuid.NewString()
 						},
+						// a value as a lua (and midnight) literal, see lua::enc
+						"lua": luagen.Literal,
 						"nanoid": func(args ...any) string {
 							length := 21
 							alphabet := ""
@@ -663,6 +670,54 @@ func makeIsWrapFunc(name string, wrap func(innerJSON string) string) function.Fu
 	})
 }
 
+// ctyToGo converts an HCL value to plain Go values: nil, bool, float64,
+// string, []any, and map[string]any (through JSON, like ctyToMap).
+func ctyToGo(val cty.Value) (any, error) {
+	val, _ = val.UnmarkDeep()
+	if val.IsNull() {
+		return nil, nil
+	}
+	jsonBytes, err := ctyjson.SimpleJSONValue{Value: val}.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	var out any
+	if err := json.Unmarshal(jsonBytes, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// makeLuaEncodeFunc makes lua::enc(value): value as a lua (and midnight)
+// literal, ex. to hand HCL data to a script as code:
+//
+//	lua::enc({ title = "x", tags = ["a", "b"] }) // { tags = { 'a', 'b' }, title = 'x' }
+func makeLuaEncodeFunc() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{
+				Name:             "value",
+				Type:             cty.DynamicPseudoType,
+				AllowDynamicType: true,
+				AllowMarked:      true,
+				AllowNull:        true,
+			},
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			v, err := ctyToGo(args[0])
+			if err != nil {
+				return cty.StringVal(""), fmt.Errorf("lua::enc: %w", err)
+			}
+			lit, err := luagen.Literal(v)
+			if err != nil {
+				return cty.StringVal(""), fmt.Errorf("lua::enc: %w", err)
+			}
+			return cty.StringVal(lit), nil
+		},
+	})
+}
+
 func ctyToMap(val cty.Value) (map[string]any, error) {
 	val, _ = val.Unmark()
 	if !val.Type().IsMapType() && !val.Type().IsObjectType() {
@@ -704,7 +759,7 @@ func makeJWTSignFunc() function.Function {
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			claims, err := ctyToMap(args[0])
 			if err != nil {
-				return cty.StringVal(""), fmt.Errorf("jwt_sign claims: %w", err)
+				return cty.StringVal(""), fmt.Errorf("jwt::sign claims: %w", err)
 			}
 			secretVal, _ := args[1].Unmark()
 			secret := secretVal.AsString()
@@ -718,7 +773,7 @@ func makeJWTSignFunc() function.Function {
 					} else if optArg.Type().IsMapType() || optArg.Type().IsObjectType() {
 						optMap, err := ctyToMap(optArg)
 						if err != nil {
-							return cty.StringVal(""), fmt.Errorf("jwt_sign opts: %w", err)
+							return cty.StringVal(""), fmt.Errorf("jwt::sign opts: %w", err)
 						}
 						if alg, ok := optMap["alg"].(string); ok {
 							opts.Algorithm = alg
@@ -734,7 +789,7 @@ func makeJWTSignFunc() function.Function {
 							opts.Header = hdr
 						}
 					} else {
-						return cty.StringVal(""), fmt.Errorf("jwt_sign opts must be a string algorithm or map/object, got %s", optArg.Type().FriendlyName())
+						return cty.StringVal(""), fmt.Errorf("jwt::sign opts must be a string algorithm or map/object, got %s", optArg.Type().FriendlyName())
 					}
 				}
 			}

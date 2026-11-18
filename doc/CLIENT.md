@@ -211,13 +211,15 @@ There are a few functions that can be used in a rest file:
 - `env("VALUE")` - grab an environment variable
 - `env("VALUE", "default")` - grab an environment variable, falling back to `"default"` if it is unset or empty
 - `read("./filepath")` - read a file into the rest file, this will just be read into a string so it can be used anywhere (ex. request body,
-- `json_enc({key = "value"})` - turn an HCL table into a string value, useful for templates
-- `json_dec("{\"string\": \"json\"}")` - turn an string into a table value
-- `jwt_sign({sub = "123", role = "admin"}, "secret", {alg = "HS256", expires_in = 3600})` - sign a JWT token (supports `HS256`/`384`/`512`, `RS256`/`384`/`512`, `ES256`/`384`/`512`, `EdDSA`)
-- `jwt_dec(token)` - decode a JWT's claims into an HCL object without verifying the signature
+- `json::enc({key = "value"})` - turn an HCL table into a string value, useful for templates
+- `json::dec("{\"string\": \"json\"}")` - turn an string into a table value
+- `b64::enc("text")` / `b64::dec("dGV4dA==")` - base64 encode / decode a string
+- `jwt::sign({sub = "123", role = "admin"}, "secret", {alg = "HS256", expires_in = 3600})` - sign a JWT token (supports `HS256`/`384`/`512`, `RS256`/`384`/`512`, `ES256`/`384`/`512`, `EdDSA`)
+- `jwt::dec(token)` - decode a JWT's claims into an HCL object without verifying the signature
 - `form({key = "value"}")` - turn map value into a url-encoded form string
 - `btmpl("{\"string\": \"{{named}}\"}", {named = "world"})` - execute a basic template replacing named or indexed values if second argument is an array
-- `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map (currently only map[string]strings are supported)
+- `tmpl("{{{if .named}}\"string\": \"{{.named}}\"{{end}}}", {named = "world"})` - execute a go template with a map. Values can be anything (strings, numbers, lists, objects: `{{.page.title}}`), and `{{lua .page}}` writes a value as a lua (and midnight) literal, like `lua::enc`
+- `lua::enc({title = "x", tags = ["a", "b"]})` - turn an HCL value into a lua (and midnight) literal, `{ tags = { 'a', 'b' }, title = 'x' }`: single quoted strings, sorted keys, `nil` for null
 - `exports::try("key", "default")` - an export, or `"default"` if it isn't set (`exports.key` is an error then). `try_exports` is the old (deprecated) name
 - `raw("CONNECT token")` - mark a [socket](#sockets) playbook entry to be sent as a raw text frame instead of being JSON encoded
 - `is.<type>` / `is("...")` - expectation matchers for `expect { body = ... }` and `expect { headers = ... }`:
@@ -243,10 +245,10 @@ request "my request" {
   }
   # will be {"test": {"hello": "from a file"}}
   body = {
-    test: json_dec("${locals.partial_body}")
+    test: json::dec("${locals.partial_body}")
   }
   # or just used directly
-  body = json_dec(locals.partial_body)
+  body = json::dec(locals.partial_body)
   # or url encoded form string
   body = form({ hello = "world" })
 }
@@ -765,7 +767,7 @@ request "completions" {
   headers = { "Content-Type" = "application/json" }
   body = {
     model = "gpt-4"
-    messages: json_dec(exports::try("conversation", env("conversation")))
+    messages: json::dec(exports::try("conversation", env("conversation")))
   }
 }
 ```

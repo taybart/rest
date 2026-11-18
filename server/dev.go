@@ -18,7 +18,9 @@ import (
 // Dev mode (rest -s -f site.rest --dev) is for working on a site:
 //
 //   - __REST_DEV=1 is set (by the cli, before the file is parsed)
-//   - handler `cache` is off (request block caches stay on)
+//   - handler `cache` is off (request block caches stay on), and files from
+//     `directory` are sent w/ `Cache-Control: no-cache`, so browsers check
+//     for a newer one instead of using what they have cached
 //   - html rest renders gets a script that reloads the page when rest says
 //     so (over /_rest/dev), and after rest restarts
 //   - under `run -w` (with RUN_EVENTS_FD), rest handles file changes itself:

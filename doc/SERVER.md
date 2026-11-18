@@ -221,6 +221,42 @@ rest.req = {
 }
 ```
 
+### Dynamic blocks
+
+Block labels (ex. a handler's path) can't be expressions in HCL, so a
+`dynamic` block (HCL's [dynblock](https://pkg.go.dev/github.com/hashicorp/hcl/v2/ext/dynblock)
+extension, the same as Terraform's) makes blocks from a collection instead,
+ex. a handler per page:
+
+```hcl
+locals {
+  pages = [
+    { path = "/", file = "index.md" },
+    { path = "/docs", file = "docs.md" },
+  ]
+}
+
+server {
+  dynamic "handler" {
+    for_each = locals.pages
+    labels   = ["GET", handler.value.path == "/" ? "/{$}" : handler.value.path]
+    content {
+      page = tmpl(locals.page, { file = handler.value.file })
+    }
+  }
+}
+```
+
+- `for_each` is a list, set, map, or object, one block per element.
+  `handler.value` is the element and `handler.key` its index (or key), or
+  name the variable w/ `iterator = page` (then `page.value`).
+- `labels` are the block's labels, here the method and path, as expressions.
+- `content` is the block's body. A script's language comes from its heredoc
+  marker or `read()` extension like any handler's (else
+  `config.default_language`).
+- It works for `handler` and `middleware` blocks in a `server`. To skip some
+  elements, filter the collection: `[for p in locals.pages : p if p.file != ""]`.
+
 ### Midnight scripts
 
 Scripts (`fn`, `page`, `setup`, middleware) can be written in
@@ -335,6 +371,9 @@ Some things can't be expressed and are approximated or left out, with a comment 
   the file (and `os.getenv` in pages) can tell
 - handler `cache` is off (no response cache or `Cache-Control`), `cache` on
   request blocks still works (so outside APIs aren't hit on every reload)
+- files from `directory` are sent with `Cache-Control: no-cache` (unless the
+  server's `response` headers set one), so browsers check for a newer file
+  instead of reusing a cached one: an edited css / js file is never stale
 - html rest renders gets a small script (before `</body>`) that reloads the
   page when rest comes back after a restart (morphed in, like below)
 

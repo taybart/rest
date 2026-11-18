@@ -12,7 +12,13 @@ import (
 // way of doing it), shown in a warning.
 var deprecatedFuncs = map[string]string{
 	"try_exports": `use exports::try("key", default)`,
-	"jwt_enc":     `use jwt_sign(...), it's the same function`,
+	"b64_dec":     `use b64::dec(...), it's the same function`,
+	"b64_enc":     `use b64::enc(...), it's the same function`,
+	"json_dec":    `use json::dec(...), it's the same function`,
+	"json_enc":    `use json::enc(...), it's the same function`,
+	"jwt_dec":     `use jwt::dec(...), it's the same function`,
+	"jwt_enc":     `use jwt::sign(...), it's the same function`,
+	"jwt_sign":    `use jwt::sign(...), it's the same function`,
 }
 
 // deprecations returns a warning for each use of something deprecated in

@@ -47,7 +47,7 @@ func MarkupElement(l *lua.LState, v lua.LValue) (lua.LValue, bool, error) {
 	markup := l.Get(-1)
 	l.Pop(1)
 
-	if err := l.CallByParam(lua.P{Fn: l.GetField(markup, "isElement"), NRet: 1, Protect: true}, v); err != nil {
+	if err := l.CallByParam(lua.P{Fn: l.GetField(markup, "is_element"), NRet: 1, Protect: true}, v); err != nil {
 		return nil, false, err
 	}
 	isElement := lua.LVAsBool(l.Get(-1))
@@ -99,7 +99,7 @@ func IsInteractive(l *lua.LState) (bool, error) {
 	if l.GetField(l.GetField(l.GetGlobal("package"), "loaded"), lua.MarkupLibName) == lua.LNil {
 		return false, nil // not a markup page (ex. a redirect)
 	}
-	fn, err := l.LoadString(`return require('midnight.markup').isInteractive()`)
+	fn, err := l.LoadString(`return require('midnight.markup').is_interactive()`)
 	if err != nil {
 		return false, err
 	}

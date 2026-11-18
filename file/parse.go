@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/ext/dynblock"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	restlua "github.com/taybart/rest/lua"
@@ -313,7 +314,9 @@ func (p *Parser) Server() (server.Config, error) {
 	if p.Root.Server == nil {
 		return serv, errors.New("server block not found")
 	}
-	if err := p.decode(p.Root.Server.Body, &serv); err != nil {
+	// (dynamic blocks, like terraform's, make blocks from a collection, ex. a
+	// handler per page: see "Dynamic blocks" in doc/SERVER.md)
+	if err := p.decode(dynblock.Expand(p.Root.Server.Body, p.Ctx), &serv); err != nil {
 		return serv, errors.New("error decoding server block")
 	}
 	if body, ok := p.Root.Server.Body.(*hclsyntax.Body); ok {
@@ -321,23 +324,33 @@ func (p *Parser) Server() (server.Config, error) {
 			serv.SetupLang = p.scriptLang(attr.Expr)
 		}
 		// blocks decode in order, so the nth block is the nth middleware/handler
+		// (a dynamic block is as many blocks as its for_each makes, each w/ its
+		// content's script)
 		var mws, handlers int
 		for _, block := range body.Blocks {
-			attr := block.Body.Attributes["fn"]
-			if attr == nil {
-				attr = block.Body.Attributes["page"]
+			typ, script, count := block.Type, block.Body, 1
+			if block.Type == "dynamic" && len(block.Labels) == 1 {
+				typ, script, count = block.Labels[0], dynamicContent(block), p.dynamicCount(block)
 			}
 			var expr hcl.Expression
-			if attr != nil {
-				expr = attr.Expr
+			if script != nil {
+				attr := script.Attributes["fn"]
+				if attr == nil {
+					attr = script.Attributes["page"]
+				}
+				if attr != nil {
+					expr = attr.Expr
+				}
 			}
-			switch block.Type {
-			case "middleware":
-				serv.Middlewares[mws].Lang = p.scriptLang(expr)
-				mws++
-			case "handler":
-				serv.Handlers[handlers].Lang = p.scriptLang(expr)
-				handlers++
+			for range count {
+				switch {
+				case typ == "middleware" && mws < len(serv.Middlewares):
+					serv.Middlewares[mws].Lang = p.scriptLang(expr)
+					mws++
+				case typ == "handler" && handlers < len(serv.Handlers):
+					serv.Handlers[handlers].Lang = p.scriptLang(expr)
+					handlers++
+				}
 			}
 		}
 	}
@@ -651,19 +664,26 @@ func (p *Parser) makeContext() {
 			"is":      makeIsObject(),
 		},
 		Functions: map[string]function.Function{
-			"b64_dec":          makeBase64DecodeFunc(),
-			"b64_enc":          makeBase64EncodeFunc(),
+			"b64::dec":         makeBase64DecodeFunc(),
+			"b64::enc":         makeBase64EncodeFunc(),
+			"b64_dec":          makeBase64DecodeFunc(), // deprecated: b64::dec
+			"b64_enc":          makeBase64EncodeFunc(), // deprecated: b64::enc
 			"btmpl":            makeTemplateFunc(),
 			"env":              makeEnvFunc(),
 			"form":             makeFormFunc(),
 			"is":               makeIsFunc(),
 			"is::array_of":     makeIsWrapFunc("array_of", request.ArrayOfToken),
 			"is::optional":     makeIsWrapFunc("optional", request.OptionalToken),
-			"json_dec":         makeJSONDecodeFunc(),
-			"json_enc":         makeJSONEncodeFunc(),
-			"jwt_dec":          makeJWTDecodeFunc(),
-			"jwt_enc":          makeJWTSignFunc(), // deprecated: jwt_sign
-			"jwt_sign":         makeJWTSignFunc(),
+			"json::dec":        makeJSONDecodeFunc(),
+			"json::enc":        makeJSONEncodeFunc(),
+			"json_dec":         makeJSONDecodeFunc(), // deprecated: json::dec
+			"json_enc":         makeJSONEncodeFunc(), // deprecated: json::enc
+			"jwt::dec":         makeJWTDecodeFunc(),
+			"jwt::sign":        makeJWTSignFunc(),
+			"jwt_dec":          makeJWTDecodeFunc(), // deprecated: jwt::dec
+			"jwt_enc":          makeJWTSignFunc(),   // deprecated: jwt::sign
+			"jwt_sign":         makeJWTSignFunc(),   // deprecated: jwt::sign
+			"lua::enc":         makeLuaEncodeFunc(),
 			"lib::copy_res":    makeLuaHookFunc("tools.copy_res"),
 			"lib::export_res":  makeLuaHookFunc("tools.export_res"),
 			"lib::inspect_jwt": makeLuaHookFunc("tools.inspect_jwt"),
@@ -784,6 +804,31 @@ func (p *Parser) marshalBody(bodyHCL hcl.Expression) (string, error) {
 	}
 
 	return "", nil
+}
+
+// dynamicContent is the body of a dynamic block's content block (the block it
+// makes), or nil.
+func dynamicContent(block *hclsyntax.Block) *hclsyntax.Body {
+	for _, b := range block.Body.Blocks {
+		if b.Type == "content" {
+			return b.Body
+		}
+	}
+	return nil
+}
+
+// dynamicCount is how many blocks a dynamic block makes: the length of its
+// for_each (0 if it can't tell).
+func (p *Parser) dynamicCount(block *hclsyntax.Block) int {
+	attr, ok := block.Body.Attributes["for_each"]
+	if !ok {
+		return 0
+	}
+	v, diags := attr.Expr.Value(p.Ctx)
+	if diags.HasErrors() || !v.IsKnown() || v.IsNull() || !v.CanIterateElements() {
+		return 0
+	}
+	return v.LengthInt()
 }
 
 // scriptLang picks the lang for a script from its heredoc marker (<<MN or

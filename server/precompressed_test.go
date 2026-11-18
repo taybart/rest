@@ -148,3 +148,23 @@ func TestPrecompressedStale(t *testing.T) {
 		})
 	}
 }
+
+// in dev mode, directory files are sent w/ Cache-Control: no-cache (precompressed
+// or not), so browsers check for a newer file instead of using a cached one
+func TestDevNoCache(t *testing.T) {
+	dir := precompressedDir(t)
+	for _, dev := range []bool{false, true} {
+		ts := newServer(server.Config{Quiet: true, Dir: dir, Dev: dev})
+		for _, accept := range []string{"identity", "br"} {
+			res, _ := fetch(t, "GET", ts.URL+"/app.js", map[string]string{"Accept-Encoding": accept})
+			want := ""
+			if dev {
+				want = "no-cache"
+			}
+			if got := res.Header.Get("Cache-Control"); got != want {
+				t.Errorf("dev=%v accept=%s: Cache-Control %q, want %q", dev, accept, got, want)
+			}
+		}
+		ts.Close()
+	}
+}

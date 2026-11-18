@@ -36,7 +36,7 @@ func JSON(v any) JSONValue {
 
 var jsonValueType = reflect.TypeFor[JSONValue]()
 
-// jsonToLua makes a JSONValue markup's encoded JSON (jsonText).
+// jsonToLua makes a JSONValue markup's encoded JSON (json_text).
 func jsonToLua(l *lua.LState, v reflect.Value) (lua.LValue, error) {
 	j := v.Interface().(JSONValue)
 	if j.err != nil {
@@ -47,7 +47,7 @@ func jsonToLua(l *lua.LState, v reflect.Value) (lua.LValue, error) {
 	}
 	markup := l.Get(-1)
 	l.Pop(1)
-	if err := l.CallByParam(lua.P{Fn: l.GetField(markup, "jsonText"), NRet: 1, Protect: true}, lua.LString(j.text)); err != nil {
+	if err := l.CallByParam(lua.P{Fn: l.GetField(markup, "json_text"), NRet: 1, Protect: true}, lua.LString(j.text)); err != nil {
 		return nil, err
 	}
 	res := l.Get(-1)

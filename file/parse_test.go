@@ -448,14 +448,14 @@ func TestJWTFunctionsAndExpectParse(t *testing.T) {
 	tmpDir := t.TempDir()
 	filename := filepath.Join(tmpDir, "jwt.rest")
 	content := `locals {
-  token = jwt_sign({ sub = "user-42", role = "admin" }, "my-secret")
+  token = jwt::sign({ sub = "user-42", role = "admin" }, "my-secret")
 }
 
 request "admin" {
-  url          = "http://localhost:18080/users/${jwt_dec(locals.token).sub}"
+  url          = "http://localhost:18080/users/${jwt::dec(locals.token).sub}"
   bearer_token = locals.token
   body = {
-    role = jwt_dec(locals.token).role
+    role = jwt::dec(locals.token).role
   }
   expect {
     status = 200
@@ -947,6 +947,81 @@ request "a" {
 	}
 	if !strings.Contains(out.String(), "Warning: jwt_enc is deprecated") {
 		t.Errorf("expected a jwt_enc warning, got:\n%s", out.String())
+	}
+}
+
+// the old encoding function names (before their namespaces) still work, w/
+// a warning naming the new one
+func TestEncodingFuncsDeprecated(t *testing.T) {
+	src := `
+locals {
+  a = json_enc({ x = 1 })
+  b = json_dec("{\"x\": 1}")
+  c = b64_enc("hi")
+  d = b64_dec("aGk=")
+  e = jwt_dec(jwt_sign({ sub = "1" }, "secret")).sub
+  f = json::enc({ x = 1 })
+  g = b64::dec(b64::enc("hi"))
+  h = jwt::dec(jwt::sign({ sub = "1" }, "secret")).sub
+  i = json::dec("{\"x\": 1}").x
+}
+request "a" {
+  url = "http://localhost/${locals.e}"
+}
+`
+	var out bytes.Buffer
+	p, err := file.NewParserFromSource("enc.rest", []byte(src), &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	if p.Locals["g"].AsString() != "hi" || p.Locals["d"].AsString() != "hi" {
+		t.Errorf("b64 round trip: got %q / %q", p.Locals["g"].AsString(), p.Locals["d"].AsString())
+	}
+	for _, old := range []string{"json_enc", "json_dec", "b64_enc", "b64_dec", "jwt_dec", "jwt_sign"} {
+		if strings.Count(got, "Warning: "+old+" is deprecated") != 1 {
+			t.Errorf("expected one warning for %s, got:\n%s", old, got)
+		}
+	}
+	for _, name := range []string{"json::", "b64::", "jwt::"} {
+		if strings.Contains(got, "Warning: "+name) {
+			t.Errorf("warned about %s, got:\n%s", name, got)
+		}
+	}
+}
+
+// lua::enc and tmpl's `lua` make lua (and midnight) literals from HCL values,
+// and tmpl takes any values (not only strings)
+func TestLuaEncode(t *testing.T) {
+	src := `
+locals {
+  pages = [
+    { path = "/", title = "It's \"home\"" },
+    { path = "/docs", title = "Docs", tags = ["a", "b"], n = 2 },
+  ]
+  enc   = lua::enc(locals.pages)
+  none  = lua::enc(null)
+  page  = tmpl("{{.p.title}} at {{.p.path}}: {{lua .p}} of {{lua .all}}", { p = locals.pages[1], all = 2 })
+  plain = tmpl("hi {{.name}}", { name = "you" })
+}
+request "a" {
+  url = "http://localhost/"
+}
+`
+	var out bytes.Buffer
+	p, err := file.NewParserFromSource("lua.rest", []byte(src), &out)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out.String())
+	}
+	for name, want := range map[string]string{
+		"enc":   `{ { path = '/', title = 'It\'s "home"' }, { n = 2, path = '/docs', tags = { 'a', 'b' }, title = 'Docs' } }`,
+		"none":  `nil`,
+		"page":  `Docs at /docs: { n = 2, path = '/docs', tags = { 'a', 'b' }, title = 'Docs' } of 2`,
+		"plain": `hi you`,
+	} {
+		if got := p.Locals[name].AsString(); got != want {
+			t.Errorf("%s:\n  got  %s\n  want %s", name, got, want)
+		}
 	}
 }
 
