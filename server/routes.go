@@ -128,8 +128,13 @@ func (s *Server) CustomHandlerFn(handler *Handler) http.HandlerFunc {
 			res, handled, err := s.RunLuaPipeline(handler, r, w)
 			if err != nil {
 				// a script error is the server's (the error is only logged, it
-				// can have script source in it)
+				// can have script source in it, except in dev mode, where the
+				// browser shows it too)
 				log.Error(err)
+				if s.dev != nil {
+					writeHandlerResponse(w, s.dev.errorResponse(r, err))
+					return
+				}
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}

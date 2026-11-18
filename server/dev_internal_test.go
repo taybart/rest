@@ -197,3 +197,74 @@ func TestDevListen(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+// script errors show in the browser in dev mode: page loads get an html page
+// with the error (and the dev script), fetches (ex. actions) get it as text
+func TestDevErrors(t *testing.T) {
+	handlers := func() []*Handler {
+		return []*Handler{
+			{Method: "GET", Path: "/broken", Lang: "midnight",
+				Page: "local t = nil\nreturn <html><body>{t.x}<b>&</b></body></html>"},
+			{Method: "POST", Path: "/act", Fn: "error('boom <b>')"},
+		}
+	}
+	do := func(t *testing.T, url, method, accept string) (int, string, http.Header) {
+		t.Helper()
+		req, _ := http.NewRequest(method, url, nil)
+		if accept != "" {
+			req.Header.Set("Accept", accept)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res.StatusCode, string(b), res.Header
+	}
+
+	s := New(Config{Quiet: true, Dev: true, Handlers: handlers()})
+	ts := httptest.NewServer(s.Server.Handler)
+	defer ts.Close()
+
+	// a page load
+	status, body, h := do(t, ts.URL+"/broken", "GET", "text/html,application/xhtml+xml,*/*;q=0.8")
+	if status != 500 || h.Get(DevErrorHeader) == "" || !strings.HasPrefix(h.Get("Content-Type"), "text/html") {
+		t.Errorf("page load: %d %v", status, h)
+	}
+	if !strings.Contains(body, "data-rest-error") || !strings.Contains(body, "attempt to index") ||
+		strings.Count(body, "data-rest-dev>") != 1 {
+		t.Errorf("page load, no error or dev script:\n%s", body)
+	}
+	// the dev script's re-fetch
+	status, body, h = do(t, ts.URL+"/broken", "GET", "*/*")
+	if status != 500 || h.Get(DevErrorHeader) == "" || !strings.HasPrefix(h.Get("Content-Type"), "text/plain") ||
+		!strings.Contains(body, "attempt to index") || strings.Contains(body, "<script") {
+		t.Errorf("fetch: %d %v\n%s", status, h, body)
+	}
+	// an action (as text, not escaped)
+	status, body, h = do(t, ts.URL+"/act", "POST", "text/html")
+	if status != 500 || h.Get(DevErrorHeader) == "" || !strings.Contains(body, "boom <b>") {
+		t.Errorf("action: %d %v\n%s", status, h, body)
+	}
+
+	// without dev mode, only the status
+	s = New(Config{Quiet: true, Handlers: handlers()})
+	prod := httptest.NewServer(s.Server.Handler)
+	defer prod.Close()
+	status, body, h = do(t, prod.URL+"/broken", "GET", "text/html")
+	if status != 500 || body != "" || h.Get(DevErrorHeader) != "" {
+		t.Errorf("not dev: %d %v %q", status, h, body)
+	}
+}
+
+// the html error page escapes the error
+func TestDevErrorPageEscapes(t *testing.T) {
+	d := newDevMode(Config{})
+	req := httptest.NewRequest("GET", "/x", nil)
+	req.Header.Set("Accept", "text/html")
+	res := d.errorResponse(req, fmt.Errorf("<script>alert(1)</script>"))
+	if strings.Contains(string(res.Body), "<script>alert") || !strings.Contains(string(res.Body), "&lt;script&gt;alert") {
+		t.Errorf("not escaped:\n%s", res.Body)
+	}
+}

@@ -376,6 +376,12 @@ Some things can't be expressed and are approximated or left out, with a comment 
   instead of reusing a cached one: an edited css / js file is never stale
 - html rest renders gets a small script (before `</body>`) that reloads the
   page when rest comes back after a restart (morphed in, like below)
+- script errors show in the browser instead of an empty 500: over the last
+  good page when a reload hits one, in an error page on a fresh load, and over
+  an interactive page when an action fails. The page reloads once a change
+  fixes it. While rest is down (ex. the rest file doesn't parse), a banner says
+  so, and the page reloads when it's back. (Errors are also in rest's output.
+  Without `--dev`, they're only there, since they can show script source.)
 
 Under [run](https://github.com/taybart/run) with `-w`, rest handles file changes
 itself instead of being restarted for every one:
