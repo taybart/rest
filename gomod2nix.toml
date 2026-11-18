@@ -61,6 +61,10 @@ schema = 3
     version = 'v1.6.8'
     hash = 'sha256-9UbNvz9QMrOF1JJKslXvQqZQZK5dPaOULIm+Hh+q6KI='
 
+  [mod.'github.com/taybart/midnight']
+    version = 'v0.0.0-20261118194011-09e59a11f1ad'
+    hash = 'sha256-jewXOA9Vy3z9ScodubJEbO0xZO2rlWv84X8rGRuy8Ow='
+
   [mod.'github.com/zclconf/go-cty']
     version = 'v1.19.0'
     hash = 'sha256-ouk+sVYv5bdDCHjC7k6AgrXiUg1OCtXbdg1209Q3VKE='

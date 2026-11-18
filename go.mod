@@ -2,8 +2,6 @@ module github.com/taybart/rest
 
 go 1.27.0
 
-replace github.com/taybart/midnight => ../midnight/midnight
-
 require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -13,7 +11,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/taybart/args v0.0.11
 	github.com/taybart/log v1.6.8
-	github.com/taybart/midnight v0.0.0-20261118063646-16fb4f5c8f44
+	github.com/taybart/midnight v0.0.0-20261118194011-09e59a11f1ad
 	github.com/zclconf/go-cty v1.19.0
 	golang.org/x/term v0.47.0
 )
