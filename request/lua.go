@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	lua "github.com/taybart/midnight"
+	"github.com/taybart/midnight/luaconv"
 	restlua "github.com/taybart/rest/lua"
 )
 
@@ -95,7 +96,7 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 
 	exportsTable := l.NewTable()
 	if len(req.Exports) > 0 {
-		exportsTable = restlua.MapToLTable(l, req.Exports)
+		exportsTable = luaconv.MapToTable(l, req.Exports)
 	}
 
 	table := restlua.MakeLTable(l, map[string]lua.LValue{
@@ -162,7 +163,7 @@ func execute(l *lua.LState, code, lang string) ([]any, error) {
 	}
 	var returns []any
 	for i := base + 1; i <= l.GetTop(); i++ {
-		returns = append(returns, restlua.LValueToAny(l.Get(i)))
+		returns = append(returns, luaconv.ToGo(l.Get(i)))
 	}
 	return returns, nil
 }
@@ -197,5 +198,5 @@ func (r *Request) RunAfterHookReturns(res *http.Response, jar http.CookieJar) (m
 	if err != nil {
 		return nil, nil, err
 	}
-	return restlua.LTableToMap(exportsTable), returns, nil
+	return luaconv.TableToMap(exportsTable), returns, nil
 }

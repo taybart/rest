@@ -142,7 +142,7 @@ server {
     stateful = true
     fn = <<LUA
       rest.exports.n = (rest.exports.n or 0) + 1
-      return { status = 200, headers = { ["X-Rest-State"] = rest.state }, body = tostring(rest.exports.n) }
+      return { status = 200, headers = { ["X-Midnight-State"] = rest.state }, body = tostring(rest.exports.n) }
     LUA
   }
 }

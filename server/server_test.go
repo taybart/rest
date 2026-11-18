@@ -589,7 +589,7 @@ func TestMidnightMarkupHandlers(t *testing.T) {
 }
 
 // Stateful handlers keep their lua state between requests that send back
-// rest.state (in the X-Rest-State header).
+// rest.state (in the X-Midnight-State header).
 func TestStatefulHandlers(t *testing.T) {
 	ts := newServer(server.Config{
 		Quiet: true,
@@ -680,7 +680,7 @@ func TestPageHandlers(t *testing.T) {
 		t.Fatalf("page: %d %s\n%s", res.StatusCode, res.Header.Get("Content-Type"), page)
 	}
 	// the client posts to the page's own url (rpc: null), with its state
-	cfg := regexp.MustCompile(`rpc: null, headers: \{ 'X-Rest-State': '([^']*)' \}`).FindStringSubmatch(string(page))
+	cfg := regexp.MustCompile(`rpc: null, headers: \{ 'X-Midnight-State': '([^']*)' \}`).FindStringSubmatch(string(page))
 	action := regexp.MustCompile(`midnight\.rpc\('([^']+)'`).FindStringSubmatch(string(page))
 	if cfg == nil || action == nil || !strings.Contains(string(page), ">5</button>") {
 		t.Fatalf("page\n%s", page)
@@ -704,7 +704,7 @@ func TestPageHandlers(t *testing.T) {
 	}
 	post(state, "", click, Response{StatusCode: 200, Body: button("6")})
 	post(state, "", click, Response{StatusCode: 200, Body: button("7")})
-	post("", "", click, Response{StatusCode: 400, Body: `{"error": "missing X-Rest-State header"}`})
+	post("", "", click, Response{StatusCode: 400, Body: `{"error": "missing X-Midnight-State header"}`})
 	post("bogus", "", click, Response{StatusCode: 410, Body: `{"error":"state bogus is gone"}`})
 	post(state, "", `nope`, Response{StatusCode: 400, Body: `{"error": "expected a json body with an action id"}`})
 	post(state, "?blocked=1", click, Response{StatusCode: 403}) // page middleware runs for actions too

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/taybart/rest/pages"
+	"github.com/taybart/midnight/pages"
 )
 
 // A page's state is only kept if it has actions.

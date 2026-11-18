@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	lua "github.com/taybart/midnight"
+	"github.com/taybart/midnight/luaconv"
 	"github.com/taybart/midnight/parse"
 )
 
@@ -111,7 +112,7 @@ func RegisterModules(l *lua.LState) error {
 		switch v := toCopy.(type) {
 		case *lua.LTable:
 			// Marshal table to string
-			tbl := LTableToMap(v)
+			tbl := luaconv.TableToMap(v)
 			b, err := json.Marshal(tbl)
 			if err != nil {
 				l.Push(lua.LBool(false))
@@ -160,97 +161,6 @@ func writeClipboard(text string) error {
 	}
 	cmd.Stdin = strings.NewReader(text)
 	return cmd.Run()
-}
-
-func LValueToAny(value lua.LValue) any {
-	switch v := value.(type) {
-	case lua.LString:
-		return string(v)
-	case lua.LNumber:
-		return float64(v)
-	case lua.LBool:
-		return bool(v)
-	case *lua.LTable:
-		return lTableToValue(v)
-	case *lua.LNilType:
-		return nil
-	default:
-		return lua.LVAsString(v)
-	}
-}
-
-func lTableToValue(table *lua.LTable) any {
-	maxn := table.MaxN()
-	count := 0
-	isSeq := true
-	table.ForEach(func(key, _ lua.LValue) {
-		count++
-		if num, ok := key.(lua.LNumber); ok {
-			idx := int(num)
-			if float64(idx) != float64(num) || idx < 1 || idx > maxn {
-				isSeq = false
-			}
-		} else {
-			isSeq = false
-		}
-	})
-	if isSeq && count == maxn {
-		arr := make([]any, maxn)
-		for i := 1; i <= maxn; i++ {
-			arr[i-1] = LValueToAny(table.RawGetInt(i))
-		}
-		return arr
-	}
-	return LTableToMap(table)
-}
-
-func LTableToMap(table *lua.LTable) map[string]any {
-	result := make(map[string]any)
-
-	table.ForEach(func(key, value lua.LValue) {
-		keyStr := lua.LVAsString(key)
-		result[keyStr] = LValueToAny(value)
-	})
-
-	return result
-}
-
-func AnyToLValue(state *lua.LState, value any) lua.LValue {
-	switch v := value.(type) {
-	case string:
-		return lua.LString(v)
-	case float64:
-		return lua.LNumber(v)
-	case int:
-		return lua.LNumber(v)
-	case bool:
-		return lua.LBool(v)
-	case []any:
-		// sized exactly: NewTable preallocates room for 32 items and 32
-		// keys (~2KB), a lot for a decoded json object with a few fields
-		tbl := state.CreateTable(len(v), 0)
-		for i, item := range v {
-			tbl.RawSetInt(i+1, AnyToLValue(state, item))
-		}
-		return tbl
-	case map[string]any:
-		return MapToLTable(state, v)
-	case nil:
-		return lua.LNil
-	default:
-		return lua.LString(fmt.Sprint(v))
-	}
-}
-
-func MapToLTable(state *lua.LState, data map[string]any) *lua.LTable {
-	table := state.CreateTable(0, len(data))
-
-	for key, value := range data {
-		lval := AnyToLValue(state, value)
-		table.RawSetString(key, lval)
-	}
-
-	return table
 }
 
 func MakeLTableFromMap(l *lua.LState, inMap map[string]string) *lua.LTable {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	lua "github.com/taybart/midnight"
+	"github.com/taybart/midnight/luaconv"
 )
 
 // Requester runs one of the file's request blocks (with its expect and after
@@ -54,18 +55,18 @@ func SetRequester(l *lua.LState, restTbl *lua.LTable, run Requester) {
 			l.ArgError(2, "expected a table of exports")
 		}
 
-		result, err := run(target, LTableToMap(exports))
+		result, err := run(target, luaconv.TableToMap(exports))
 		if err != nil {
 			l.Push(lua.LNil)
 			l.Push(lua.LString(fmt.Sprintf("rest.request(%v): %v", target, err)))
 			return 2
 		}
 		if len(result.Exports) > 0 {
-			MapToLTable(l, result.Exports).ForEach(func(k, v lua.LValue) { exports.RawSet(k, v) })
+			luaconv.MapToTable(l, result.Exports).ForEach(func(k, v lua.LValue) { exports.RawSet(k, v) })
 		}
 		if result.Returns != nil {
 			for _, v := range result.Returns {
-				l.Push(AnyToLValue(l, v))
+				l.Push(luaconv.FromGo(l, v))
 			}
 			return len(result.Returns)
 		}

@@ -24,13 +24,14 @@ import (
 	"time"
 
 	lua "github.com/taybart/midnight"
+	"github.com/taybart/midnight/luaconv"
 )
 
 // JWTOptions configures JWT signing and verification.
 type JWTOptions struct {
-	Algorithm  string
-	Header     map[string]any
-	ExpiresIn  float64 // relative seconds to set exp (and iat if not set)
+	Algorithm        string
+	Header           map[string]any
+	ExpiresIn        float64 // relative seconds to set exp (and iat if not set)
 	NoTimeValidation bool
 }
 
@@ -474,7 +475,7 @@ func parseLuaJWTOpts(l *lua.LState, idx int) JWTOptions {
 	case lua.LString:
 		opts.Algorithm = string(v)
 	case *lua.LTable:
-		m := LTableToMap(v)
+		m := luaconv.TableToMap(v)
 		if alg, ok := m["alg"].(string); ok {
 			opts.Algorithm = alg
 		}
@@ -514,7 +515,7 @@ func luaJWTSign(l *lua.LState) int {
 	secret := l.OptString(2, "")
 	opts := parseLuaJWTOpts(l, 3)
 
-	claims := LTableToMap(claimsTbl)
+	claims := luaconv.TableToMap(claimsTbl)
 	token, err := SignJWT(claims, secret, opts)
 	if err != nil {
 		l.RaiseError("jwt.sign: %v", err)
@@ -533,8 +534,8 @@ func luaJWTDecode(l *lua.LState) int {
 		l.Push(lua.LString(err.Error()))
 		return 3
 	}
-	l.Push(MapToLTable(l, claims))
-	l.Push(MapToLTable(l, header))
+	l.Push(luaconv.MapToTable(l, claims))
+	l.Push(luaconv.MapToTable(l, header))
 	l.Push(lua.LString(sig))
 	return 3
 }
@@ -550,8 +551,8 @@ func luaJWTVerify(l *lua.LState) int {
 		l.Push(lua.LString(err.Error()))
 		return 2
 	}
-	l.Push(MapToLTable(l, claims))
-	l.Push(MapToLTable(l, header))
+	l.Push(luaconv.MapToTable(l, claims))
+	l.Push(luaconv.MapToTable(l, header))
 	return 2
 }
 

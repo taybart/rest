@@ -10,6 +10,7 @@ import (
 	"time"
 
 	lua "github.com/taybart/midnight"
+	"github.com/taybart/midnight/luaconv"
 	"github.com/taybart/rest"
 	"github.com/taybart/rest/client"
 	"github.com/taybart/rest/file"
@@ -29,7 +30,7 @@ func syncExportsTable(l *lua.LState, f *rest.Rest) error {
 	if !ok {
 		return errors.New("rest.exports is not a table")
 	}
-	f.Parser.AddExportsCtx(restlua.LTableToMap(exportsTable))
+	f.Parser.AddExportsCtx(luaconv.TableToMap(exportsTable))
 
 	return nil
 }
@@ -63,7 +64,7 @@ func mergeIntoExports(l *lua.LState, exports map[string]any) {
 		l.SetField(restVal, "exports", exportsTbl)
 	}
 
-	newTbl := restlua.MapToLTable(l, exports)
+	newTbl := luaconv.MapToTable(l, exports)
 	newTbl.ForEach(func(key, value lua.LValue) {
 		exportsTbl.RawSet(key, value)
 	})

@@ -209,21 +209,6 @@ func sameSiteToString(s http.SameSite) string {
 	}
 }
 
-func parseSameSite(s string) http.SameSite {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "default":
-		return http.SameSiteDefaultMode
-	case "lax":
-		return http.SameSiteLaxMode
-	case "strict":
-		return http.SameSiteStrictMode
-	case "none":
-		return http.SameSiteNoneMode
-	default:
-		return 0
-	}
-}
-
 func resCookie(l *lua.LState) int {
 	self := l.CheckTable(1)
 	res := checkResponse(l)
@@ -254,56 +239,6 @@ func resCookie(l *lua.LState) int {
 	}
 	l.Push(lua.LNil)
 	return 1
-}
-
-// ParseLuaCookies converts a Lua cookies table (either map of name -> string/table
-// or array of cookie tables) into a slice of *http.Cookie.
-func ParseLuaCookies(tbl *lua.LTable) []*http.Cookie {
-	var cookies []*http.Cookie
-	tbl.ForEach(func(k, v lua.LValue) {
-		switch val := v.(type) {
-		case *lua.LTable:
-			c := &http.Cookie{}
-			if k.Type() == lua.LTString {
-				c.Name = k.String()
-			}
-			val.ForEach(func(ck, cv lua.LValue) {
-				switch strings.ToLower(ck.String()) {
-				case "name":
-					c.Name = cv.String()
-				case "value":
-					c.Value = cv.String()
-				case "path":
-					c.Path = cv.String()
-				case "domain":
-					c.Domain = cv.String()
-				case "max_age", "maxage":
-					if n, ok := cv.(lua.LNumber); ok {
-						c.MaxAge = int(n)
-					}
-				case "secure":
-					c.Secure = lua.LVAsBool(cv)
-				case "http_only", "httponly":
-					c.HttpOnly = lua.LVAsBool(cv)
-				case "same_site", "samesite":
-					c.SameSite = parseSameSite(cv.String())
-				}
-			})
-			if c.Name != "" {
-				cookies = append(cookies, c)
-			}
-		case *lua.LNilType:
-			// skip nil
-		default:
-			if k.Type() == lua.LTString {
-				cookies = append(cookies, &http.Cookie{
-					Name:  k.String(),
-					Value: val.String(),
-				})
-			}
-		}
-	})
-	return cookies
 }
 
 // MakeCookiesTable converts a slice of *http.Cookie into a Lua table mapping cookie name to value.

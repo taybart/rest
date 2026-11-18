@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/taybart/rest/pages"
+	"github.com/taybart/midnight/pages"
 )
 
 // Pages are handlers with `page` (instead of `fn`): a script that returns a markup
@@ -26,7 +26,7 @@ func pageActionsHandler(page *Handler) *Handler {
 		Method:      http.MethodPost,
 		Path:        page.Path,
 		Middleware:  page.Middleware,
-		Fn:          pages.DispatchScript,
+		Fn:          dispatchScript,
 		Lang:        "lua",
 		Stateful:    true,
 		pageActions: true,
@@ -55,3 +55,13 @@ func checkPages(handlers []*Handler) error {
 	}
 	return nil
 }
+
+// dispatchScript runs an action of a page handler, from a request body
+// (rest.req.body) of { id, data }. It returns a response table.
+const dispatchScript = `
+local ok, body = pcall(json.decode, rest.req.body)
+if not ok or type(body) ~= 'table' or type(body.id) ~= 'string' then
+  return { status = 400, body = '{"error": "expected a json body with an action id"}' }
+end
+return require('midnight.markup').dispatch(body.id, body.data)
+`

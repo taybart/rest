@@ -14,7 +14,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/taybart/log"
-	"github.com/taybart/rest/pages"
+	"github.com/taybart/midnight/pages"
 )
 
 func (s *Server) Routes(server *http.Server) {

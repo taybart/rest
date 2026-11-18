@@ -16,8 +16,8 @@ import (
 	"github.com/rs/cors"
 	"github.com/taybart/log"
 	lua "github.com/taybart/midnight"
+	"github.com/taybart/midnight/pages"
 	restlua "github.com/taybart/rest/lua"
-	"github.com/taybart/rest/pages"
 )
 
 const (

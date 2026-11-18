@@ -11,7 +11,7 @@ import (
 	"time"
 
 	lua "github.com/taybart/midnight"
-	restlua "github.com/taybart/rest/lua"
+	"github.com/taybart/midnight/luaconv"
 )
 
 // DefaultCacheEntries is how many responses a Cache keeps (the ones closest
@@ -53,7 +53,7 @@ func (e *cacheEntry) sharedJSON() (lua.LValue, error) {
 			return
 		}
 		l := lua.NewState(lua.Options{SkipOpenLibs: true})
-		e.json = restlua.AnyToLValue(l, v)
+		e.json = luaconv.FromGo(l, v)
 		l.Close() // (the tables don't belong to the state)
 		if t, ok := e.json.(*lua.LTable); ok {
 			t.FreezeAll()

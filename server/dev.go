@@ -63,14 +63,8 @@ func newDevMode(c Config) *devMode {
 func (d *devMode) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+DevEventsPath, d.events)
 	mux.HandleFunc("GET "+devMorphPath, func(w http.ResponseWriter, r *http.Request) {
-		src, err := idiomorphSource()
-		if err != nil {
-			log.Error(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
 		w.Header().Set("Content-Type", "text/javascript")
-		w.Write([]byte(src))
+		w.Write([]byte(lua.MarkupMorphJS()))
 	})
 }
 
@@ -394,9 +388,7 @@ var devScript = `<script data-rest-dev>(() => {
   }
   const reload = async () => {
     try {
-      // (the midnight client: window.midnight alone can be an element with
-      // id="midnight", browsers put those on window)
-      if (typeof window.midnight?.rpc === 'function') return hard('interactive page (its lua state is per page load)')
+      if (` + lua.MarkupMountedJS + `) return hard('interactive page (its lua state is per page load)')
       if (errorPage) return hard('the page was an error')
       const res = await fetch(location.href)
       if (res.headers.has(errorHeader)) return showError(location.pathname, await res.text())
@@ -448,25 +440,3 @@ var devScript = `<script data-rest-dev>(() => {
   events.addEventListener('reload', reload)
   events.addEventListener('css', (e) => css(e.data))
 })()</script>`
-
-var idiomorph struct {
-	once sync.Once
-	src  string
-	err  error
-}
-
-// idiomorphSource is the idiomorph midnight vendors
-func idiomorphSource() (string, error) {
-	idiomorph.once.Do(func() {
-		l := lua.NewState()
-		defer l.Close()
-		if idiomorph.err = l.DoString(`return require('` + lua.MarkupMorphLibName + `')`); idiomorph.err != nil {
-			return
-		}
-		idiomorph.src = l.ToString(-1)
-		if idiomorph.src == "" {
-			idiomorph.err = fmt.Errorf("dev: %s is empty", lua.MarkupMorphLibName)
-		}
-	})
-	return idiomorph.src, idiomorph.err
-}

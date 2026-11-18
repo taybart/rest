@@ -8,8 +8,9 @@ import (
 
 	"github.com/taybart/log"
 	lua "github.com/taybart/midnight"
+	"github.com/taybart/midnight/luaconv"
+	"github.com/taybart/midnight/pages"
 	restlua "github.com/taybart/rest/lua"
-	"github.com/taybart/rest/pages"
 )
 
 /*
@@ -60,7 +61,7 @@ func (s *Server) kvCacheLoader(l *lua.LState) int {
 		v, ok := s.kv[key]
 		s.kvMu.RUnlock()
 		if ok && v != nil {
-			l.Push(restlua.AnyToLValue(l, v))
+			l.Push(luaconv.FromGo(l, v))
 		} else {
 			l.Push(lua.LNil)
 		}
@@ -69,7 +70,7 @@ func (s *Server) kvCacheLoader(l *lua.LState) int {
 	set := func(l *lua.LState) int {
 		key := l.ToString(1)
 		value := l.Get(2)
-		goVal := restlua.LValueToAny(value)
+		goVal := luaconv.ToGo(value)
 		s.kvMu.Lock()
 		if s.kv == nil {
 			s.kv = make(map[string]any)
@@ -96,7 +97,7 @@ func (s *Server) kvCacheLoader(l *lua.LState) int {
 			snapshot[k] = v
 		}
 		s.kvMu.RUnlock()
-		l.Push(restlua.MapToLTable(l, snapshot))
+		l.Push(luaconv.MapToTable(l, snapshot))
 		return 1
 	}
 	l.SetGlobal("kv", restlua.MakeLTable(l, map[string]lua.LValue{
@@ -132,7 +133,7 @@ func (s *Server) RunLuaSetup() error {
 		return err
 	}
 	// setup's exports are where every request's (and state's) exports start
-	s.setupExports = restlua.LTableToMap(restlua.Exports(l))
+	s.setupExports = luaconv.TableToMap(restlua.Exports(l))
 	return nil
 }
 
@@ -218,7 +219,7 @@ func (s *Server) RunLuaPipeline(handler *Handler, req *http.Request, w http.Resp
 		return res, false, err
 	}
 	if _, ok := l.GetField(rest, "exports").(*lua.LTable); !ok {
-		l.SetField(rest, "exports", restlua.MapToLTable(l, s.setupExports))
+		l.SetField(rest, "exports", luaconv.MapToTable(l, s.setupExports))
 	}
 	restlua.SetRequester(l, rest, s.Config.Requester)
 
