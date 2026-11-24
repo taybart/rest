@@ -42,6 +42,10 @@ EOF
 # Ignore failures and run all blocks
 rest -f api.rest --ignore-fail
 
+# Run test blocks: every test in file order, or one by name
+rest -f api.rest -T
+rest -f api.rest -T checkout
+
 # Run WebSocket block: interactive REPL, full playbook order, or a single entry
 rest -f api.rest -S
 rest -f api.rest -S run
@@ -215,6 +219,21 @@ request "fetch user" {
 }
 ```
 For interactive REPL loops (`loop = <<LUA ... LUA`, `PROMPT`, `input`, `goto continue`), consult `references/CLIENT.md`.
+
+---
+
+## Tests (`test` Block)
+
+A `test` runs request labels in order, sharing exports and cookies between its steps. Each test starts fresh, so list the login step in every test that needs it. Run with `-T` / `-T NAME`. A plain `rest -f` ignores tests.
+
+```hcl
+test "checkout" {
+  order   = ["lib::login", "create cart", "add item"] # skipped and imported requests are allowed
+  cleanup = ["delete cart"]                           # runs even when a step fails
+}
+```
+
+A test stops at the first failing step (request error, `expect` mismatch, or `fail()` in `after`). In tests, `expect` is checked even when an `after` hook doesn't call `lib.expected`. Exits non-zero if any test failed. Labels are checked only when the test runs. See `references/CLIENT.md#tests`.
 
 ---
 

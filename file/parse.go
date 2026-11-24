@@ -74,6 +74,9 @@ type Root struct {
 
 	Requests []*HCLRequest `hcl:"request,block"`
 
+	// Tests aren't merged from imports (see Root.Add)
+	Tests []*HCLTest `hcl:"test,block"`
+
 	Server *struct {
 		Body hcl.Body `hcl:",remain"`
 	} `hcl:"server,block"`

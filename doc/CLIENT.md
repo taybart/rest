@@ -21,6 +21,9 @@ rest -f FILE_NAME
 rest -f FILE_NAME -b BLOCK_NUMBER
 # run by label (request "LABEL_NAME" {)
 rest -f FILE_NAME -l LABLE_NAME
+# run test blocks, all or one (test "TEST_NAME" {)
+rest -f FILE_NAME -T
+rest -f FILE_NAME -T TEST_NAME
 # run from stdin / heredoc
 rest <<'EOF'
 request "test" {
@@ -437,6 +440,47 @@ cli {
   MIDNIGHT
 }
 ```
+
+## Tests
+
+A `test` block runs requests by label in the order you give, so a file can hold a suite of flows. Run them with `-T` (every test, in file order) or `-T NAME` (one test). A plain `rest -f` ignores test blocks.
+
+```hcl
+imports = ["./lib.rest"] # with namespace_imports = true
+
+request "create cart" { ... }
+request "add item"    { ... }
+request "delete cart" { ... }
+
+# costs money, so it's left out of `rest -f` and only runs when a test names it
+request "real charge" {
+  skip = true
+  ...
+}
+
+test "checkout" {
+  order   = ["lib::login", "create cart", "add item", "real charge"]
+  cleanup = ["delete cart"] # runs even when a step fails
+}
+```
+
+```
+$ rest -f shop.rest -T
+=== checkout
+  ✓ lib::login
+  ✓ create cart
+  ✗ add item: request(add item): unexpected status code 201 != 400
+  ↺ delete cart
+FAIL checkout (2/4)
+```
+
+- Each test starts with empty exports and its own cookies. Steps in a test share them, so a test that needs a login lists the login step itself.
+- A step fails on a request error, an `expect` mismatch, or `fail()` in its `after` hook. In a test, `expect` is checked even when the request has an `after` hook (the hook still runs, so its output shows). The test stops at the first failing step, runs `cleanup`, and the next test runs. `rest` exits non-zero if any test failed.
+- Steps can name requests with `skip = true` and imported requests. `skip` only leaves a request out of a whole-file run.
+- A label can appear more than once in `order`.
+- Labels are checked when the test runs, before any of its requests are sent. A test that names a missing request doesn't stop the file's requests from running with `rest -f`.
+- Only the file's own tests run. Tests in imported files are ignored.
+- `--list` lists tests after requests, as `test "NAME"`.
 
 ## Sockets
 

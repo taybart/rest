@@ -30,7 +30,7 @@ func usage(u args.Usage) {
 	}
 	client := []string{
 		"file", "block", "label",
-		"socket", "export", "import", "side", "verbose",
+		"test", "socket", "export", "import", "side", "verbose",
 	}
 
 	var usage strings.Builder
@@ -148,6 +148,12 @@ var (
 				Help:    "Ignore errors and run all blocks",
 				Default: false,
 			},
+			"test": {
+				Short:            "T",
+				Help:             "Run the file's test blocks, or the one named (ex. -T checkout)",
+				DoesNotNeedValue: true,
+				Default:          "",
+			},
 			/*** socket ***/
 			"socket": {
 				Short:            "S",
@@ -183,6 +189,7 @@ var (
 		Label      string `arg:"label"`
 		List       bool   `arg:"list"`
 		Socket     string `arg:"socket"`
+		Test       string `arg:"test"`
 		Export     string `arg:"export"`
 		Import     string `arg:"import"`
 		Side       string `arg:"side"`
@@ -465,9 +472,17 @@ func run() error {
 		return f.RunSocket(c.Socket)
 	}
 
+	if a.Get("test").Provided {
+		log.Debug("running tests on file", c.File)
+		return f.RunTests(c.Test)
+	}
+
 	if c.List {
 		for _, b := range f.Requests {
 			fmt.Println(b.Label)
+		}
+		for _, t := range f.Parser.Root.Tests {
+			fmt.Printf("test %q\n", t.Label)
 		}
 		return nil
 	}

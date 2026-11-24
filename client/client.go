@@ -23,6 +23,10 @@ type Client struct {
 	Out io.Writer
 	// Cache keeps responses of requests with `cache` (in Run), nil disables it
 	Cache *Cache
+	// AlwaysExpect checks expect in Do even when the request has an after
+	// hook (which otherwise has to check it, ex. lib.expected). The hook
+	// still runs, then the expect error wins. Used by tests.
+	AlwaysExpect bool
 }
 
 func New(config request.Config) (*Client, error) {
@@ -76,7 +80,21 @@ func (c *Client) Do(r request.Request) (string, map[string]any, error) {
 	}
 	// run lua code if it exists
 	if r.After != "" {
+		var expectErr error
+		if c.AlwaysExpect {
+			body, err := io.ReadAll(res.Body)
+			res.Body.Close()
+			if err != nil {
+				return "", nil, err
+			}
+			res.Body = io.NopCloser(bytes.NewReader(body))
+			_, expectErr = c.CheckExpectation(r, res)
+			res.Body = io.NopCloser(bytes.NewReader(body))
+		}
 		exports, err := r.RunAfterHook(res, c.client.Jar)
+		if expectErr != nil {
+			return "", exports, expectErr
+		}
 		return "", exports, err
 	}
 
