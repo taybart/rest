@@ -97,7 +97,7 @@ config {
 
 # Note: locals are preprocessed across the file; the last value assigned to a key wins globally.
 locals {
-  base_url = env("API_URL") != "" ? env("API_URL") : "http://localhost:18080"
+  base_url = env("API_URL", "http://localhost:18080") # default when unset or empty
 }
 ```
 
@@ -142,7 +142,7 @@ request "get profile" {
 - **Template requests (`skip = true` & `copy_from`):** A request with `skip = true` won't run during `rest -f` and can be inherited via `copy_from = "label"` (or `"imported_file::label"` when `namespace_imports = true`). Only create a base request when sharing multiple fields (such as auth, headers, method, and `after` hooks) across several requests or importing a request library — for a shared URL prefix or reusable payload map, use `locals` instead.
 
 ### Built-in HCL Functions & Matchers
-- **Environment & Files:** `env("VAR")`, `read("./path/to/file")`
+- **Environment & Files:** `env("VAR")`, `env("VAR", "default")` (falls back when unset or empty), `read("./path/to/file")`
 - **IDs:** `uuid()`, `ulid()`, `nanoid([size [, alphabet]])`
 - **Encoding & Templates:** `json::enc(map)`, `json::dec(str)`, `b64::enc(str)`, `b64::dec(str)`, `jwt::sign(claims, secret [, opts])`, `jwt::dec(token)`, `form(map)`, `btmpl(str, map_or_list)`, `tmpl(str, map)` (go template; map values can be lists / objects, `{{lua .x}}` writes a lua literal), `lua::enc(value)` (an HCL value as a lua / midnight literal) (`json_enc`, `json_dec`, `b64_enc`, `b64_dec`, `jwt_sign`, `jwt_enc`, `jwt_dec` are the deprecated names, they warn)
 - **Exports:** `exports.<key>` (or `rest.exports.<key>`), `exports::try("key", "default")` (`try_exports` is the deprecated name)
