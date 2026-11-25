@@ -132,7 +132,7 @@ request "login" {
 
 request "get profile" {
   url          = "${locals.base_url}/me"
-  bearer_token = exports.auth_token # or exports::try("auth_token", "fallback")
+  bearer_token = exports.auth_token # required: errors if "login" didn't export it
   query        = { expand = "roles" }
   expect       = 200
   after        = [lib.expected, lib.inspect_res]
@@ -145,7 +145,7 @@ request "get profile" {
 - **Environment & Files:** `env("VAR")`, `env("VAR", "default")` (falls back when unset or empty), `read("./path/to/file")`
 - **IDs:** `uuid()`, `ulid()`, `nanoid([size [, alphabet]])`
 - **Encoding & Templates:** `json::enc(map)`, `json::dec(str)`, `b64::enc(str)`, `b64::dec(str)`, `jwt::sign(claims, secret [, opts])`, `jwt::dec(token)`, `form(map)`, `btmpl(str, map_or_list)`, `tmpl(str, map)` (go template; map values can be lists / objects, `{{lua .x}}` writes a lua literal), `lua::enc(value)` (an HCL value as a lua / midnight literal) (`json_enc`, `json_dec`, `b64_enc`, `b64_dec`, `jwt_sign`, `jwt_enc`, `jwt_dec` are the deprecated names, they warn)
-- **Exports:** `exports.<key>` (or `rest.exports.<key>`), `exports::try("key", "default")` (`try_exports` is the deprecated name)
+- **Exports:** use `exports.<key>` (or `rest.exports.<key>`) when the export is required: it errors if the key isn't set. Only use `exports::try("key", default)` when there's a real fallback value (ex. `exports::try("id", 8863)`); never `exports::try("key", "")` or a placeholder default, which just hides a missing export. (`try_exports` is the deprecated name.)
 - **Pre-canned `after` hooks (`lib`):**
   - `lib.expected` — checks the `expect` status/block and fails the run on mismatch (always include in `after` when both `expect` and `after` are set, as custom `after` hooks override automatic `expect` checking unless `lib.expected` or `tools.expected()` is called)
   - `lib.inspect_res`, `lib.inspect_req`, `lib.inspect_jwt` — decode and pretty-print response/request body or JWT
@@ -168,8 +168,10 @@ request "get profile" {
 ## Custom Lua in `after` Hooks
 
 When writing `after = <<LUA ... LUA`:
+- **Which language:** match whatever the file or project already uses (`<<LUA` vs `<<MN`, `.lua` vs `.mn`). If there's nothing to match, default to Lua.
 - **Midnight:** use `<<MN ... MN` or `<<MIDNIGHT ... MIDNIGHT` (or `<<-MN` / `<<-MIDNIGHT`) to write any script (`after`, `cli` `fn`/`loop`, `server` `setup`/`fn`/`page`) in [Midnight](https://github.com/taybart/midnight) instead, or `read("./x.mn")` (the `.mn` or `.midnight` extension makes it midnight). Any other heredoc marker or plain string is lua. `require('name')` also finds `./name.mn`. Same globals. In midnight, `"{x}"` interpolates; use `'...'` for literal braces. midnight has `match`: `match x { 1 | 2 => { ... } _ if cond => { ... } _ => { ... } }` (patterns compare w/ `==`, no fallthrough, `break`/`continue` apply to the enclosing loop).
 - **Globals:** `json` (`encode`/`decode`), `jwt` (`sign`/`encode`, `decode`, `verify`, `is_valid`), `form` (`encode`/`decode`), `inspect` (`inspect(v)`, `inspect.print(v)`), `colors`, `base64` (`encode(str [, opts])`, `decode(str)`), `url` (`escape`/`unescape` for query values, `path_escape`/`path_unescape` for path segments), `html` (`escape`/`unescape` entities), `uuid` (`newv4`, `is_uuid`, `is_uuidv4`), `ulid` (`new([ms])` / `ulid([ms])`, `is_ulid`, `timestamp`), `nanoid` (`new([size [, alphabet]])` / `nanoid(...)`, `is_nanoid(str [, size])`), `tools` (`tools.expected()`), `copy(val)`, `fail(msg)`.
+- **`fail(msg)` vs `error(msg)`:** `fail` hands the cli a clean error (no lua traceback); `error` fails inside the vm. `fail` does **not** stop the hook, so write `return fail("...")` when the code after it would break (ex. `json.decode` of an error response's empty body, whose error then replaces yours). `fail` only exists in `after` hooks; in a `cli` `fn` use `error(msg, 0)`.
 - **Request & Response (`rest.req`, `rest.res`):**
   - Fields: `rest.req.body`, `rest.req.headers`, `rest.req.cookies`, `rest.req.method`, `rest.req.query`, `rest.req.url`, `rest.req.dump`
   - Fields: `rest.res.body`, `rest.res.headers`, `rest.res.cookies`, `rest.res.status`, `rest.res.dump`
@@ -214,7 +216,7 @@ cli {
 }
 
 request "fetch user" {
-  url   = "https://api.example.com/users/${exports::try("user", "default")}"
+  url   = "https://api.example.com/users/${exports.user}"
   after = export_res({ result = "name" })
 }
 ```

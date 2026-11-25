@@ -342,7 +342,12 @@ There are a couple of global libraries available to you:
 Additionally there are a few global functions available to you:
 - `copy("value")` - copy a value to the clipboard, if the value is a table it will be marshalled to json
 - `fail("message")` - return a clean error to the rest cli so it can fail outside of the lua vm
-                    (as opposed to `error("message")`, that does fail in the vm)
+                    (as opposed to `error("message")`, that does fail in the vm).
+                    It does **not** stop the hook: the code after it still runs, so
+                    `return fail("...")` when the rest of the hook can't work (ex.
+                    decoding a 401's empty body would replace your message w/ a
+                    `json.decode` error). Only defined in `after` hooks: in a `cli`
+                    `fn`, use `error("message", 0)` (the `0` drops the line prefix).
 
 Hooks are also passed a `rest` table that contains the following:
 
