@@ -38,10 +38,8 @@ github.com/taybart/args v0.0.11/go.mod h1:aZ8Gg0AdpDyO3BjBfPEiwkIHu/gV/k1Iz4FDJt
 github.com/taybart/log v1.5.1/go.mod h1:zG3tAVOXRh0zQfyxs0dTqarj1hTKFOUWk/oKeiugmZA=
 github.com/taybart/log v1.6.8 h1:30rz86POQrAHWkEsXRGUvcvrb6Tqt1f9RI8CjDH5va0=
 github.com/taybart/log v1.6.8/go.mod h1:zG3tAVOXRh0zQfyxs0dTqarj1hTKFOUWk/oKeiugmZA=
-github.com/taybart/midnight v0.0.0-20261119061707-cab35a9c306b h1:eKhVYbzFwbgquQiJwnsY3l95liBSM9kIk1tnnxZYaWU=
-github.com/taybart/midnight v0.0.0-20261119061707-cab35a9c306b/go.mod h1:AgmmCOgFmoDdroV2TJWbmJqKyr57slSi1i6OcmV6h3w=
-github.com/taybart/midnight v0.0.0-20261122211600-b7227b6681fd h1:dNbFJjsDD568H8AY6NqhrxVp0JC7P7B3vKj8BmOxeo0=
-github.com/taybart/midnight v0.0.0-20261122211600-b7227b6681fd/go.mod h1:AgmmCOgFmoDdroV2TJWbmJqKyr57slSi1i6OcmV6h3w=
+github.com/taybart/midnight v0.0.0-20261125231022-8f428e2bbe32 h1:DOh2XvIv6r5gIn25jtwRc2xifmN5kZKhXVbGHl6hAwA=
+github.com/taybart/midnight v0.0.0-20261125231022-8f428e2bbe32/go.mod h1:AgmmCOgFmoDdroV2TJWbmJqKyr57slSi1i6OcmV6h3w=
 github.com/zclconf/go-cty v1.19.0 h1:IV8WdqYZc2c5rLX9bEoLNXKojBAp0MZPBHMIrCoa/s4=
 github.com/zclconf/go-cty v1.19.0/go.mod h1:12W89jGn3JCOIQi7infWr9m80rOkb5RNYJqXMZcN4c8=
 github.com/zclconf/go-cty-debug v0.0.0-20240509010212-0d6042c53940 h1:4r45xpDWB6ZMSMNJFMOjqrGHynW3DIBuR2H9j0ug+Mo=
