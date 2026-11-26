@@ -20,21 +20,9 @@ import (
 */
 
 func execute(l *lua.LState, code, lang string) error {
-	var cleanError error
+	restlua.RegisterFail(l, "")
 
-	l.SetGlobal("fail", l.NewFunction(func(L *lua.LState) int {
-		cleanError = errors.New(L.CheckString(1))
-		for range 10 {
-			L.Push(lua.LNil)
-		}
-		return 10
-	}))
-
-	if err := restlua.Exec(l, code, lang); err != nil {
-		return err
-	}
-
-	return cleanError
+	return restlua.Exec(l, code, lang)
 }
 
 func (s *Server) initKV() error {

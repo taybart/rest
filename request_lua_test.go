@@ -265,3 +265,31 @@ func TestRequestCacheInvalid(t *testing.T) {
 		t.Errorf("got %v", err)
 	}
 }
+
+// fail stops the after hook (it used to only be the error once it returned)
+func TestAfterFailStops(t *testing.T) {
+	api := upstream()
+	defer api.Close()
+	marker := filepath.Join(t.TempDir(), "reached")
+	src := fmt.Sprintf(`
+request "login" {
+  url    = "%s/login"
+  method = "POST"
+  after  = <<MIDNIGHT
+    fail('stop [here]')
+    local f = io.open('%s', 'w'); f:write('x'); f:close()
+  MIDNIGHT
+}
+`, api.URL, marker)
+	r, err := rest.NewSource("fail.rest", []byte(src), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = r.RunLabelTo(io.Discard, "login")
+	if err == nil || !strings.Contains(err.Error(), "stop [here]") {
+		t.Fatalf("expected the hook's failure, got %v", err)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("the hook kept going after fail")
+	}
+}

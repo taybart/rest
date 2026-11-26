@@ -156,6 +156,9 @@ func Quote(s string) string {
 }
 
 func FmtError(code string, err error) error {
+	if f, ok := asFailure(err); ok {
+		return f
+	}
 	if apiErr, ok := err.(*lua.ApiError); ok {
 		errMsg := apiErr.Object.String()
 		lineNum := extractLineNumber(errMsg)

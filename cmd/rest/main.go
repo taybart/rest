@@ -16,6 +16,7 @@ import (
 	"github.com/taybart/rest/exports"
 	"github.com/taybart/rest/file"
 	"github.com/taybart/rest/imports"
+	restlua "github.com/taybart/rest/lua"
 	"github.com/taybart/rest/server"
 	"golang.org/x/term"
 )
@@ -199,6 +200,11 @@ var (
 
 func main() {
 	if err := run(); err != nil {
+		var failure *restlua.Failure
+		if errors.As(err, &failure) {
+			printFailure(failure)
+			os.Exit(failure.Code)
+		}
 		log.Error(err)
 		os.Exit(1)
 	}
@@ -333,6 +339,12 @@ func run() error {
 			if err != nil {
 				return err
 			}
+			if hasHelpFlag(os.Args[1:]) {
+				if !printCLIHelp(os.Stdout, cliBlock) {
+					fmt.Println("no usage or flags to show, add usage = \"...\" to the cli block")
+				}
+				return nil
+			}
 			cliFlagValues, restArgs, helpRequested, err := parseCLIFlagsWithArgs(cliBlock.Flags, nil)
 			if err != nil {
 				return err
@@ -359,9 +371,10 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		reserved := getReservedFlags(a)
-		_, _, _, err = parseCLIFlagsWithArgs(cliBlock.Flags, reserved)
-		return err
+		if !printCLIHelp(os.Stdout, cliBlock) {
+			a.Usage() // nothing to show for the cli, rest's own help
+		}
+		return nil
 	}
 
 	if err := a.Parse(); err != nil {

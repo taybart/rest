@@ -1,5 +1,5 @@
 .DS_Store
 .env
 result
-rest
-rest-linux-amd64
+/rest
+/rest-linux-amd64

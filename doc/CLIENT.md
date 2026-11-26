@@ -212,7 +212,8 @@ request "my request" {
 There are a few functions that can be used in a rest file:
 
 - `env("VALUE")` - grab an environment variable
-- `env("VALUE", "default")` - grab an environment variable, falling back to `"default"` if it is unset or empty
+- `env("VALUE", "default")` - grab an environment variable, falling back to `"default"` if it is unset or empty. The default is only evaluated when it is needed, so `env("PASSWORD", op::read("op://..."))` doesn't call `op` when `PASSWORD` is set. Conditionals (`cond ? a : b`) also only evaluate the branch they pick
+- `op::read("op://vault/item/field")` / `op::read("op://vault/item/field", "my.1password.com")` - read a secret from 1Password with the `op` CLI (`op read`). The optional second argument is the account (sign-in address, account ID or email, like `op --account`), without it `op` uses `OP_ACCOUNT` or its default. Each reference is read once per run and cached in memory (never on disk)
 - `read("./filepath")` - read a file into the rest file, this will just be read into a string so it can be used anywhere (ex. request body,
 - `json::enc({key = "value"})` - turn an HCL table into a string value, useful for templates
 - `json::dec("{\"string\": \"json\"}")` - turn an string into a table value
@@ -341,13 +342,11 @@ There are a couple of global libraries available to you:
 
 Additionally there are a few global functions available to you:
 - `copy("value")` - copy a value to the clipboard, if the value is a table it will be marshalled to json
-- `fail("message")` - return a clean error to the rest cli so it can fail outside of the lua vm
-                    (as opposed to `error("message")`, that does fail in the vm).
-                    It does **not** stop the hook: the code after it still runs, so
-                    `return fail("...")` when the rest of the hook can't work (ex.
-                    decoding a 401's empty body would replace your message w/ a
-                    `json.decode` error). Only defined in `after` hooks: in a `cli`
-                    `fn`, use `error("message", 0)` (the `0` drops the line prefix).
+- `fail("message" [, code])` - stop the hook (or `cli` `fn`, or server script) with a clean
+                    error, no line of code or traceback like `error("message")` adds.
+                    It stops right there, so nothing after it runs. `code` is the
+                    exit code when it ends a `cli` (`1` by default). It's a lua
+                    error, so `pcall` / `catch` can catch it.
 
 Hooks are also passed a `rest` table that contains the following:
 
@@ -657,6 +656,9 @@ cli {
     end
   LUA
 
+  # optional: printed by -h / --help (above the flags) and fail.usage(), as is
+  usage = "usage: mycli.rest [--loud] --name <name>"
+
   # optional: define custom flags that can be passed on the command line
   flags = {
     name = {
@@ -680,7 +682,7 @@ cli {
 
 ### CLI Flags
 
-Flags defined in the `cli` block can be passed on the command line just like built-in flags (using `github.com/taybart/args`). Passing `-h` or `--help` prints the description of all declared flags in the `cli` block.
+Flags defined in the `cli` block can be passed on the command line just like built-in flags (using `github.com/taybart/args`). Passing `-h` or `--help` prints the block's `usage` and the description of all its declared flags, and the `fn` doesn't run.
 
 Flags are exposed to the Lua loop/fn as fields on the global `cli` table, typed by kind: string flags are Lua strings, bool flags are real Lua booleans. Keys are the flags' literal HCL names, so hyphenated flags must be indexed as strings in Lua: a `list-dir` flag is `cli["list-dir"]` (writing `cli.list-dir` would parse as subtraction).
 
@@ -713,6 +715,21 @@ end
 -- Remaining positional arguments are available on cli.rest (1-indexed table)
 -- and can be joined into a string with cli.rest:string() (defaults to " " separator)
 local query = cli.rest:string() -- or cli.rest:string(",") or tostring(cli.rest)
+```
+
+**Usage and failing:** `usage` is on the `cli` table too (`cli.usage`). `fail(msg [, code])` stops the `fn` with `msg` and exits with `code` (`1` by default), and `fail.usage([msg])` stops it with `msg` (if given) followed by the usage, exiting `2`:
+
+```hcl
+cli {
+  usage = "usage: champ.rest [show|heal] <champ>"
+  fn = <<MIDNIGHT
+    local op, who = cli.rest[1], cli.rest[2]
+    if op == 'help' { print(cli.usage); return }
+    if !who { fail.usage('no champ given') }
+    local res, err = rest.request('champ', { who = who })
+    if err { fail("couldn't get {who}: {err}") }
+  MIDNIGHT
+}
 ```
 
 **Disabling built-in rest flags (`no_flags`):** By default, flag names and short flags must not conflict with any built-in rest flags (e.g., `file`/`f`, `block`/`b`, `label`/`l`, `dir`/`d`, `serve`/`s`, etc.). To disable rest's built-in CLI flags for a file so your `cli` block can freely use any flag names or short flags, set `no_flags = true` in the `config` block (pass `--flags` on the command line to override `no_flags` and use standard `rest` flags like `-l` or `-b`):

@@ -14,11 +14,13 @@ import (
 	"text/template"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/hcl/v2/ext/customdecode"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/taybart/midnight/luagen"
 	restlua "github.com/taybart/rest/lua"
 	"github.com/taybart/rest/request"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -144,6 +146,10 @@ func makeTrimFunc() function.Function {
 		},
 	})
 }
+
+// makeEnvFunc is env("KEY") or env("KEY", default). The default is only
+// evaluated when KEY is unset or empty, so env("PASSWORD", op::read(...))
+// doesn't call op when PASSWORD is set.
 func makeEnvFunc() function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
@@ -153,11 +159,10 @@ func makeEnvFunc() function.Function {
 				AllowMarked: true,
 			},
 		},
-		// optional default: env("KEY", "fallback")
+		// optional default: env("KEY", "fallback"), passed unevaluated
 		VarParam: &function.Parameter{
-			Name:        "default",
-			Type:        cty.String,
-			AllowMarked: true,
+			Name: "default",
+			Type: customdecode.ExpressionClosureType,
 		},
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
@@ -166,11 +171,25 @@ func makeEnvFunc() function.Function {
 			}
 			envArg, _ := args[0].Unmark()
 			val := os.Getenv(envArg.AsString())
-			if val == "" && len(args) == 2 {
-				def, _ := args[1].Unmark()
-				return cty.StringVal(def.AsString()), nil
+			if val != "" || len(args) < 2 {
+				return cty.StringVal(val), nil
 			}
-			return cty.StringVal(val), nil
+			def, diags := customdecode.ExpressionClosureFromVal(args[1]).Value()
+			if diags.HasErrors() {
+				return cty.NilVal, function.NewArgError(1, diags)
+			}
+			def, _ = def.Unmark()
+			if !def.IsKnown() {
+				return cty.UnknownVal(cty.String), nil
+			}
+			def, err := convert.Convert(def, cty.String)
+			if err != nil {
+				return cty.NilVal, function.NewArgErrorf(1, "default must be a string: %s", err)
+			}
+			if def.IsNull() {
+				return cty.StringVal(""), nil
+			}
+			return def, nil
 		},
 	})
 }

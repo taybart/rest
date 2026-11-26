@@ -109,6 +109,9 @@ func populateGlobalObject(l *lua.LState, f *rest.Rest, cliBlock file.CLI, cliFla
 	l.SetField(mt, "__tostring", joinFn)
 	l.SetMetatable(restTbl, mt)
 	l.SetField(cliTable, "rest", restTbl)
+	if cliBlock.Usage != nil {
+		l.SetField(cliTable, "usage", lua.LString(strings.TrimRight(*cliBlock.Usage, "\n")))
+	}
 
 	for k, v := range cliFlags {
 		if flagDef, ok := cliBlock.Flags[k]; ok && flagDef.Bool {
@@ -273,6 +276,11 @@ func runCLITool(f *rest.Rest, cliBlock file.CLI, cliFlags map[string]string, res
 	if err := populateGlobalObject(l, f, cliBlock, cliFlags, restArgs); err != nil {
 		return err
 	}
+	var usage string
+	if cliBlock.Usage != nil {
+		usage = *cliBlock.Usage
+	}
+	restlua.RegisterFail(l, usage)
 
 	if cliBlock.Fn != nil {
 		return execute(l, *cliBlock.Fn, cliBlock.FnLang)

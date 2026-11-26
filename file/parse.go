@@ -43,6 +43,8 @@ type CLIFlag struct {
 }
 
 type CLI struct {
+	// Usage is printed by -h/--help (with the flags) and fail.usage()
+	Usage     *string `hcl:"usage,optional"`
 	Fn        *string `hcl:"fn,optional"`
 	Loop      *string `hcl:"loop,optional"`
 	FnLang    string
@@ -227,6 +229,9 @@ func (p *Parser) parse(filename string, src []byte, root *Root) error {
 	if diags.HasErrors() {
 		p.writeDiags(diags)
 		return errors.New("failed to read rest file")
+	}
+	if body, ok := p.Files[filename].Body.(*hclsyntax.Body); ok {
+		lazyConditionals(body)
 	}
 
 	if diags := gohcl.DecodeBody(p.Files[filename].Body, nil, root); diags.HasErrors() {
@@ -693,6 +698,7 @@ func (p *Parser) makeContext() {
 			"lib::inspect_req": makeLuaHookFunc("tools.inspect_req"),
 			"lib::inspect_res": makeLuaHookFunc("tools.inspect_res"),
 			"nanoid":           makeNanoIDFunc(),
+			"op::read":         makeOpReadFunc(),
 			"raw":              makeRawFunc(),
 			"read":             makeFileReadFunc(p.sources.add),
 			"tmpl":             makeGoTemplateFunc(),

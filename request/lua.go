@@ -1,7 +1,6 @@
 package request
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -141,22 +140,11 @@ func populateGlobalObject(l *lua.LState, req *Request, res *http.Response, jar h
 // execute runs code, returning what it returned (copied out of the state, as
 // data)
 func execute(l *lua.LState, code, lang string) ([]any, error) {
-	var cleanError error
-
-	l.SetGlobal("fail", l.NewFunction(func(L *lua.LState) int {
-		cleanError = errors.New(L.CheckString(1))
-		for range 10 {
-			L.Push(lua.LNil)
-		}
-		return 10
-	}))
+	restlua.RegisterFail(l, "")
 
 	base := l.GetTop()
 	if err := restlua.Exec(l, code, lang); err != nil {
 		return nil, err
-	}
-	if cleanError != nil {
-		return nil, cleanError
 	}
 	if err := syncExportsTable(l); err != nil {
 		return nil, err
