@@ -238,3 +238,35 @@ func TestTestNotFound(t *testing.T) {
 		t.Fatal("expected error for a file without tests")
 	}
 }
+
+func TestTestSeedsExports(t *testing.T) {
+	var body string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b := new(bytes.Buffer)
+		b.ReadFrom(r.Body)
+		body = r.URL.Path + " " + b.String()
+	}))
+	t.Cleanup(s.Close)
+	out, err := runTests(t, map[string]string{"main.rest": fmt.Sprintf(`
+locals { url = "%s" }
+request "send" {
+  method = "POST"
+  url    = "${locals.url}/${exports.id}"
+  body   = exports::try("payload", "{}")
+  after  = "if rest.exports.payload.args.who ~= 'Frank' then fail('not seeded') end"
+}
+test "seeded" {
+  exports = {
+    id      = "abc"
+    payload = { method = "admin", args = { who = "Frank" } }
+  }
+  order = ["send"]
+}
+`, s.URL)}, "seeded")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if want := `/abc {"args":{"who":"Frank"},"method":"admin"}`; body != want {
+		t.Fatalf("got %q, want %q", body, want)
+	}
+}

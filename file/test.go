@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // HCLTest is a test block, decoded when the test runs (see Parser.Test) so a
@@ -15,11 +16,14 @@ type HCLTest struct {
 }
 
 // Test is a list of request labels run in order, sharing exports. Cleanup
-// runs after, even if a step failed.
+// runs after, even if a step failed. Exports seeds the test's exports before
+// its first step.
 type Test struct {
-	Label   string
-	Order   []string `hcl:"order"`
-	Cleanup []string `hcl:"cleanup,optional"`
+	Label      string
+	Order      []string  `hcl:"order"`
+	Cleanup    []string  `hcl:"cleanup,optional"`
+	RawExports cty.Value `hcl:"exports,optional"`
+	Exports    map[string]any
 }
 
 // Test decodes a test block and checks that every label it names is a
@@ -28,6 +32,13 @@ func (p *Parser) Test(ht *HCLTest) (Test, error) {
 	t := Test{Label: ht.Label}
 	if err := p.decode(ht.Body, &t); err != nil {
 		return t, fmt.Errorf("test(%s): %w", ht.Label, err)
+	}
+	if !t.RawExports.IsNull() {
+		exports, err := ctyToMap(t.RawExports)
+		if err != nil {
+			return t, fmt.Errorf("test(%s): exports: %w", ht.Label, err)
+		}
+		t.Exports = exports
 	}
 	if len(t.Order) == 0 {
 		return t, fmt.Errorf("test(%s): order is empty", ht.Label)

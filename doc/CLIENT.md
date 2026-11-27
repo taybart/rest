@@ -479,6 +479,14 @@ FAIL checkout (2/4)
 ```
 
 - Each test starts with empty exports and its own cookies. Steps in a test share them, so a test that needs a login lists the login step itself.
+- `exports = { ... }` seeds a test's exports before its first step, so one set of requests can run with different inputs. Values can be any HCL value (`locals`, `env()` and functions work), and steps can overwrite them.
+
+  ```hcl
+  test "revive Frank" {
+    exports = { payload = { method = "admin", args = { op = "revive", who = "Frank" } } }
+    order   = ["login", "bots", "rpc"] # rpc has body = exports.payload
+  }
+  ```
 - A step fails on a request error, an `expect` mismatch, or `fail()` in its `after` hook. In a test, `expect` is checked even when the request has an `after` hook (the hook still runs, so its output shows). The test stops at the first failing step, runs `cleanup`, and the next test runs. `rest` exits non-zero if any test failed.
 - Steps can name requests with `skip = true` and imported requests. `skip` only leaves a request out of a whole-file run.
 - A label can appear more than once in `order`.

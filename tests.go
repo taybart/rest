@@ -70,6 +70,7 @@ func (rest *Rest) runTest(w io.Writer, ht *file.HCLTest) (bool, error) {
 		fmt.Fprintf(w, "FAIL %s: %s\n", ht.Label, indent(err.Error()))
 		return false, nil
 	}
+	parser.AddExportsCtx(t.Exports)
 	c, err := client.New(parser.Config)
 	if err != nil {
 		return false, err

@@ -227,6 +227,7 @@ A `test` runs request labels in order, sharing exports and cookies between its s
 
 ```hcl
 test "checkout" {
+  exports = { sku = "abc-1" }                         # optional, seeds exports before the first step
   order   = ["lib::login", "create cart", "add item"] # skipped and imported requests are allowed
   cleanup = ["delete cart"]                           # runs even when a step fails
 }
